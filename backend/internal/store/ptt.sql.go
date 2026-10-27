@@ -211,7 +211,7 @@ SET floor_holder_id = $1, floor_expires_at = $2
 WHERE trip_id = $3
   AND closed_at IS NULL
   AND (closes_at IS NULL OR closes_at > $4)
-  AND (floor_holder_id IS NULL OR floor_holder_id = $1 OR floor_expires_at < $4)
+  AND (floor_holder_id IS NULL OR floor_holder_id = $1)
 RETURNING floor_expires_at
 `
 
@@ -222,7 +222,9 @@ type TakePTTFloorParams struct {
 	Now       pgtype.Timestamptz
 }
 
-// Turno exclusivo: se concede si está libre, ya era del llamante o caducó (FR-017).
+// Turno exclusivo: se concede si está libre o ya era del llamante (FR-017). Un turno caducado
+// solo lo libera el barrido tras retirar el permiso en LiveKit, para no perder la pista de un
+// permiso que siga concedido.
 func (q *Queries) TakePTTFloor(ctx context.Context, arg TakePTTFloorParams) (pgtype.Timestamptz, error) {
 	row := q.db.QueryRow(ctx, takePTTFloor,
 		arg.UserID,

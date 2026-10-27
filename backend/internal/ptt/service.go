@@ -141,11 +141,14 @@ func (s *Service) Token(ctx context.Context, userID, tripID uuid.UUID) (Credenti
 }
 
 // TakeFloor grants the exclusive turn for FloorTTL and lets the caller publish audio in the
-// room; the other party loses that right. The holder may renew it (FR-017).
+// room. The holder may renew it (FR-017).
+//
+// Publishing rights follow the floor row fail-closed: a row is cleared only after LiveKit
+// confirmed the revoke (ReleaseFloor, ExpireFloors), so whoever may publish always holds the
+// floor or an expired floor the sweeper keeps retrying, and nobody else can take it meanwhile.
 func (s *Service) TakeFloor(ctx context.Context, userID, tripID uuid.UUID) (time.Time, error) {
 	now := s.now()
-	other, err := s.other(ctx, userID, tripID)
-	if err != nil {
+	if _, err := s.other(ctx, userID, tripID); err != nil {
 		return time.Time{}, err
 	}
 	ch, err := s.channel(ctx, tripID, now)
@@ -165,27 +168,25 @@ func (s *Service) TakeFloor(ctx context.Context, userID, tripID uuid.UUID) (time
 	if err != nil {
 		return time.Time{}, err
 	}
-	// Un turno anterior de la otra parte pudo caducar sin que el barrido lo retirara aún.
-	if err := s.Rooms.SetCanPublish(ctx, ch.RoomName, other.String(), false); err != nil {
-		s.logger().WarnContext(ctx, "revoke livekit publish", "room", ch.RoomName, "err", err)
-	}
 	if err := s.Rooms.SetCanPublish(ctx, ch.RoomName, userID.String(), true); err != nil {
 		s.logger().ErrorContext(ctx, "grant livekit publish", "room", ch.RoomName, "err", err)
-		if err := s.Store.ReleasePTTFloor(ctx, store.ReleasePTTFloorParams{TripID: tripID, FloorHolderID: holder(userID)}); err != nil {
-			return time.Time{}, err
+		// LiveKit pudo aplicar el permiso aunque la llamada fallara: se suelta el turno solo si
+		// el permiso queda retirado; si no, caduca y el barrido lo retira.
+		if s.Rooms.SetCanPublish(ctx, ch.RoomName, userID.String(), false) == nil {
+			if err := s.Store.ReleasePTTFloor(ctx, store.ReleasePTTFloorParams{TripID: tripID, FloorHolderID: holder(userID)}); err != nil {
+				return time.Time{}, err
+			}
 		}
 		return time.Time{}, ErrUnavailable
 	}
 	return expires.Time, nil
 }
 
-// ReleaseFloor frees the turn if the user holds it and takes away their right to publish.
+// ReleaseFloor takes away the user's right to publish and then frees the turn. If LiveKit does
+// not confirm the revoke the turn stays held, so it expires and the sweeper retries the revoke.
 // Releasing a turn you do not hold changes nothing.
 func (s *Service) ReleaseFloor(ctx context.Context, userID, tripID uuid.UUID) error {
 	if _, err := s.other(ctx, userID, tripID); err != nil {
-		return err
-	}
-	if err := s.Store.ReleasePTTFloor(ctx, store.ReleasePTTFloorParams{TripID: tripID, FloorHolderID: holder(userID)}); err != nil {
 		return err
 	}
 	ch, err := s.Store.GetPTTChannel(ctx, tripID)
@@ -195,10 +196,14 @@ func (s *Service) ReleaseFloor(ctx context.Context, userID, tripID uuid.UUID) er
 	if err != nil {
 		return err
 	}
-	if err := s.Rooms.SetCanPublish(ctx, ch.RoomName, userID.String(), false); err != nil {
-		s.logger().WarnContext(ctx, "revoke livekit publish", "room", ch.RoomName, "err", err)
+	if ch.FloorHolderID != holder(userID) {
+		return nil
 	}
-	return nil
+	if err := s.Rooms.SetCanPublish(ctx, ch.RoomName, userID.String(), false); err != nil {
+		s.logger().ErrorContext(ctx, "revoke livekit publish", "room", ch.RoomName, "err", err)
+		return ErrUnavailable
+	}
+	return s.Store.ReleasePTTFloor(ctx, store.ReleasePTTFloorParams{TripID: tripID, FloorHolderID: holder(userID)})
 }
 
 // ExpireFloors frees turns past their FloorTTL and revokes their holders' publishing, so an app

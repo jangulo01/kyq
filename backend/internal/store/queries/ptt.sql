@@ -10,13 +10,15 @@ UPDATE ptt_channels SET closes_at = $2 WHERE trip_id = $1 AND closed_at IS NULL;
 SELECT * FROM ptt_channels WHERE trip_id = $1;
 
 -- name: TakePTTFloor :one
--- Turno exclusivo: se concede si está libre, ya era del llamante o caducó (FR-017).
+-- Turno exclusivo: se concede si está libre o ya era del llamante (FR-017). Un turno caducado
+-- solo lo libera el barrido tras retirar el permiso en LiveKit, para no perder la pista de un
+-- permiso que siga concedido.
 UPDATE ptt_channels
 SET floor_holder_id = sqlc.arg(user_id), floor_expires_at = sqlc.arg(expires_at)
 WHERE trip_id = sqlc.arg(trip_id)
   AND closed_at IS NULL
   AND (closes_at IS NULL OR closes_at > sqlc.arg(now))
-  AND (floor_holder_id IS NULL OR floor_holder_id = sqlc.arg(user_id) OR floor_expires_at < sqlc.arg(now))
+  AND (floor_holder_id IS NULL OR floor_holder_id = sqlc.arg(user_id))
 RETURNING floor_expires_at;
 
 -- name: ReleasePTTFloor :exec

@@ -72,11 +72,16 @@ type fakeRooms struct {
 	created, deleted []string
 	canPublish       map[string]bool // último permiso por identidad
 	failDelete       bool
+	failGrant        bool
+	failRevoke       bool
 }
 
 func (r *fakeRooms) SetCanPublish(_ context.Context, _, identity string, canPublish bool) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if (canPublish && r.failGrant) || (!canPublish && r.failRevoke) {
+		return errors.New("livekit caído")
+	}
 	if r.canPublish == nil {
 		r.canPublish = map[string]bool{}
 	}
@@ -266,6 +271,57 @@ func TestIntegrationChannelLifecycle(t *testing.T) {
 	n, err = f.ptt.CloseDue(ctx)
 	require.NoError(t, err)
 	assert.Zero(t, n, "se cierra una sola vez")
+}
+
+func TestIntegrationFailedRevokeKeepsTheFloorUntilTheSweeperRevokes(t *testing.T) {
+	f := setup(t)
+	ctx := context.Background()
+	tripID := f.acceptedTrip(t)
+	_, err := f.ptt.TakeFloor(ctx, f.passenger, tripID)
+	require.NoError(t, err)
+
+	f.rooms.failRevoke = true
+	assert.ErrorIs(t, f.ptt.ReleaseFloor(ctx, f.passenger, tripID), ptt.ErrUnavailable)
+	assert.True(t, f.rooms.publishes(f.passenger), "LiveKit no retiró el permiso")
+	_, err = f.ptt.TakeFloor(ctx, f.driver, tripID)
+	assert.ErrorIs(t, err, ptt.ErrBusy, "el turno sigue registrado mientras el permiso siga dado")
+
+	f.advance(ptt.FloorTTL + time.Second)
+	n, err := f.ptt.ExpireFloors(ctx)
+	require.NoError(t, err)
+	assert.Zero(t, n, "sin retirada confirmada no se libera")
+	_, err = f.ptt.TakeFloor(ctx, f.driver, tripID)
+	assert.ErrorIs(t, err, ptt.ErrBusy, "ni siquiera caducado")
+
+	f.rooms.failRevoke = false
+	n, err = f.ptt.ExpireFloors(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, 1, n)
+	assert.False(t, f.rooms.publishes(f.passenger))
+	_, err = f.ptt.TakeFloor(ctx, f.driver, tripID)
+	assert.NoError(t, err)
+}
+
+func TestIntegrationFailedGrantDoesNotKeepTheFloor(t *testing.T) {
+	f := setup(t)
+	ctx := context.Background()
+	tripID := f.acceptedTrip(t)
+
+	f.rooms.failGrant = true
+	_, err := f.ptt.TakeFloor(ctx, f.passenger, tripID)
+	assert.ErrorIs(t, err, ptt.ErrUnavailable)
+	f.rooms.failGrant = false
+	_, err = f.ptt.TakeFloor(ctx, f.driver, tripID)
+	assert.NoError(t, err, "con el permiso retirado el turno se soltó")
+
+	// Si tampoco se puede retirar, el turno queda hasta que el barrido lo confirme.
+	require.NoError(t, f.ptt.ReleaseFloor(ctx, f.driver, tripID))
+	f.rooms.failGrant, f.rooms.failRevoke = true, true
+	_, err = f.ptt.TakeFloor(ctx, f.passenger, tripID)
+	assert.ErrorIs(t, err, ptt.ErrUnavailable)
+	f.rooms.failGrant, f.rooms.failRevoke = false, false
+	_, err = f.ptt.TakeFloor(ctx, f.driver, tripID)
+	assert.ErrorIs(t, err, ptt.ErrBusy)
 }
 
 func TestIntegrationCancelClosesChannelAtOnce(t *testing.T) {

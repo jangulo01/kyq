@@ -386,6 +386,7 @@ paths:
       responses:
         '204': { description: Liberado }
         '404': { $ref: '#/components/responses/Error' }
+        '503': { description: 'LiveKit no confirmó la retirada del permiso; el turno sigue y caduca solo, `ptt_unavailable`' }
 
   /v1/admin/usage:
     get:
