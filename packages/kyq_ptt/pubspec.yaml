@@ -1,0 +1,21 @@
+name: kyq_ptt
+description: "Walkie-talkie PTT de Kyq, sala de voz, turno y foco de audio."
+version: 0.1.0
+publish_to: none
+
+resolution: workspace
+
+environment:
+  sdk: ^3.12.2
+  flutter: ">=3.44.0"
+
+dependencies:
+  audio_session: ^0.2.4
+  flutter:
+    sdk: flutter
+  livekit_client: ^2.13.2
+
+dev_dependencies:
+  flutter_lints: ^6.0.0
+  flutter_test:
+    sdk: flutter

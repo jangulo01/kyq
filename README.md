@@ -13,14 +13,18 @@ Principios y stack: [.specify/memory/constitution.md](.specify/memory/constituti
 | `apps/kyq_rider_app` | Kyq Pasajero (Android, iOS, web). `com.kyq.rider` |
 | `apps/kyq_admin_web` | Panel administrativo y torre de control (web) |
 | `packages/kyq_domain` | Modelos y reglas de negocio RN-KYQ con pruebas |
+| `packages/kyq_api` | Cliente REST del contrato `specs/*/contracts/api.yaml` |
+| `packages/kyq_realtime` | Eventos en tiempo real (Centrifugo) |
+| `packages/kyq_ptt` | Walkie-talkie PTT (LiveKit), en US3 |
+| `packages/kyq_ui` | Tema y login OTP comunes |
 | `backend` | Monolito modular en Go |
-| `infra` | Entorno local: PostgreSQL+PostGIS, Redis, Centrifugo, LiveKit |
+| `infra` | Entorno local: PostgreSQL+PostGIS, Centrifugo, LiveKit, OSRM (ver `infra/README.md`) |
 
 ## Requisitos
 
 - Flutter 3.44+ (Dart 3.12+)
 - Melos 7: `dart pub global activate melos 7.8.2`
-- Go 1.24+ (backend)
+- Go 1.26+ (backend)
 - Docker (entorno local)
 - Android SDK (builds Android)
 
@@ -36,8 +40,15 @@ Backend y servicios locales:
 
 ```bash
 docker compose -f infra/docker-compose.yml up -d
-cd backend && go test ./... && go run ./cmd/api
+cd backend
+cp .env.example .env            # y exportar sus variables
+go run ./cmd/migrate up
+go run ./cmd/seed               # crea el admin de KYQ_SEED_ADMIN_PHONE
+go run ./cmd/api
 ```
+
+Pruebas: `go test ./...`. Las de integración necesitan `KYQ_TEST_DATABASE_URL` apuntando a un
+PostgreSQL con PostGIS; sin ella se omiten.
 
 ## Flujo de trabajo
 

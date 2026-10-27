@@ -9,6 +9,10 @@ workspace:
   - apps/kyq_rider_app
   - apps/kyq_admin_web
   - packages/kyq_domain
+  - packages/kyq_api
+  - packages/kyq_realtime
+  - packages/kyq_ptt
+  - packages/kyq_ui
 
 dev_dependencies:
   melos: ^7.0.0

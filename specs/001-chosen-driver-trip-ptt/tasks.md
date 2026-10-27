@@ -31,16 +31,16 @@ Monorepo: `backend/` (Go), `apps/` (Flutter), `packages/` (Dart/Flutter comparti
 
 **Purpose**: dependencias, servicios locales y esqueletos de paquetes
 
-- [ ] T001 Ajustar `infra/docker-compose.yml`: quitar `redis`, añadir servicio `osrm` (imagen `osrm/osrm-backend`, perfil car, datos en `infra/data/osrm/`) y volumen para PMTiles; documentar en `infra/README.md` cómo descargar el extracto OSM de la ciudad piloto y preprocesarlo (`osrm-extract`, `osrm-partition`, `osrm-customize`)
-- [ ] T002 Añadir dependencias Go en `backend/go.mod`: pgx v5, goose, River (+ driver pgx), LiveKit server SDK, golang-jwt v5, testify; generar `backend/go.sum`
-- [ ] T003 [P] Crear `backend/sqlc.yaml` (engine postgresql, queries en `backend/internal/store/queries/`, esquema en `backend/migrations/`, salida `backend/internal/store/`)
-- [ ] T004 [P] Crear paquete `packages/kyq_api` (Dart puro, dio, freezed, json_serializable) y añadirlo al `workspace` de `pubspec.yaml`
-- [ ] T005 [P] Crear paquete `packages/kyq_realtime` (Dart, dependencia `centrifuge`) y añadirlo al `workspace`
-- [ ] T006 [P] Crear paquete Flutter `packages/kyq_ptt` (dependencias `livekit_client`, `audio_session`) y añadirlo al `workspace`
-- [ ] T007 [P] Crear paquete Flutter `packages/kyq_ui` (tema Kyq con `colorSchemeSeed: Color(0xFF6A1B9A)`, botones y estados vacíos comunes) y añadirlo al `workspace`
-- [ ] T008 [P] Añadir a `apps/kyq_driver_app/pubspec.yaml` y `apps/kyq_rider_app/pubspec.yaml`: flutter_bloc, go_router, freezed_annotation, geolocator, maplibre_gl, más los paquetes `kyq_*`; a `apps/kyq_admin_web/pubspec.yaml`: flutter_bloc, go_router, `kyq_api`, `kyq_ui`
-- [ ] T009 [P] Crear CI en `.github/workflows/ci.yml`: job Flutter (`melos run analyze`, `melos run test`) y job Go con servicio `postgis/postgis:17-3.5` (`go vet ./...`, `go test ./...`)
-- [ ] T010 [P] Crear `backend/.env.example` con `KYQ_HTTP_ADDR`, `KYQ_DATABASE_URL`, `KYQ_JWT_SECRET`, `KYQ_CENTRIFUGO_API_URL`, `KYQ_CENTRIFUGO_API_KEY`, `KYQ_CENTRIFUGO_TOKEN_SECRET`, `KYQ_LIVEKIT_URL`, `KYQ_LIVEKIT_API_KEY`, `KYQ_LIVEKIT_API_SECRET`, `KYQ_OSRM_URL`, `KYQ_TWILIO_*`, `KYQ_DEV_OTP_CODE`
+- [X] T001 Ajustar `infra/docker-compose.yml`: quitar `redis`, añadir servicio `osrm` (imagen `osrm/osrm-backend`, perfil car, datos en `infra/data/osrm/`) y volumen para PMTiles; documentar en `infra/README.md` cómo descargar el extracto OSM de la ciudad piloto y preprocesarlo (`osrm-extract`, `osrm-partition`, `osrm-customize`)
+- [X] T002 Añadir dependencias Go en `backend/go.mod`: pgx v5, goose, golang-jwt v5, google/uuid, testify, kin-openapi; generar `backend/go.sum`. River y LiveKit server SDK se añaden en T049 y T068, cuando se usan (go mod tidy elimina dependencias sin uso)
+- [X] T003 [P] Crear `backend/sqlc.yaml` (engine postgresql, queries en `backend/internal/store/queries/`, esquema en `backend/migrations/`, salida `backend/internal/store/`)
+- [X] T004 [P] Crear paquete `packages/kyq_api` (Dart puro, dio, freezed, json_serializable) y añadirlo al `workspace` de `pubspec.yaml`
+- [X] T005 [P] Crear paquete `packages/kyq_realtime` (Dart, dependencia `centrifuge`) y añadirlo al `workspace`
+- [X] T006 [P] Crear paquete Flutter `packages/kyq_ptt` (dependencias `livekit_client`, `audio_session`) y añadirlo al `workspace`
+- [X] T007 [P] Crear paquete Flutter `packages/kyq_ui` (tema Kyq con `colorSchemeSeed: Color(0xFF6A1B9A)`, botones y estados vacíos comunes) y añadirlo al `workspace`
+- [X] T008 [P] Añadir a `apps/kyq_driver_app/pubspec.yaml` y `apps/kyq_rider_app/pubspec.yaml`: flutter_bloc, go_router, freezed_annotation, geolocator, maplibre_gl, más los paquetes `kyq_*`; a `apps/kyq_admin_web/pubspec.yaml`: flutter_bloc, go_router, `kyq_api`, `kyq_ui`
+- [X] T009 [P] Crear CI en `.github/workflows/ci.yml`: job Flutter (`melos run analyze`, `melos run test`) y job Go con servicio `postgis/postgis:17-3.5` (`go vet ./...`, `go test ./...`)
+- [X] T010 [P] Crear `backend/.env.example` con `KYQ_HTTP_ADDR`, `KYQ_DATABASE_URL`, `KYQ_JWT_SECRET`, `KYQ_CENTRIFUGO_API_URL`, `KYQ_CENTRIFUGO_API_KEY`, `KYQ_CENTRIFUGO_TOKEN_SECRET`, `KYQ_LIVEKIT_URL`, `KYQ_LIVEKIT_API_KEY`, `KYQ_LIVEKIT_API_SECRET`, `KYQ_OSRM_URL`, `KYQ_TWILIO_*`, `KYQ_DEV_OTP_CODE`
 
 ---
 
@@ -52,28 +52,28 @@ Monorepo: `backend/` (Go), `apps/` (Flutter), `packages/` (Dart/Flutter comparti
 
 ### Backend
 
-- [ ] T011 Crear `backend/internal/config/config.go`: carga y valida las variables de `backend/.env.example`
-- [ ] T012 Crear `backend/cmd/migrate/main.go` (goose up/down/status sobre `KYQ_DATABASE_URL`) y `backend/migrations/00001_init.sql` con extensiones `postgis` y la función de UUID v7
-- [ ] T013 Crear `backend/migrations/00002_users_drivers.sql` con tablas `users` (`phone_e164` UNIQUE, `role` enum `passenger | driver | admin`, `display_name` 2–60 caracteres), `drivers` (`qr_token` UNIQUE, `presence` enum `offline | free | busy`, `last_location geography(Point)`, `busy_until_estimate` NULL), `subscriptions` (`paid_until`), `driver_documents` (`doc_type` enum `license | mandatory_insurance | vehicle_registration`, `expires_at date`, `approved_by` NULL) y `refresh_tokens` (`token_hash` UNIQUE, `expires_at`, `rotated_at`) según [data-model.md](data-model.md)
-- [ ] T014 Crear `backend/internal/store/db.go` (pool pgx, transacciones) y consultas sqlc de usuarios y conductores en `backend/internal/store/queries/users.sql` y `drivers.sql`
-- [ ] T015 [P] Crear `backend/internal/httpapi/errors.go` y `middleware.go`: respuesta `Error{code,message}`, request ID, logging slog, recuperación de pánicos, límite de tamaño de cuerpo
-- [ ] T016 [P] Escribir pruebas de `backend/internal/auth/` en `backend/internal/auth/auth_test.go`: OTP válido/ inválido/caducado, emisión de JWT 15 min, rotación de refresh token 30 días, rechazo de refresh reutilizado
-- [ ] T017 Implementar `backend/internal/auth/`: interfaz `OTPSender` con implementaciones Twilio Verify y dev (código fijo `KYQ_DEV_OTP_CODE`), handlers `/v1/auth/otp/request`, `/v1/auth/otp/verify`, `/v1/auth/refresh`, middleware JWT con rol; límite de 5 solicitudes OTP por teléfono y hora
-- [ ] T018 [P] Implementar `backend/internal/realtime/`: cliente de la API HTTP de Centrifugo (`Publish`), emisión de tokens de conexión y suscripción, y autorización de canales `user:{id}`, `driver_presence:{driverId}` (solo pasajeros afiliados), `trip:{tripId}` (solo participantes) según [contracts/realtime.md](contracts/realtime.md); handlers `/v1/realtime/token` y `/v1/realtime/subscription-token`
-- [ ] T019 [P] Escribir `backend/internal/drivers/gate_test.go` con las reglas RN-KYQ-002, RN-KYQ-003 (gracia 72 h y viaje en curso) y RN-KYQ-016 (documento faltante, no aprobado o con `expires_at <= hoy`)
-- [ ] T020 Implementar `backend/internal/drivers/gate.go`: `EvaluateOnline(subscription, documents, hasActiveTrip, now)` equivalente a `packages/kyq_domain/lib/src/online_gate.dart`
-- [ ] T021 Implementar `backend/internal/admin/`: `GET/POST /v1/admin/drivers`, `PUT /v1/admin/drivers/{driverId}/subscription`, `PUT /v1/admin/drivers/{driverId}/documents/{docType}`; alta de conductor genera `qr_token` aleatorio de 128 bits; solo rol `admin`
-- [ ] T022 Registrar rutas de auth, realtime y admin en `backend/internal/httpapi/router.go` y cablear dependencias en `backend/cmd/api/main.go`
-- [ ] T023 [P] Crear `backend/internal/contracttest/contract_test.go`: valida respuestas reales contra `specs/001-chosen-driver-trip-ptt/contracts/api.yaml` (kin-openapi) para cada ruta implementada
-- [ ] T024 Crear comando de semilla `backend/cmd/seed/main.go`: un admin con teléfono de `KYQ_SEED_ADMIN_PHONE`
+- [X] T011 Crear `backend/internal/config/config.go`: carga y valida las variables de `backend/.env.example`
+- [X] T012 Crear `backend/cmd/migrate/main.go` (goose up/down/status sobre `KYQ_DATABASE_URL`) y `backend/migrations/00001_init.sql` con la extensión `postgis`; los UUID v7 se generan en Go (`google/uuid`)
+- [X] T013 Crear `backend/migrations/00002_users_drivers.sql` con tablas `users` (`phone_e164` UNIQUE, `role` enum `passenger | driver | admin`, `display_name` 2–60 caracteres), `drivers` (`qr_token` UNIQUE, `presence` enum `offline | free | busy`, `last_location geography(Point)`, `busy_until_estimate` NULL), `subscriptions` (`paid_until`), `driver_documents` (`doc_type` enum `license | mandatory_insurance | vehicle_registration`, `expires_at date`, `approved_by` NULL) y `refresh_tokens` (`token_hash` UNIQUE, `expires_at`, `rotated_at`) según [data-model.md](data-model.md)
+- [X] T014 Crear `backend/internal/store/db.go` (pool pgx, transacciones) y consultas sqlc de usuarios y conductores en `backend/internal/store/queries/users.sql` y `drivers.sql`
+- [X] T015 [P] Crear `backend/internal/httpapi/errors.go` y `middleware.go`: respuesta `Error{code,message}`, request ID, logging slog, recuperación de pánicos, límite de tamaño de cuerpo
+- [X] T016 [P] Escribir pruebas de `backend/internal/auth/` en `backend/internal/auth/auth_test.go`: OTP válido/ inválido/caducado, emisión de JWT 15 min, rotación de refresh token 30 días, rechazo de refresh reutilizado
+- [X] T017 Implementar `backend/internal/auth/`: interfaz `OTPSender` con implementaciones Twilio Verify y dev (código fijo `KYQ_DEV_OTP_CODE`), handlers `/v1/auth/otp/request`, `/v1/auth/otp/verify`, `/v1/auth/refresh`, middleware JWT con rol; límite de 5 solicitudes OTP por teléfono y hora
+- [X] T018 [P] Implementar `backend/internal/realtime/`: cliente de la API HTTP de Centrifugo (`Publish`), emisión de tokens de conexión y suscripción, y autorización de canales `user:{id}`, `driver_presence:{driverId}` (solo pasajeros afiliados), `trip:{tripId}` (solo participantes) según [contracts/realtime.md](contracts/realtime.md); handlers `/v1/realtime/token` y `/v1/realtime/subscription-token`
+- [X] T019 [P] Escribir `backend/internal/drivers/gate_test.go` con las reglas RN-KYQ-002, RN-KYQ-003 (gracia 72 h y viaje en curso) y RN-KYQ-016 (documento faltante, no aprobado o con `expires_at <= hoy`)
+- [X] T020 Implementar `backend/internal/drivers/gate.go`: `EvaluateOnline(subscription, documents, hasActiveTrip, now)` equivalente a `packages/kyq_domain/lib/src/online_gate.dart`
+- [X] T021 Implementar `backend/internal/admin/`: `GET/POST /v1/admin/drivers`, `PUT /v1/admin/drivers/{driverId}/subscription`, `PUT /v1/admin/drivers/{driverId}/documents/{docType}`; alta de conductor genera `qr_token` aleatorio de 128 bits; solo rol `admin`
+- [X] T022 Registrar rutas de auth, realtime y admin en `backend/internal/httpapi/router.go` y cablear dependencias en `backend/cmd/api/main.go`
+- [X] T023 [P] Crear `backend/internal/contracttest/contract_test.go`: valida respuestas reales contra `specs/001-chosen-driver-trip-ptt/contracts/api.yaml` (kin-openapi) para auth y realtime; admin se cubre con la prueba de integración `backend/internal/admin/admin_test.go`
+- [X] T024 Crear comando de semilla `backend/cmd/seed/main.go`: un admin con teléfono de `KYQ_SEED_ADMIN_PHONE`
 
 ### Clientes
 
-- [ ] T025 [P] Implementar en `packages/kyq_api/lib/`: cliente dio con base URL, interceptor de JWT con refresco automático, modelos freezed de `Error`, `Tokens`, `DriverMe`, `ChosenDriver`, `Trip`, `FareQuote`, `FareProposal` según [contracts/api.yaml](contracts/api.yaml); pruebas en `packages/kyq_api/test/`
-- [ ] T026 [P] Implementar en `packages/kyq_realtime/lib/`: conexión Centrifugo con token del backend, suscripción tipada a `user:`, `driver_presence:` y `trip:`, decodificación de los eventos de [contracts/realtime.md](contracts/realtime.md) y reconexión con recuperación; pruebas de decodificación en `packages/kyq_realtime/test/`
-- [ ] T027 [P] Crear flujo de login por OTP (pantalla teléfono, pantalla código, nombre en primer registro) en `packages/kyq_ui/lib/src/auth/` con `AuthCubit` y almacenamiento seguro de tokens; prueba de widget en `packages/kyq_ui/test/auth_flow_test.dart`
-- [ ] T028 Montar en `apps/kyq_driver_app/lib/app/` y `apps/kyq_rider_app/lib/app/` el router go_router con guardia de sesión y el login de T027
-- [ ] T029 Implementar en `apps/kyq_admin_web/lib/drivers/`: lista de conductores, alta, registro de `paid_until` y aprobación de los tres documentos con su vencimiento (FR-004)
+- [X] T025 [P] Implementar en `packages/kyq_api/lib/`: cliente dio con base URL, interceptor de JWT con refresco automático, modelos freezed de `Error`, `Tokens`, `DriverMe`, `ChosenDriver`, `Trip`, `FareQuote`, `FareProposal` según [contracts/api.yaml](contracts/api.yaml); pruebas en `packages/kyq_api/test/`
+- [X] T026 [P] Implementar en `packages/kyq_realtime/lib/`: conexión Centrifugo con token del backend, suscripción tipada a `user:`, `driver_presence:` y `trip:`, decodificación de los eventos de [contracts/realtime.md](contracts/realtime.md) y reconexión con recuperación; pruebas de decodificación en `packages/kyq_realtime/test/`
+- [X] T027 [P] Crear flujo de login por OTP (pantalla teléfono, pantalla código, nombre en primer registro) en `packages/kyq_ui/lib/src/auth/` con `AuthCubit` y almacenamiento seguro de tokens; prueba de widget en `packages/kyq_ui/test/auth_flow_test.dart`
+- [X] T028 Montar en `apps/kyq_driver_app/lib/app/` y `apps/kyq_rider_app/lib/app/` el router go_router con guardia de sesión y el login de T027
+- [X] T029 Implementar en `apps/kyq_admin_web/lib/drivers/`: lista de conductores, alta, registro de `paid_until` y aprobación de los tres documentos con su vencimiento (FR-004)
 
 **Checkpoint**: login funciona en las tres apps; un admin da de alta un conductor con suscripción y documentos
 
@@ -117,7 +117,7 @@ tarifa, ciclo completo del viaje y liquidación 100 % conductor
 
 - [ ] T039 [P] [US2] Escribir `backend/internal/fares/quote_test.go`: tarifa = `max(minimum, base + per_km × km + per_minute × min)` con redondeo, y RN-KYQ-013 (tabla por ciudad)
 - [ ] T040 [P] [US2] Escribir `backend/internal/trips/statemachine_test.go`: todas las transiciones válidas e inválidas de la máquina de [data-model.md](data-model.md), incluidos FARE_PENDING, NEGOTIATION_PENDING y NEGOTIATING
-- [ ] T041 [P] [US2] Escribir `backend/internal/trips/rules_test.go`: RN-KYQ-001 (`platform_commission_minor` = 0 y `driver_payout_minor` = `agreed_fare_minor`), RN-KYQ-007 (oferta exclusiva 25 s), FR-010a (confirmación 30 s), FR-010c (propuesta 30 s, negociación 3 min, rechazo vuelve a REQUESTED con 25 s nuevos), FR-012 (un viaje activo por conductor)
+- [ ] T041 [P] [US2] Escribir `backend/internal/trips/rules_test.go`: autorización por parte y rol de la descripción de [contracts/api.yaml](contracts/api.yaml) (404 a terceros, 403 por rol o por aceptar la propia propuesta), RN-KYQ-001 (`platform_commission_minor` = 0 y `driver_payout_minor` = `agreed_fare_minor`), RN-KYQ-007 (oferta exclusiva 25 s), FR-010a (confirmación 30 s), FR-010c (propuesta 30 s, negociación 3 min, rechazo vuelve a REQUESTED con 25 s nuevos), FR-012 (un viaje activo por conductor)
 - [ ] T042 [P] [US2] Escribir `backend/internal/trips/integration_test.go` contra PostgreSQL: pasajero pide, conductor acepta, avanza a COMPLETED; dos pasajeros piden al mismo conductor a la vez y solo uno obtiene oferta
 - [ ] T043 [P] [US2] Pruebas bloc en `apps/kyq_driver_app/test/offers/offer_cubit_test.dart` y `apps/kyq_rider_app/test/request/request_cubit_test.dart`: cuenta atrás, aceptar, cambiar tarifa, negociar y vencimientos
 

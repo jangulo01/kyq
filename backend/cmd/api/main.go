@@ -11,38 +11,85 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/kyq/backend/internal/admin"
+	"github.com/kyq/backend/internal/auth"
+	"github.com/kyq/backend/internal/config"
 	"github.com/kyq/backend/internal/httpapi"
+	"github.com/kyq/backend/internal/realtime"
+	"github.com/kyq/backend/internal/store"
 )
 
 func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
-
-	addr := os.Getenv("KYQ_HTTP_ADDR")
-	if addr == "" {
-		addr = ":8080"
+	slog.SetDefault(logger)
+	if err := run(logger); err != nil {
+		logger.Error("api stopped", "err", err)
+		os.Exit(1)
 	}
+}
 
-	srv := &http.Server{
-		Addr:              addr,
-		Handler:           httpapi.NewRouter(),
-		ReadHeaderTimeout: 5 * time.Second,
+func run(logger *slog.Logger) error {
+	cfg, err := config.Load()
+	if err != nil {
+		return err
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	go func() {
-		logger.Info("http server listening", "addr", addr)
-		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			logger.Error("http server failed", "err", err)
-			stop()
+	st, err := store.Open(ctx, cfg.DatabaseURL)
+	if err != nil {
+		return err
+	}
+	defer st.Close()
+
+	var otp auth.OTPSender
+	if cfg.UsesDevOTP() {
+		logger.Warn("OTP de desarrollo activo: no se envían SMS (KYQ_DEV_OTP_CODE)")
+		otp = auth.DevOTP{Code: cfg.DevOTPCode}
+	} else {
+		otp = auth.TwilioVerify{
+			AccountSID: cfg.TwilioAccountSID, AuthToken: cfg.TwilioAuthToken, ServiceSID: cfg.TwilioVerifyServiceSID,
 		}
+	}
+
+	tokens := auth.NewTokenIssuer(cfg.JWTSecret, nil)
+	handler := httpapi.NewRouter(httpapi.Deps{
+		Logger: logger,
+		Tokens: tokens,
+		Auth:   auth.NewHandlers(auth.NewService(auth.NewPgRepo(st.Queries), otp, tokens, nil)),
+		Realtime: &realtime.Handlers{
+			Tokens: realtime.Tokens{Secret: cfg.CentrifugoTokenSecret},
+			// Los verificadores de afiliación y viaje se conectan en US1 y US2.
+			Authorizer: realtime.Authorizer{},
+		},
+		Admin: &admin.Handlers{Store: st},
+	})
+
+	srv := &http.Server{
+		Addr:              cfg.HTTPAddr,
+		Handler:           handler,
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       15 * time.Second,
+		WriteTimeout:      15 * time.Second,
+		IdleTimeout:       60 * time.Second,
+	}
+
+	errc := make(chan error, 1)
+	go func() {
+		logger.Info("http server listening", "addr", cfg.HTTPAddr)
+		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			errc <- err
+		}
+		close(errc)
 	}()
 
-	<-ctx.Done()
+	select {
+	case err := <-errc:
+		return err
+	case <-ctx.Done():
+	}
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	if err := srv.Shutdown(shutdownCtx); err != nil {
-		logger.Error("graceful shutdown failed", "err", err)
-	}
+	return srv.Shutdown(shutdownCtx)
 }
