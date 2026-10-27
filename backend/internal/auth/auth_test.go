@@ -74,6 +74,31 @@ func TestIPv6GroupedBy64(t *testing.T) {
 	assert.Equal(t, "10.0.0.1", ipKey("10.0.0.1"))
 }
 
+func TestNewPhoneCapSparesExistingUsers(t *testing.T) {
+	svc, repo, _, _ := newTestService()
+	ctx := context.Background()
+	svc.newPhoneCap = newRateLimiter(3, time.Hour) // techo pequeño para la prueba
+	_, err := repo.CreateUser(ctx, User{ID: uuid.New(), Phone: "+573009990000", Role: RolePassenger, DisplayName: "Eva"})
+	require.NoError(t, err)
+
+	for i := range 3 {
+		require.NoError(t, svc.RequestOTP(ctx, fmt.Sprintf("+5731000000%02d", i), fmt.Sprintf("10.2.0.%d", i)))
+	}
+	assert.ErrorIs(t, svc.RequestOTP(ctx, "+573100000099", "10.2.0.99"), ErrRateLimited, "techo de números nuevos")
+	assert.NoError(t, svc.RequestOTP(ctx, "+573009990000", "10.2.0.100"), "un usuario existente siempre puede entrar")
+}
+
+func TestIPv6RotationWithin48IsCapped(t *testing.T) {
+	svc, _, _, _ := newTestService()
+	ctx := context.Background()
+	for i := range 60 {
+		require.NoError(t, svc.RequestOTP(ctx, fmt.Sprintf("+5731100%05d", i), fmt.Sprintf("2001:db8:1:%x::1", i)))
+	}
+	assert.ErrorIs(t, svc.RequestOTP(ctx, "+573119999999", "2001:db8:1:ffff::1"), ErrRateLimited,
+		"rotar /64 dentro de la misma /48 no esquiva el límite")
+	assert.NoError(t, svc.RequestOTP(ctx, "+573119999999", "2001:db8:2::1"), "otra /48 no se ve afectada")
+}
+
 func TestGlobalVolumeDoesNotBlock(t *testing.T) {
 	svc, _, _, _ := newTestService()
 	ctx := context.Background()

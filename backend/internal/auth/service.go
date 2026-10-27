@@ -33,6 +33,12 @@ const (
 	// Umbral de alerta, no de bloqueo: bloquear a todos permitiría a un atacante dejar sin
 	// login a todo el país.
 	otpRequestsGlobalAlertPerHour = 500
+	// Techo duro solo para teléfonos sin cuenta: limita el coste de un bombeo masivo sin
+	// impedir nunca el login de los usuarios existentes.
+	otpNewPhonesGlobalCapPerHour = 3000
+	// Segundo nivel IPv6: un proveedor suele asignar una /48; rotar /64 dentro de ella no
+	// debe esquivar el límite.
+	otpRequestsPerIPv6_48Hour = 60
 )
 
 // DefaultOTPCountryPrefixes son los mercados atendidos: solo se envían SMS a estos prefijos.
@@ -83,7 +89,9 @@ type Service struct {
 	tokens        *TokenIssuer
 	limiter       *rateLimiter
 	ipLimiter     *rateLimiter
+	ip48Limiter   *rateLimiter
 	globalLimiter *rateLimiter
+	newPhoneCap   *rateLimiter
 	prefixes      []string
 	now           func() time.Time
 }
@@ -99,7 +107,9 @@ func NewService(repo Repo, otp OTPSender, tokens *TokenIssuer, now func() time.T
 		tokens:        tokens,
 		limiter:       newRateLimiter(otpRequestsPerPhoneHour, time.Hour),
 		ipLimiter:     newRateLimiter(otpRequestsPerIPHour, time.Hour),
+		ip48Limiter:   newRateLimiter(otpRequestsPerIPv6_48Hour, time.Hour),
 		globalLimiter: newRateLimiter(otpRequestsGlobalAlertPerHour, time.Hour),
+		newPhoneCap:   newRateLimiter(otpNewPhonesGlobalCapPerHour, time.Hour),
 		prefixes:      DefaultOTPCountryPrefixes,
 		now:           now,
 	}
@@ -111,8 +121,9 @@ func (s *Service) WithCountryPrefixes(prefixes []string) *Service {
 	return s
 }
 
-// RequestOTP sends a code to phone. Limits per hour: 20 per client IP (IPv6 by /64) and 5 per
-// phone; above 500 in total it logs an alert. Only phones of served countries receive SMS.
+// RequestOTP sends a code to phone. Limits per hour: 20 per client IP (IPv6 by /64, plus 60 per
+// /48) and 5 per phone; at most 3000 to phones without an account, and an alert above 500 in
+// total. Only phones of served countries receive SMS.
 func (s *Service) RequestOTP(ctx context.Context, phone, clientIP string) error {
 	if !phoneE164.MatchString(phone) {
 		return ErrInvalidPhone
@@ -122,8 +133,18 @@ func (s *Service) RequestOTP(ctx context.Context, phone, clientIP string) error 
 	}
 	now := s.now()
 	// Primero la IP: así una IP bloqueada no gasta el cupo del teléfono de la víctima.
-	if !s.ipLimiter.allow(ipKey(clientIP), now) || !s.limiter.allow(phone, now) {
+	if !s.ipLimiter.allow(ipKey(clientIP), now) || !s.ip48Limiter.allow(ip48Key(clientIP), now) ||
+		!s.limiter.allow(phone, now) {
 		return ErrRateLimited
+	}
+	if _, err := s.repo.GetUserByPhone(ctx, phone); errors.Is(err, ErrNotFound) {
+		if !s.newPhoneCap.allow("new", now) {
+			slog.ErrorContext(ctx, "otp: techo de SMS a teléfonos nuevos alcanzado; registros pausados",
+				"cap_per_hour", otpNewPhonesGlobalCapPerHour)
+			return ErrRateLimited
+		}
+	} else if err != nil {
+		return fmt.Errorf("lookup phone: %w", err)
 	}
 	if !s.globalLimiter.allow("all", now) {
 		slog.WarnContext(ctx, "otp: volumen global de SMS por encima del umbral; revisar posible bombeo",
@@ -226,6 +247,19 @@ func (s *Service) issue(ctx context.Context, user User) (Tokens, error) {
 		return Tokens{}, fmt.Errorf("store refresh token: %w", err)
 	}
 	return Tokens{AccessToken: access, RefreshToken: raw, Role: user.Role}, nil
+}
+
+// ip48Key groups IPv6 clients by /48 for the coarser limiter; IPv4 keys are unchanged.
+func ip48Key(ip string) string {
+	addr, err := netip.ParseAddr(ip)
+	if err != nil || addr.Is4() || addr.Is4In6() {
+		return ip
+	}
+	prefix, err := addr.Prefix(48)
+	if err != nil {
+		return ip
+	}
+	return prefix.String()
 }
 
 // ipKey groups IPv6 clients by /64, the usual allocation to one customer.
