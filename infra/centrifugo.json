@@ -1,0 +1,8 @@
+{
+  "client": {
+    "token": { "hmac_secret_key": "dev-only-change-me" },
+    "allowed_origins": ["*"]
+  },
+  "http_api": { "key": "dev-only-api-key" },
+  "admin": { "enabled": true, "password": "admin", "secret": "dev-only-admin-secret" }
+}

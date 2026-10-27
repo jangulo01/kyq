@@ -1,0 +1,13 @@
+name: kyq_domain
+description: Modelos y reglas de negocio RN-KYQ compartidos por las apps y el backend.
+version: 0.1.0
+publish_to: none
+
+resolution: workspace
+
+environment:
+  sdk: ^3.12.2
+
+dev_dependencies:
+  lints: ^6.0.0
+  test: ^1.25.6

@@ -1,0 +1,18 @@
+# Dart / Flutter
+.dart_tool/
+build/
+*.iml
+.idea/
+.flutter-plugins
+.flutter-plugins-dependencies
+
+# Go
+backend/bin/
+
+# Entorno
+.env
+*.local
+
+# SO
+.DS_Store
+Thumbs.db

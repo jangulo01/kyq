@@ -1,0 +1,29 @@
+name: kyq_workspace
+publish_to: none
+
+environment:
+  sdk: ^3.12.2
+
+workspace:
+  - apps/kyq_driver_app
+  - apps/kyq_rider_app
+  - apps/kyq_admin_web
+  - packages/kyq_domain
+
+dev_dependencies:
+  melos: ^7.0.0
+
+melos:
+  scripts:
+    analyze:
+      description: Análisis estático de todos los paquetes.
+      run: melos exec -- flutter analyze --no-pub .
+    test:dart:
+      description: Pruebas de paquetes Dart puros.
+      run: melos exec --no-flutter --dir-exists=test -- dart test
+    test:flutter:
+      description: Pruebas de apps y paquetes Flutter.
+      run: melos exec --flutter --dir-exists=test -- flutter test --no-pub
+    test:
+      description: Todas las pruebas.
+      run: melos run test:dart && melos run test:flutter
