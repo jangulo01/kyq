@@ -26,11 +26,15 @@ dependencies:
   kyq_ui:
     path: ../../packages/kyq_ui
   maplibre_gl: ^0.27.1
+  pdf: ^3.13.1
+  printing: ^5.15.1
+  qr_flutter: ^4.1.0
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
+  mocktail: ^1.0.5
 
 flutter:
   uses-material-design: true

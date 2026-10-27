@@ -123,6 +123,18 @@ abstract class ChosenDriver with _$ChosenDriver {
   factory ChosenDriver.fromJson(Map<String, dynamic> json) => _$ChosenDriverFromJson(json);
 }
 
+/// Pasajero de la cartera del conductor (`GET /v1/driver/clients`).
+@freezed
+abstract class DriverClient with _$DriverClient {
+  const factory DriverClient({
+    required String passengerId,
+    required String displayName,
+    required DateTime affiliatedAt,
+  }) = _DriverClient;
+
+  factory DriverClient.fromJson(Map<String, dynamic> json) => _$DriverClientFromJson(json);
+}
+
 @freezed
 abstract class FareQuote with _$FareQuote {
   const factory FareQuote({

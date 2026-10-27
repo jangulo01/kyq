@@ -25,6 +25,9 @@ paths:
   /v1/auth/otp/request:
     post:
       summary: Envía un código OTP por SMS (FR-001)
+      description: |
+        Límites por hora: 5 por teléfono, 20 por IP de origen y 500 en total (429 `rate_limited`).
+        Solo se envían códigos a países atendidos (400 `country_not_served`).
       security: []
       requestBody: { $ref: '#/components/requestBodies/Phone' }
       responses:
@@ -138,6 +141,7 @@ paths:
     get:
       summary: Cartera de pasajeros afiliados (FR-007)
       responses:
+        '403': { $ref: '#/components/responses/Error' }
         '200':
           description: OK
           content:
@@ -191,6 +195,7 @@ paths:
       parameters: [ { $ref: '#/components/parameters/DriverId' } ]
       responses:
         '204': { description: Eliminado }
+        '404': { $ref: '#/components/responses/Error' }
 
   /v1/fares/quote:
     post:

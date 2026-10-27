@@ -4,6 +4,8 @@ import 'package:go_router/go_router.dart';
 import 'package:kyq_api/kyq_api.dart';
 import 'package:kyq_ui/kyq_ui.dart';
 
+import '../onboarding/clients_page.dart';
+import '../onboarding/my_qr_page.dart';
 import 'home_page.dart';
 
 /// URL del backend. En el emulador de Android, 10.0.2.2 es el localhost del PC.
@@ -39,7 +41,16 @@ class _KyqDriverAppState extends State<KyqDriverApp> {
   late final GoRouter _router = buildAuthRouter(
     auth: widget.auth,
     title: 'Kyq Conductor',
-    routes: [GoRoute(path: '/', builder: (context, state) => const HomePage())],
+    routes: [
+      GoRoute(
+        path: '/',
+        builder: (context, state) => const HomePage(),
+        routes: [
+          GoRoute(path: 'qr', builder: (context, state) => const MyQrPage()),
+          GoRoute(path: 'clients', builder: (context, state) => const ClientsPage()),
+        ],
+      ),
+    ],
   );
 
   @override

@@ -6,7 +6,9 @@ import (
 	"net/http"
 
 	"github.com/kyq/backend/internal/admin"
+	"github.com/kyq/backend/internal/affiliations"
 	"github.com/kyq/backend/internal/auth"
+	"github.com/kyq/backend/internal/drivers"
 	"github.com/kyq/backend/internal/realtime"
 )
 
@@ -17,6 +19,8 @@ type Deps struct {
 	Auth     *auth.Handlers
 	Realtime *realtime.Handlers
 	Admin    *admin.Handlers
+	Affils   *affiliations.Handlers
+	Drivers  *drivers.Handlers
 }
 
 // NewRouter returns the root handler with every module mounted and the common middleware.
@@ -41,6 +45,12 @@ func NewRouter(d Deps) http.Handler {
 		}
 		if d.Admin != nil {
 			d.Admin.Register(mux, requireAuth)
+		}
+		if d.Affils != nil {
+			d.Affils.Register(mux, requireAuth)
+		}
+		if d.Drivers != nil {
+			d.Drivers.Register(mux, requireAuth)
 		}
 	}
 

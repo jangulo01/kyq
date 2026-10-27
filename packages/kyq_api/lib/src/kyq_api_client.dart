@@ -108,6 +108,26 @@ class KyqApiClient {
     return DriverMe.fromJson(res.data!);
   }
 
+  Future<List<DriverClient>> driverClients() async {
+    final res = await _send(() => _dio.get<List<dynamic>>('/v1/driver/clients'));
+    return res.data!.map((e) => DriverClient.fromJson(e as Map<String, dynamic>)).toList();
+  }
+
+  // Pasajero: Conductores Elegidos
+
+  /// Afilia al conductor del QR. [created] es false si ya estaba en la lista.
+  Future<({ChosenDriver driver, bool created})> affiliate(String qrToken) async {
+    final res = await _send(() => _dio.post<Map<String, dynamic>>('/v1/affiliations', data: {'qr_token': qrToken}));
+    return (driver: ChosenDriver.fromJson(res.data!), created: res.statusCode == 201);
+  }
+
+  Future<List<ChosenDriver>> chosenDrivers() async {
+    final res = await _send(() => _dio.get<List<dynamic>>('/v1/affiliations'));
+    return res.data!.map((e) => ChosenDriver.fromJson(e as Map<String, dynamic>)).toList();
+  }
+
+  Future<void> removeChosenDriver(String driverId) => _send(() => _dio.delete<void>('/v1/affiliations/$driverId'));
+
   // Admin
 
   Future<List<AdminDriver>> adminListDrivers() async {

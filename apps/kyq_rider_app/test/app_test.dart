@@ -1,6 +1,32 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kyq_api/kyq_api.dart';
 import 'package:kyq_rider_app/app/app.dart';
+import 'package:kyq_rider_app/chosen_drivers/chosen_drivers_page.dart';
+import 'package:kyq_ui/kyq_ui.dart';
+import 'package:mocktail/mocktail.dart';
+
+class _MockApi extends Mock implements KyqApiClient {}
+
+const _session = Tokens(accessToken: 'a', refreshToken: 'r', role: UserRole.passenger);
+
+const _carlos = ChosenDriver(
+  driverId: 'd1',
+  displayName: 'Carlos',
+  vehicleDescription: 'Kia gris',
+  presence: DriverPresence.free,
+);
+
+Future<_MockApi> _pumpSignedIn(WidgetTester tester, List<ChosenDriver> drivers) async {
+  final api = _MockApi();
+  when(() => api.currentSession()).thenAnswer((_) async => _session);
+  when(() => api.chosenDrivers()).thenAnswer((_) async => drivers);
+  when(() => api.removeChosenDriver(any())).thenAnswer((_) async {});
+  final auth = AuthCubit(api, allowedRoles: {UserRole.passenger}, wrongRoleMessage: '')..start();
+  await tester.pumpWidget(KyqRiderApp(api: api, auth: auth));
+  await tester.pumpAndSettle();
+  return api;
+}
 
 void main() {
   testWidgets('sin sesión muestra el login', (tester) async {
@@ -11,12 +37,35 @@ void main() {
     expect(find.text('Enviarme un código'), findsOneWidget);
   });
 
-  testWidgets('con sesión del rol correcto muestra el inicio', (tester) async {
-    final deps = bootstrap(
-      tokenStore: InMemoryTokenStore(const Tokens(accessToken: 'a', refreshToken: 'r', role: UserRole.passenger)),
-    );
-    await tester.pumpWidget(KyqRiderApp(api: deps.api, auth: deps.auth));
+  testWidgets('sin conductores invita a escanear', (tester) async {
+    await _pumpSignedIn(tester, const []);
+    expect(find.textContaining('Escanea el código QR'), findsOneWidget);
+    expect(find.text('Escanear QR'), findsOneWidget);
+  });
+
+  testWidgets('lista los conductores elegidos y permite quitarlos', (tester) async {
+    final api = await _pumpSignedIn(tester, const [_carlos]);
+    expect(find.text('Carlos'), findsOneWidget);
+    expect(find.text('Libre'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Quitar de mi lista'));
     await tester.pumpAndSettle();
-    expect(find.text('Sesión iniciada'), findsOneWidget);
+    await tester.tap(find.text('Quitar'));
+    await tester.pumpAndSettle();
+
+    verify(() => api.removeChosenDriver('d1')).called(1);
+    expect(find.text('Carlos'), findsNothing);
+  });
+
+  testWidgets('presencia ocupado muestra minutos para liberarse', (tester) async {
+    final now = DateTime(2026, 10, 27, 12);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: PresenceChip(presence: DriverPresence.busy, busyUntil: now.add(const Duration(minutes: 12)), now: now),
+        ),
+      ),
+    );
+    expect(find.text('Ocupado · 12 min'), findsOneWidget);
   });
 }

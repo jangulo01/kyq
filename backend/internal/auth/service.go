@@ -16,13 +16,23 @@ import (
 var (
 	ErrInvalidPhone        = errors.New("invalid phone")
 	ErrRateLimited         = errors.New("too many otp requests")
+	ErrCountryNotServed    = errors.New("phone country not served")
 	ErrInvalidCode         = errors.New("invalid otp code")
 	ErrDisplayNameRequired = errors.New("display name required")
 	ErrInvalidRefreshToken = errors.New("invalid refresh token")
 	ErrNotFound            = errors.New("not found")
 )
 
-const otpRequestsPerPhoneHour = 5
+// Límites de envío de OTP por hora contra el bombeo de SMS (números rotados desde un mismo
+// origen o en masa). Ajustar cuando haya volumen real.
+const (
+	otpRequestsPerPhoneHour  = 5
+	otpRequestsPerIPHour     = 20
+	otpRequestsGlobalPerHour = 500
+)
+
+// DefaultOTPCountryPrefixes son los mercados atendidos: solo se envían SMS a estos prefijos.
+var DefaultOTPCountryPrefixes = []string{"+57", "+51"}
 
 var phoneE164 = regexp.MustCompile(`^\+[1-9][0-9]{6,14}$`)
 
@@ -64,11 +74,14 @@ type Tokens struct {
 
 // Service implements the authentication use cases.
 type Service struct {
-	repo    Repo
-	otp     OTPSender
-	tokens  *TokenIssuer
-	limiter *rateLimiter
-	now     func() time.Time
+	repo          Repo
+	otp           OTPSender
+	tokens        *TokenIssuer
+	limiter       *rateLimiter
+	ipLimiter     *rateLimiter
+	globalLimiter *rateLimiter
+	prefixes      []string
+	now           func() time.Time
 }
 
 // NewService builds the service. now may be nil.
@@ -77,23 +90,46 @@ func NewService(repo Repo, otp OTPSender, tokens *TokenIssuer, now func() time.T
 		now = time.Now
 	}
 	return &Service{
-		repo:    repo,
-		otp:     otp,
-		tokens:  tokens,
-		limiter: newRateLimiter(otpRequestsPerPhoneHour, time.Hour),
-		now:     now,
+		repo:          repo,
+		otp:           otp,
+		tokens:        tokens,
+		limiter:       newRateLimiter(otpRequestsPerPhoneHour, time.Hour),
+		ipLimiter:     newRateLimiter(otpRequestsPerIPHour, time.Hour),
+		globalLimiter: newRateLimiter(otpRequestsGlobalPerHour, time.Hour),
+		prefixes:      DefaultOTPCountryPrefixes,
+		now:           now,
 	}
 }
 
-// RequestOTP sends a code to phone, at most 5 times per phone and hour.
-func (s *Service) RequestOTP(ctx context.Context, phone string) error {
+// WithCountryPrefixes restricts OTP delivery to phones starting with one of prefixes.
+func (s *Service) WithCountryPrefixes(prefixes []string) *Service {
+	s.prefixes = prefixes
+	return s
+}
+
+// RequestOTP sends a code to phone. Limits per hour: 5 per phone, 20 per client IP and 500 in
+// total; only phones of served countries receive SMS.
+func (s *Service) RequestOTP(ctx context.Context, phone, clientIP string) error {
 	if !phoneE164.MatchString(phone) {
 		return ErrInvalidPhone
 	}
-	if !s.limiter.allow(phone, s.now()) {
+	if !s.servedCountry(phone) {
+		return ErrCountryNotServed
+	}
+	now := s.now()
+	if !s.limiter.allow(phone, now) || !s.ipLimiter.allow(clientIP, now) || !s.globalLimiter.allow("all", now) {
 		return ErrRateLimited
 	}
 	return s.otp.Send(ctx, phone)
+}
+
+func (s *Service) servedCountry(phone string) bool {
+	for _, p := range s.prefixes {
+		if strings.HasPrefix(phone, p) {
+			return true
+		}
+	}
+	return false
 }
 
 // VerifyOTP checks the code and returns a session. New phones register as passengers and must

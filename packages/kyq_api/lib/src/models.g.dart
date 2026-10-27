@@ -130,6 +130,18 @@ Map<String, dynamic> _$ChosenDriverToJson(_ChosenDriver instance) => <String, dy
   'busy_until_estimate': instance.busyUntilEstimate?.toIso8601String(),
 };
 
+_DriverClient _$DriverClientFromJson(Map<String, dynamic> json) => _DriverClient(
+  passengerId: json['passenger_id'] as String,
+  displayName: json['display_name'] as String,
+  affiliatedAt: DateTime.parse(json['affiliated_at'] as String),
+);
+
+Map<String, dynamic> _$DriverClientToJson(_DriverClient instance) => <String, dynamic>{
+  'passenger_id': instance.passengerId,
+  'display_name': instance.displayName,
+  'affiliated_at': instance.affiliatedAt.toIso8601String(),
+};
+
 _FareQuote _$FareQuoteFromJson(Map<String, dynamic> json) => _FareQuote(
   distanceM: (json['distance_m'] as num).toInt(),
   durationS: (json['duration_s'] as num).toInt(),

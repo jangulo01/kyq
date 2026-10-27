@@ -1,0 +1,138 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
+import 'package:kyq_api/kyq_api.dart';
+import 'package:kyq_ui/kyq_ui.dart';
+
+import 'chosen_drivers_cubit.dart';
+
+/// Pantalla principal del pasajero: sus Conductores Elegidos primero (RN-KYQ-006).
+class ChosenDriversPage extends StatelessWidget {
+  const ChosenDriversPage({super.key});
+
+  Future<void> _scan(BuildContext context) async {
+    final saved = await context.push<bool>('/scan');
+    if (saved == true && context.mounted) await context.read<ChosenDriversCubit>().load();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Mis Conductores Elegidos'),
+        actions: [
+          IconButton(
+            tooltip: 'Cerrar sesión',
+            icon: const Icon(Icons.logout),
+            onPressed: () => context.read<AuthCubit>().signOut(),
+          ),
+        ],
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => _scan(context),
+        icon: const Icon(Icons.qr_code_scanner),
+        label: const Text('Escanear QR'),
+      ),
+      body: BlocConsumer<ChosenDriversCubit, ChosenDriversState>(
+        listenWhen: (a, b) => b.error != null && a.error != b.error,
+        listener: (context, state) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(state.error!))),
+        builder: (context, state) {
+          if (state.loading && state.drivers.isEmpty) return const Center(child: CircularProgressIndicator());
+          return RefreshIndicator(
+            onRefresh: context.read<ChosenDriversCubit>().load,
+            child: state.drivers.isEmpty
+                ? ListView(
+                    padding: const EdgeInsets.all(32),
+                    children: const [
+                      Icon(Icons.local_taxi, size: 56),
+                      SizedBox(height: 16),
+                      Text(
+                        'Aún no tienes conductores guardados. Escanea el código QR de tu conductor de confianza.',
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+                  )
+                : ListView.separated(
+                    padding: const EdgeInsets.only(bottom: 96),
+                    itemCount: state.drivers.length,
+                    separatorBuilder: (_, _) => const Divider(height: 1),
+                    itemBuilder: (context, i) => _DriverTile(driver: state.drivers[i]),
+                  ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _DriverTile extends StatelessWidget {
+  const _DriverTile({required this.driver});
+
+  final ChosenDriver driver;
+
+  Future<void> _confirmRemove(BuildContext context) async {
+    final cubit = context.read<ChosenDriversCubit>();
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('¿Quitar a ${driver.displayName}?'),
+        content: const Text('Dejarás de verlo aquí y de poder pedirle viajes directos.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancelar')),
+          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Quitar')),
+        ],
+      ),
+    );
+    if (ok == true) await cubit.remove(driver.driverId);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      leading: CircleAvatar(child: Text(driver.displayName.characters.first.toUpperCase())),
+      title: Text(driver.displayName),
+      subtitle: Text(driver.vehicleDescription),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          PresenceChip(presence: driver.presence, busyUntil: driver.busyUntilEstimate),
+          IconButton(
+            tooltip: 'Quitar de mi lista',
+            icon: const Icon(Icons.more_vert),
+            onPressed: () => _confirmRemove(context),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Libre / Ocupado (+ minutos para liberarse) / Desconectado.
+class PresenceChip extends StatelessWidget {
+  const PresenceChip({super.key, required this.presence, this.busyUntil, this.now});
+
+  final DriverPresence presence;
+  final DateTime? busyUntil;
+  final DateTime? now;
+
+  @override
+  Widget build(BuildContext context) {
+    final (label, color) = switch (presence) {
+      DriverPresence.free => ('Libre', Colors.green),
+      DriverPresence.busy => (_busyLabel(), Colors.purple),
+      DriverPresence.offline => ('Desconectado', Colors.grey),
+    };
+    return Chip(
+      visualDensity: VisualDensity.compact,
+      avatar: CircleAvatar(backgroundColor: color, radius: 5),
+      label: Text(label),
+    );
+  }
+
+  String _busyLabel() {
+    final until = busyUntil;
+    if (until == null) return 'Ocupado';
+    final minutes = until.difference(now ?? DateTime.now()).inMinutes;
+    return minutes <= 1 ? 'Se libera ya' : 'Ocupado · $minutes min';
+  }
+}

@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	"errors"
+	"net"
 	"net/http"
 	"strings"
 
@@ -29,7 +30,7 @@ func (h *Handlers) requestOTP(w http.ResponseWriter, r *http.Request) {
 	if !httpx.DecodeJSON(w, r, &body) {
 		return
 	}
-	if err := h.svc.RequestOTP(r.Context(), body.Phone); err != nil {
+	if err := h.svc.RequestOTP(r.Context(), body.Phone, clientIP(r)); err != nil {
 		writeAuthError(w, r, err)
 		return
 	}
@@ -72,6 +73,8 @@ func writeAuthError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
 	case errors.Is(err, ErrInvalidPhone):
 		httpx.WriteError(w, http.StatusBadRequest, "invalid_phone", "el teléfono debe estar en formato E.164")
+	case errors.Is(err, ErrCountryNotServed):
+		httpx.WriteError(w, http.StatusBadRequest, "country_not_served", "Kyq aún no opera en el país de ese teléfono")
 	case errors.Is(err, ErrDisplayNameRequired):
 		httpx.WriteError(w, http.StatusBadRequest, "display_name_required", "indica un nombre de 2 a 60 caracteres")
 	case errors.Is(err, ErrRateLimited):
@@ -83,6 +86,16 @@ func writeAuthError(w http.ResponseWriter, r *http.Request, err error) {
 	default:
 		httpx.InternalError(w, r, err)
 	}
+}
+
+// clientIP returns the caller IP from the connection. Behind a reverse proxy, configure it to
+// overwrite RemoteAddr (or extend this to a trusted header) so the per-IP limit stays meaningful.
+func clientIP(r *http.Request) string {
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		return r.RemoteAddr
+	}
+	return host
 }
 
 type principalKey struct{}

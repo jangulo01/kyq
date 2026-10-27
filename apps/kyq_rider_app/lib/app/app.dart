@@ -4,7 +4,9 @@ import 'package:go_router/go_router.dart';
 import 'package:kyq_api/kyq_api.dart';
 import 'package:kyq_ui/kyq_ui.dart';
 
-import 'home_page.dart';
+import '../chosen_drivers/chosen_drivers_cubit.dart';
+import '../chosen_drivers/chosen_drivers_page.dart';
+import '../chosen_drivers/scan_page.dart';
 
 /// URL del backend. En el emulador de Android, 10.0.2.2 es el localhost del PC.
 const apiBaseUrl = String.fromEnvironment('KYQ_API_URL', defaultValue: 'http://10.0.2.2:8080');
@@ -39,7 +41,16 @@ class _KyqRiderAppState extends State<KyqRiderApp> {
   late final GoRouter _router = buildAuthRouter(
     auth: widget.auth,
     title: 'Kyq Pasajero',
-    routes: [GoRoute(path: '/', builder: (context, state) => const HomePage())],
+    routes: [
+      GoRoute(
+        path: '/',
+        builder: (context, state) => BlocProvider(
+          create: (context) => ChosenDriversCubit(context.read<KyqApiClient>())..load(),
+          child: const ChosenDriversPage(),
+        ),
+        routes: [GoRoute(path: 'scan', builder: (context, state) => const ScanPage())],
+      ),
+    ],
   );
 
   @override

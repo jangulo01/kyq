@@ -87,18 +87,18 @@ Monorepo: `backend/` (Go), `apps/` (Flutter), `packages/` (Dart/Flutter comparti
 
 ### Tests for User Story 1
 
-- [ ] T030 [P] [US1] Escribir `backend/internal/affiliations/service_test.go`: alta por QR, re-escaneo sin duplicado (responde 200), QR inexistente (404), baja lógica con `removed_at` y reactivación al re-escanear, cartera del conductor (RN-KYQ-005)
-- [ ] T031 [P] [US1] Prueba de widget en `apps/kyq_rider_app/test/chosen_drivers/scan_result_test.dart`: QR válido muestra confirmación; inválido muestra error sin crear vínculo
+- [X] T030 [P] [US1] Escribir `backend/internal/affiliations/service_test.go`: alta por QR, re-escaneo sin duplicado (responde 200), QR inexistente (404), baja lógica con `removed_at` y reactivación al re-escanear, cartera del conductor (RN-KYQ-005)
+- [X] T031 [P] [US1] Prueba de widget en `apps/kyq_rider_app/test/chosen_drivers/scan_result_test.dart`: QR válido muestra confirmación; inválido muestra error sin crear vínculo
 
 ### Implementation for User Story 1
 
-- [ ] T032 [US1] Crear `backend/migrations/00003_affiliations.sql`: tabla `affiliations` (PK compuesta `passenger_id`, `driver_id`; `source` enum `qr_scan`; `created_at`; `removed_at` NULL) y consultas en `backend/internal/store/queries/affiliations.sql`
-- [ ] T033 [US1] Implementar `backend/internal/affiliations/`: `POST /v1/affiliations`, `GET /v1/affiliations`, `DELETE /v1/affiliations/{driverId}`, `GET /v1/driver/clients`
-- [ ] T034 [US1] Implementar `GET /v1/driver/me` en `backend/internal/drivers/handlers.go` (perfil, `qr_token`, presencia, suscripción, documentos, `can_go_online`, `block_reason`)
-- [ ] T035 [P] [US1] Pantalla "Mi código QR" en `apps/kyq_driver_app/lib/onboarding/my_qr_page.dart` con `qr_flutter` (contenido `kyq://driver/{qr_token}`) y exportación a PDF imprimible
-- [ ] T036 [P] [US1] Pantalla "Mis clientes" en `apps/kyq_driver_app/lib/onboarding/clients_page.dart` usando `GET /v1/driver/clients`
-- [ ] T037 [US1] Escáner en `apps/kyq_rider_app/lib/chosen_drivers/scan_page.dart` con `mobile_scanner`, que acepta solo `kyq://driver/{token}` y llama a `POST /v1/affiliations`
-- [ ] T038 [US1] Lista "Mis Conductores Elegidos" con eliminar en `apps/kyq_rider_app/lib/chosen_drivers/chosen_drivers_page.dart` y `chosen_drivers_cubit.dart`
+- [X] T032 [US1] Crear `backend/migrations/00003_affiliations.sql`: tabla `affiliations` (PK compuesta `passenger_id`, `driver_id`; `source` enum `qr_scan`; `created_at`; `removed_at` NULL) y consultas en `backend/internal/store/queries/affiliations.sql`
+- [X] T033 [US1] Implementar `backend/internal/affiliations/`: `POST /v1/affiliations`, `GET /v1/affiliations`, `DELETE /v1/affiliations/{driverId}`, `GET /v1/driver/clients`
+- [X] T034 [US1] Implementar `GET /v1/driver/me` en `backend/internal/drivers/handlers.go` (perfil, `qr_token`, presencia, suscripción, documentos, `can_go_online`, `block_reason`)
+- [X] T035 [P] [US1] Pantalla "Mi código QR" en `apps/kyq_driver_app/lib/onboarding/my_qr_page.dart` con `qr_flutter` (contenido `kyq://driver/{qr_token}`) y exportación a PDF imprimible
+- [X] T036 [P] [US1] Pantalla "Mis clientes" en `apps/kyq_driver_app/lib/onboarding/clients_page.dart` usando `GET /v1/driver/clients`
+- [X] T037 [US1] Escáner en `apps/kyq_rider_app/lib/chosen_drivers/scan_page.dart` con `mobile_scanner`, que acepta solo `kyq://driver/{token}` y llama a `POST /v1/affiliations`
+- [X] T038 [US1] Lista "Mis Conductores Elegidos" con eliminar en `apps/kyq_rider_app/lib/chosen_drivers/chosen_drivers_page.dart` y `chosen_drivers_cubit.dart`
 
 **Checkpoint**: US1 funciona y se valida sola
 

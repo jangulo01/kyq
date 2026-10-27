@@ -17,6 +17,9 @@ import (
 	"github.com/getkin/kin-openapi/routers/legacy"
 	"github.com/stretchr/testify/require"
 
+	"github.com/google/uuid"
+
+	"github.com/kyq/backend/internal/affiliations"
 	"github.com/kyq/backend/internal/auth"
 	"github.com/kyq/backend/internal/httpapi"
 	"github.com/kyq/backend/internal/realtime"
@@ -42,7 +45,7 @@ func load(t *testing.T, server http.Handler) *contract {
 }
 
 // call sends the request to the real handler, validates request and response against the
-// contract and returns the decoded response.
+// contract and returns the decoded response when it is a JSON object.
 func (c *contract) call(method, path, token string, body any, wantStatus int) map[string]any {
 	c.t.Helper()
 	var raw []byte
@@ -85,11 +88,12 @@ func (c *contract) call(method, path, token string, body any, wantStatus int) ma
 	}
 	require.NoError(c.t, openapi3filter.ValidateResponse(context.Background(), out), "respuesta fuera del contrato")
 
-	var decoded map[string]any
+	var decoded any
 	if len(respBody) > 0 {
 		require.NoError(c.t, json.Unmarshal(respBody, &decoded))
 	}
-	return decoded
+	m, _ := decoded.(map[string]any) // nil para cuerpos vacíos o listas
+	return m
 }
 
 func TestAuthAndRealtimeMatchContract(t *testing.T) {
@@ -118,4 +122,31 @@ func TestAuthAndRealtimeMatchContract(t *testing.T) {
 
 	c.call(http.MethodPost, "/v1/realtime/token", access, nil, http.StatusOK)
 	c.call(http.MethodPost, "/v1/realtime/subscription-token", access, map[string]string{"channel": "trip:0192f0c4-0000-7000-8000-000000000000"}, http.StatusForbidden)
+}
+
+func TestAffiliationsMatchContract(t *testing.T) {
+	now := func() time.Time { return time.Date(2026, 10, 27, 12, 0, 0, 0, time.UTC) }
+	tokens := auth.NewTokenIssuer([]byte("test-secret-test-secret-test-secret!"), now)
+	repo := affiliations.NewMemRepo()
+	driverID, passengerID := uuid.New(), uuid.New()
+	repo.AddDriver(affiliations.ChosenDriver{DriverID: driverID, DisplayName: "Carlos", VehicleDescription: "Kia gris", Presence: "free"}, "qr-carlos")
+	repo.SetPassengerName(passengerID, "Ana")
+	server := httpapi.NewRouter(httpapi.Deps{
+		Tokens: tokens,
+		Affils: &affiliations.Handlers{Service: affiliations.NewService(repo)},
+	})
+	c := load(t, server)
+	passenger, err := tokens.IssueAccess(auth.Principal{UserID: passengerID, Role: auth.RolePassenger})
+	require.NoError(t, err)
+	driver, err := tokens.IssueAccess(auth.Principal{UserID: driverID, Role: auth.RoleDriver})
+	require.NoError(t, err)
+
+	c.call(http.MethodPost, "/v1/affiliations", passenger, map[string]string{"qr_token": "qr-carlos"}, http.StatusCreated)
+	c.call(http.MethodPost, "/v1/affiliations", passenger, map[string]string{"qr_token": "qr-carlos"}, http.StatusOK)
+	c.call(http.MethodPost, "/v1/affiliations", passenger, map[string]string{"qr_token": "otro"}, http.StatusNotFound)
+	c.call(http.MethodGet, "/v1/affiliations", passenger, nil, http.StatusOK)
+	c.call(http.MethodGet, "/v1/driver/clients", driver, nil, http.StatusOK)
+	c.call(http.MethodGet, "/v1/driver/clients", passenger, nil, http.StatusForbidden)
+	c.call(http.MethodDelete, "/v1/affiliations/"+driverID.String(), passenger, nil, http.StatusNoContent)
+	c.call(http.MethodDelete, "/v1/affiliations/"+driverID.String(), passenger, nil, http.StatusNotFound)
 }

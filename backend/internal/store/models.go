@@ -13,6 +13,47 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type AffiliationSource string
+
+const (
+	AffiliationSourceQrScan AffiliationSource = "qr_scan"
+)
+
+func (e *AffiliationSource) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = AffiliationSource(s)
+	case string:
+		*e = AffiliationSource(s)
+	default:
+		return fmt.Errorf("unsupported scan type for AffiliationSource: %T", src)
+	}
+	return nil
+}
+
+type NullAffiliationSource struct {
+	AffiliationSource AffiliationSource
+	Valid             bool // Valid is true if AffiliationSource is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullAffiliationSource) Scan(value interface{}) error {
+	if value == nil {
+		ns.AffiliationSource, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.AffiliationSource.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullAffiliationSource) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.AffiliationSource), nil
+}
+
 type DriverDocType string
 
 const (
@@ -140,6 +181,14 @@ func (ns NullUserRole) Value() (driver.Value, error) {
 		return nil, nil
 	}
 	return string(ns.UserRole), nil
+}
+
+type Affiliation struct {
+	PassengerID uuid.UUID
+	DriverID    uuid.UUID
+	Source      AffiliationSource
+	CreatedAt   time.Time
+	RemovedAt   pgtype.Timestamptz
 }
 
 type Driver struct {

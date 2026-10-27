@@ -12,8 +12,10 @@ import (
 	"time"
 
 	"github.com/kyq/backend/internal/admin"
+	"github.com/kyq/backend/internal/affiliations"
 	"github.com/kyq/backend/internal/auth"
 	"github.com/kyq/backend/internal/config"
+	"github.com/kyq/backend/internal/drivers"
 	"github.com/kyq/backend/internal/httpapi"
 	"github.com/kyq/backend/internal/realtime"
 	"github.com/kyq/backend/internal/store"
@@ -54,16 +56,19 @@ func run(logger *slog.Logger) error {
 	}
 
 	tokens := auth.NewTokenIssuer(cfg.JWTSecret, nil)
+	affils := affiliations.NewService(affiliations.NewPgRepo(st.Queries))
 	handler := httpapi.NewRouter(httpapi.Deps{
 		Logger: logger,
 		Tokens: tokens,
 		Auth:   auth.NewHandlers(auth.NewService(auth.NewPgRepo(st.Queries), otp, tokens, nil)),
 		Realtime: &realtime.Handlers{
 			Tokens: realtime.Tokens{Secret: cfg.CentrifugoTokenSecret},
-			// Los verificadores de afiliación y viaje se conectan en US1 y US2.
-			Authorizer: realtime.Authorizer{},
+			// El verificador de participantes de viaje se conecta en US2.
+			Authorizer: realtime.Authorizer{Affiliations: affils},
 		},
-		Admin: &admin.Handlers{Store: st},
+		Admin:   &admin.Handlers{Store: st},
+		Affils:  &affiliations.Handlers{Service: affils},
+		Drivers: &drivers.Handlers{Store: st},
 	})
 
 	srv := &http.Server{
