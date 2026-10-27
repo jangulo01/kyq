@@ -166,20 +166,20 @@ reproducción automática y atenuación del GPS
 
 ### Tests for User Story 3
 
-- [ ] T065 [P] [US3] Escribir `backend/internal/ptt/service_test.go`: apertura al ACCEPTED (RN-KYQ-009), token solo para participantes, turno exclusivo con caducidad de 60 s, 409 si ocupado, cierre a `completed_at + 15 min` y al cancelar (RN-KYQ-014), 410 tras el cierre
-- [ ] T066 [P] [US3] Pruebas en `packages/kyq_ptt/test/ptt_controller_test.dart`: pulsar pide turno y activa micrófono, soltar libera, turno denegado muestra ocupado, voz entrante pide foco con atenuación y lo libera al terminar (RN-KYQ-011)
+- [X] T065 [P] [US3] Escribir `backend/internal/ptt/service_test.go`: apertura al ACCEPTED (RN-KYQ-009), token solo para participantes, turno exclusivo con caducidad de 60 s, 409 si ocupado, cierre a `completed_at + 15 min` y al cancelar (RN-KYQ-014), 410 tras el cierre
+- [X] T066 [P] [US3] Pruebas en `packages/kyq_ptt/test/ptt_controller_test.dart`: pulsar pide turno y activa micrófono, soltar libera, turno denegado muestra ocupado, voz entrante pide foco con atenuación y lo libera al terminar (RN-KYQ-011)
 
 ### Implementation for User Story 3
 
-- [ ] T067 [US3] Crear `backend/migrations/00005_ptt.sql`: `ptt_channels` (`room_name` UNIQUE `trip-{tripId}`, `opened_at`, `closes_at` NULL, `closed_at` NULL, `floor_holder_id` NULL, `floor_expires_at` NULL) y consultas en `backend/internal/store/queries/ptt.sql`
-- [ ] T068 [US3] Implementar `backend/internal/ptt/`: creación de sala LiveKit al ACCEPTED, `POST /v1/trips/{tripId}/ptt/token` (permiso de publicar audio solo para los dos participantes, TTL hasta `closes_at`), `POST` y `DELETE /v1/trips/{tripId}/ptt/floor` con `UPDATE ... WHERE floor_holder_id IS NULL OR floor_expires_at < now()`
-- [ ] T069 [US3] Trabajo River de cierre en `backend/internal/ptt/jobs.go`: borra la sala en LiveKit, marca `closed_at` y publica `ptt.closed`; programarlo desde la transición a COMPLETED (15 min) y CANCELLED (inmediato) en `backend/internal/trips/service.go`
-- [ ] T070 [US3] Implementar `packages/kyq_ptt/lib/src/ptt_controller.dart`: conexión a la sala al ACCEPTED con micrófono publicado y silenciado, pedir/liberar turno, mensajes de datos `floor.taken` / `floor.released`, reconexión
-- [ ] T071 [US3] Implementar `packages/kyq_ptt/lib/src/audio_focus.dart` con `audio_session`: foco transitorio con atenuación (`gainTransientMayDuck`) al reproducir voz entrante y altavoz por defecto
-- [ ] T072 [US3] Generar tonos propios de inicio, fin y ocupado (síntesis PCM, sin assets de terceros) en `packages/kyq_ptt/lib/src/tones.dart`
-- [ ] T073 [US3] Botón PTT (mantener pulsado, indicador de quién habla, estado ocupado, permiso de micrófono denegado) en `packages/kyq_ptt/lib/src/ptt_button.dart`; prueba de widget en `packages/kyq_ptt/test/ptt_button_test.dart`
-- [ ] T074 [US3] Integrar `PttButton` en `apps/kyq_driver_app/lib/trip/trip_page.dart` y `trip_summary_page.dart` (ventana de 15 min) y mantener la sala activa en segundo plano mediante el servicio de T054
-- [ ] T075 [US3] Integrar `PttButton` en `apps/kyq_rider_app/lib/trip/trip_page.dart` y `trip_summary_page.dart`; ocultarlo al recibir `ptt.closed`
+- [X] T067 [US3] Crear `backend/migrations/00005_ptt.sql`: `ptt_channels` (`room_name` UNIQUE `trip-{tripId}`, `opened_at`, `closes_at` NULL, `closed_at` NULL, `floor_holder_id` NULL, `floor_expires_at` NULL) y consultas en `backend/internal/store/queries/ptt.sql`
+- [X] T068 [US3] Implementar `backend/internal/ptt/`: creación de sala LiveKit al ACCEPTED, `POST /v1/trips/{tripId}/ptt/token` (permiso de publicar audio solo para los dos participantes, TTL hasta `closes_at`), `POST` y `DELETE /v1/trips/{tripId}/ptt/floor` con `UPDATE ... WHERE floor_holder_id IS NULL OR floor_expires_at < now()`
+- [X] T069 [US3] Trabajo River de cierre en `backend/internal/ptt/jobs.go`: borra la sala en LiveKit, marca `closed_at` y publica `ptt.closed`; programarlo desde la transición a COMPLETED (15 min) y CANCELLED (inmediato) en `backend/internal/trips/service.go` (hecho con barrido `ptt.Service.CloseDue` cada segundo en lugar de River, ver R10)
+- [X] T070 [US3] Implementar `packages/kyq_ptt/lib/src/ptt_controller.dart`: conexión a la sala al ACCEPTED con micrófono publicado y silenciado, pedir/liberar turno, mensajes de datos `floor.taken` / `floor.released`, reconexión
+- [X] T071 [US3] Implementar `packages/kyq_ptt/lib/src/audio_focus.dart` con `audio_session`: foco transitorio con atenuación (`gainTransientMayDuck`) al reproducir voz entrante y altavoz por defecto
+- [X] T072 [US3] Generar tonos propios de inicio, fin y ocupado (síntesis PCM, sin assets de terceros) en `packages/kyq_ptt/lib/src/tones.dart`
+- [X] T073 [US3] Botón PTT (mantener pulsado, indicador de quién habla, estado ocupado, permiso de micrófono denegado) en `packages/kyq_ptt/lib/src/ptt_button.dart`; prueba de widget en `packages/kyq_ptt/test/ptt_button_test.dart`
+- [X] T074 [US3] Integrar `PttButton` en `apps/kyq_driver_app/lib/trip/trip_page.dart` y `trip_summary_page.dart` (ventana de 15 min) y mantener la sala activa en segundo plano mediante el servicio de T054
+- [X] T075 [US3] Integrar `PttButton` en `apps/kyq_rider_app/lib/trip/trip_page.dart` y `trip_summary_page.dart`; ocultarlo al recibir `ptt.closed`
 
 **Checkpoint**: las tres historias funcionan
 

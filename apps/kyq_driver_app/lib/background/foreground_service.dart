@@ -13,7 +13,8 @@ abstract interface class OnlineService {
 ///
 /// El servicio solo mantiene el proceso en primer plano con su notificación: el envío de
 /// ubicación y el tiempo real siguen en el isolate principal, que Android no congela mientras el
-/// servicio está activo. Los tipos `microphone|mediaPlayback` quedan listos para el PTT (T074).
+/// servicio está activo. Los tipos `microphone|mediaPlayback` mantienen viva la sala de voz del PTT
+/// con la pantalla apagada (T074, FR-018).
 class ForegroundOnlineService implements OnlineService {
   /// Configura el canal de notificación. Se llama una vez desde `main`.
   static void configure() {

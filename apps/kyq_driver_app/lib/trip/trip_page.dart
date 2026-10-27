@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:kyq_api/kyq_api.dart';
+import 'package:kyq_ptt/kyq_ptt.dart';
 import 'package:kyq_ui/kyq_ui.dart';
 
 import '../presence/presence_cubit.dart';
@@ -11,8 +12,12 @@ import 'trip_pending_views.dart';
 import 'trip_summary_page.dart';
 
 /// Pantalla del viaje del conductor: negociación, recogida, viaje y resumen (T058–T060).
+///
+/// Con [ptt], el walkie-talkie queda abajo desde ACCEPTED hasta que cierra el canal (T074).
 class TripPage extends StatelessWidget {
-  const TripPage({super.key});
+  const TripPage({super.key, this.ptt});
+
+  final PttController? ptt;
 
   static String title(TripStatus status) => switch (status) {
     TripStatus.requested => 'Oferta de viaje',
@@ -38,6 +43,10 @@ class TripPage extends StatelessWidget {
                       : Text(state.error ?? 'No pudimos cargar el viaje.'),
                 )
               : RefreshIndicator(onRefresh: context.read<TripCubit>().refresh, child: _body(context, trip, state)),
+          bottomNavigationBar: switch ((trip, ptt)) {
+            (final trip?, final ptt?) => TripPttBar(controller: ptt, status: trip.status, remoteName: 'el pasajero'),
+            _ => null,
+          },
         );
       },
     );

@@ -86,6 +86,43 @@ void main() {
     expect(expired, 1);
   });
 
+  test('pttToken devuelve las credenciales de la sala', () async {
+    adapter.onPost(
+      '/v1/trips/t1/ptt/token',
+      (s) => s.reply(200, {
+        'url': 'wss://voice.kyq.test',
+        'token': 'lk',
+        'room': 'trip-t1',
+        'closes_at': '2026-10-27T12:15:00Z',
+      }),
+    );
+
+    final c = await client.pttToken('t1');
+    expect(c.url, 'wss://voice.kyq.test');
+    expect(c.room, 'trip-t1');
+    expect(c.closesAt, DateTime.utc(2026, 10, 27, 12, 15));
+  });
+
+  test('pttToken de un canal cerrado lanza 410', () async {
+    adapter.onPost('/v1/trips/t1/ptt/token', (s) => s.reply(410, {'code': 'ptt_closed', 'message': 'cerrado'}));
+
+    expect(client.pttToken('t1'), throwsA(isA<ApiException>().having((e) => e.statusCode, 'status', 410)));
+  });
+
+  test('requestFloor devuelve la caducidad del turno y 409 si está ocupado', () async {
+    adapter.onPost('/v1/trips/t1/ptt/floor', (s) => s.reply(200, {'expires_at': '2026-10-27T12:01:00Z'}));
+    expect(await client.requestFloor('t1'), DateTime.utc(2026, 10, 27, 12, 1));
+
+    adapter.onPost('/v1/trips/t1/ptt/floor', (s) => s.reply(409, {'code': 'floor_busy', 'message': 'ocupado'}));
+    expect(client.requestFloor('t1'), throwsA(isA<ApiException>().having((e) => e.statusCode, 'status', 409)));
+  });
+
+  test('releaseFloor libera el turno', () async {
+    adapter.onDelete('/v1/trips/t1/ptt/floor', (s) => s.reply(204, null));
+
+    await client.releaseFloor('t1');
+  });
+
   test('AdminDriver interpreta la respuesta del backend', () {
     final d = AdminDriver.fromJson({
       'driver_id': 'd1',

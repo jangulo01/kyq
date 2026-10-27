@@ -203,3 +203,12 @@ abstract class Trip with _$Trip {
 
   factory Trip.fromJson(Map<String, dynamic> json) => _$TripFromJson(json);
 }
+
+/// Credenciales de la sala de voz del viaje (`POST /v1/trips/{tripId}/ptt/token`).
+@freezed
+abstract class PttCredentials with _$PttCredentials {
+  const factory PttCredentials({required String url, required String token, required String room, DateTime? closesAt}) =
+      _PttCredentials;
+
+  factory PttCredentials.fromJson(Map<String, dynamic> json) => _$PttCredentialsFromJson(json);
+}

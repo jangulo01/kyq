@@ -3147,4 +3147,276 @@ $FareProposalCopyWith<$Res>? get openProposal {
 }
 }
 
+
+/// @nodoc
+mixin _$PttCredentials {
+
+ String get url; String get token; String get room; DateTime? get closesAt;
+/// Create a copy of PttCredentials
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$PttCredentialsCopyWith<PttCredentials> get copyWith => _$PttCredentialsCopyWithImpl<PttCredentials>(this as PttCredentials, _$identity);
+
+  /// Serializes this PttCredentials to a JSON map.
+  Map<String, dynamic> toJson();
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is PttCredentials&&(identical(other.url, url) || other.url == url)&&(identical(other.token, token) || other.token == token)&&(identical(other.room, room) || other.room == room)&&(identical(other.closesAt, closesAt) || other.closesAt == closesAt));
+}
+
+@JsonKey(includeFromJson: false, includeToJson: false)
+@override
+int get hashCode => Object.hash(runtimeType,url,token,room,closesAt);
+
+@override
+String toString() {
+  return 'PttCredentials(url: $url, token: $token, room: $room, closesAt: $closesAt)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $PttCredentialsCopyWith<$Res>  {
+  factory $PttCredentialsCopyWith(PttCredentials value, $Res Function(PttCredentials) _then) = _$PttCredentialsCopyWithImpl;
+@useResult
+$Res call({
+ String url, String token, String room, DateTime? closesAt
+});
+
+
+
+
+}
+/// @nodoc
+class _$PttCredentialsCopyWithImpl<$Res>
+    implements $PttCredentialsCopyWith<$Res> {
+  _$PttCredentialsCopyWithImpl(this._self, this._then);
+
+  final PttCredentials _self;
+  final $Res Function(PttCredentials) _then;
+
+/// Create a copy of PttCredentials
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') @override $Res call({Object? url = null,Object? token = null,Object? room = null,Object? closesAt = freezed,}) {
+  return _then(_self.copyWith(
+url: null == url ? _self.url : url // ignore: cast_nullable_to_non_nullable
+as String,token: null == token ? _self.token : token // ignore: cast_nullable_to_non_nullable
+as String,room: null == room ? _self.room : room // ignore: cast_nullable_to_non_nullable
+as String,closesAt: freezed == closesAt ? _self.closesAt : closesAt // ignore: cast_nullable_to_non_nullable
+as DateTime?,
+  ));
+}
+
+}
+
+
+/// Adds pattern-matching-related methods to [PttCredentials].
+extension PttCredentialsPatterns on PttCredentials {
+/// A variant of `map` that fallback to returning `orElse`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeMap<TResult extends Object?>(TResult Function( _PttCredentials value)?  $default,{required TResult orElse(),}){
+final _that = this;
+switch (_that) {
+case _PttCredentials() when $default != null:
+return $default(_that);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// Callbacks receives the raw object, upcasted.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case final Subclass2 value:
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult map<TResult extends Object?>(TResult Function( _PttCredentials value)  $default,){
+final _that = this;
+switch (_that) {
+case _PttCredentials():
+return $default(_that);case _:
+  throw StateError('Unexpected subclass');
+
+}
+}
+/// A variant of `map` that fallback to returning `null`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>(TResult? Function( _PttCredentials value)?  $default,){
+final _that = this;
+switch (_that) {
+case _PttCredentials() when $default != null:
+return $default(_that);case _:
+  return null;
+
+}
+}
+/// A variant of `when` that fallback to an `orElse` callback.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String url,  String token,  String room,  DateTime? closesAt)?  $default,{required TResult orElse(),}) {final _that = this;
+switch (_that) {
+case _PttCredentials() when $default != null:
+return $default(_that.url,_that.token,_that.room,_that.closesAt);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// As opposed to `map`, this offers destructuring.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case Subclass2(:final field2):
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String url,  String token,  String room,  DateTime? closesAt)  $default,) {final _that = this;
+switch (_that) {
+case _PttCredentials():
+return $default(_that.url,_that.token,_that.room,_that.closesAt);case _:
+  throw StateError('Unexpected subclass');
+
+}
+}
+/// A variant of `when` that fallback to returning `null`
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String url,  String token,  String room,  DateTime? closesAt)?  $default,) {final _that = this;
+switch (_that) {
+case _PttCredentials() when $default != null:
+return $default(_that.url,_that.token,_that.room,_that.closesAt);case _:
+  return null;
+
+}
+}
+
+}
+
+/// @nodoc
+@JsonSerializable()
+
+class _PttCredentials implements PttCredentials {
+  const _PttCredentials({required this.url, required this.token, required this.room, this.closesAt});
+  factory _PttCredentials.fromJson(Map<String, dynamic> json) => _$PttCredentialsFromJson(json);
+
+@override final  String url;
+@override final  String token;
+@override final  String room;
+@override final  DateTime? closesAt;
+
+/// Create a copy of PttCredentials
+/// with the given fields replaced by the non-null parameter values.
+@override @JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+_$PttCredentialsCopyWith<_PttCredentials> get copyWith => __$PttCredentialsCopyWithImpl<_PttCredentials>(this, _$identity);
+
+@override
+Map<String, dynamic> toJson() {
+  return _$PttCredentialsToJson(this, );
+}
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _PttCredentials&&(identical(other.url, url) || other.url == url)&&(identical(other.token, token) || other.token == token)&&(identical(other.room, room) || other.room == room)&&(identical(other.closesAt, closesAt) || other.closesAt == closesAt));
+}
+
+@JsonKey(includeFromJson: false, includeToJson: false)
+@override
+int get hashCode => Object.hash(runtimeType,url,token,room,closesAt);
+
+@override
+String toString() {
+  return 'PttCredentials(url: $url, token: $token, room: $room, closesAt: $closesAt)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class _$PttCredentialsCopyWith<$Res> implements $PttCredentialsCopyWith<$Res> {
+  factory _$PttCredentialsCopyWith(_PttCredentials value, $Res Function(_PttCredentials) _then) = __$PttCredentialsCopyWithImpl;
+@override @useResult
+$Res call({
+ String url, String token, String room, DateTime? closesAt
+});
+
+
+
+
+}
+/// @nodoc
+class __$PttCredentialsCopyWithImpl<$Res>
+    implements _$PttCredentialsCopyWith<$Res> {
+  __$PttCredentialsCopyWithImpl(this._self, this._then);
+
+  final _PttCredentials _self;
+  final $Res Function(_PttCredentials) _then;
+
+/// Create a copy of PttCredentials
+/// with the given fields replaced by the non-null parameter values.
+@override @pragma('vm:prefer-inline') $Res call({Object? url = null,Object? token = null,Object? room = null,Object? closesAt = freezed,}) {
+  return _then(_PttCredentials(
+url: null == url ? _self.url : url // ignore: cast_nullable_to_non_nullable
+as String,token: null == token ? _self.token : token // ignore: cast_nullable_to_non_nullable
+as String,room: null == room ? _self.room : room // ignore: cast_nullable_to_non_nullable
+as String,closesAt: freezed == closesAt ? _self.closesAt : closesAt // ignore: cast_nullable_to_non_nullable
+as DateTime?,
+  ));
+}
+
+
+}
+
 // dart format on

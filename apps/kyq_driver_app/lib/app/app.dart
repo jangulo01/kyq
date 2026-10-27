@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:kyq_api/kyq_api.dart';
+import 'package:kyq_ptt/kyq_ptt.dart';
 import 'package:kyq_realtime/kyq_realtime.dart';
 import 'package:kyq_ui/kyq_ui.dart';
 
@@ -95,15 +96,29 @@ class _KyqDriverAppState extends State<KyqDriverApp> {
           GoRoute(path: 'offer', builder: (context, state) => const OfferPage()),
           GoRoute(
             path: 'trip/:id',
-            builder: (context, state) => BlocProvider(
-              create: (_) {
-                final initial = state.extra is Trip ? state.extra! as Trip : null;
-                final cubit = TripCubit(widget.api, _events.stream, state.pathParameters['id']!, initial: initial);
-                unawaited(cubit.refresh());
-                return cubit;
-              },
-              child: const TripPage(),
-            ),
+            builder: (context, state) {
+              final tripId = state.pathParameters['id']!;
+              return MultiBlocProvider(
+                providers: [
+                  BlocProvider(
+                    create: (_) {
+                      final initial = state.extra is Trip ? state.extra! as Trip : null;
+                      final cubit = TripCubit(widget.api, _events.stream, tripId, initial: initial);
+                      unawaited(cubit.refresh());
+                      return cubit;
+                    },
+                  ),
+                  BlocProvider(
+                    create: (_) => widget.services.ptt(
+                      widget.api,
+                      tripId,
+                      _events.stream.where((e) => e is PttClosed && e.tripId == tripId),
+                    ),
+                  ),
+                ],
+                child: Builder(builder: (context) => TripPage(ptt: context.read<PttController>())),
+              );
+            },
           ),
         ],
       ),

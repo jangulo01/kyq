@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:kyq_api/kyq_api.dart';
+import 'package:kyq_ptt/kyq_ptt.dart';
 import 'package:kyq_realtime/kyq_realtime.dart';
 import 'package:kyq_ui/kyq_ui.dart';
 
@@ -50,12 +51,16 @@ class KyqRiderApp extends StatefulWidget {
     required this.auth,
     this.realtime = const NoRealtimeEvents(),
     this.location = const GeolocatorLocationSource(),
+    this.ptt = PttController.live,
   });
 
   final KyqApiClient api;
   final AuthCubit auth;
   final RealtimeEvents realtime;
   final LocationSource location;
+
+  /// Walkie-talkie de cada viaje; las pruebas pasan falsos.
+  final PttControllerFactory ptt;
 
   @override
   State<KyqRiderApp> createState() => _KyqRiderAppState();
@@ -90,15 +95,31 @@ class _KyqRiderAppState extends State<KyqRiderApp> {
           ),
           GoRoute(
             path: 'trip/:tripId',
-            builder: (context, state) => BlocProvider(
-              create: (context) => TripCubit(
-                api: context.read<KyqApiClient>(),
-                realtime: context.read<RealtimeEvents>(),
-                tripId: state.pathParameters['tripId']!,
-                refreshEvery: const Duration(seconds: 15),
-              )..start(),
-              child: TripPage(driverName: state.uri.queryParameters['name'] ?? 'tu conductor'),
-            ),
+            builder: (context, state) {
+              final tripId = state.pathParameters['tripId']!;
+              return MultiBlocProvider(
+                providers: [
+                  BlocProvider(
+                    create: (context) => TripCubit(
+                      api: context.read<KyqApiClient>(),
+                      realtime: context.read<RealtimeEvents>(),
+                      tripId: tripId,
+                      refreshEvery: const Duration(seconds: 15),
+                    )..start(),
+                  ),
+                  BlocProvider(
+                    create: (context) =>
+                        widget.ptt(context.read<KyqApiClient>(), tripId, context.read<TripCubit>().pttClosed),
+                  ),
+                ],
+                child: Builder(
+                  builder: (context) => TripPage(
+                    driverName: state.uri.queryParameters['name'] ?? 'tu conductor',
+                    ptt: context.read<PttController>(),
+                  ),
+                ),
+              );
+            },
           ),
         ],
       ),

@@ -197,6 +197,22 @@ class KyqApiClient {
 
   Future<Trip> cancelTrip(String tripId) => _trip(() => _dio.post('/v1/trips/$tripId/cancel'));
 
+  // Walkie-talkie (PTT)
+
+  /// Credenciales de la sala de voz. Lanza [ApiException] con estado 410 si el canal ya cerró.
+  Future<PttCredentials> pttToken(String tripId) async {
+    final res = await _send(() => _dio.post<Map<String, dynamic>>('/v1/trips/$tripId/ptt/token'));
+    return PttCredentials.fromJson(res.data!);
+  }
+
+  /// Pide el turno de palabra y devuelve cuándo caduca. 409 si habla la otra parte, 410 si cerró.
+  Future<DateTime> requestFloor(String tripId) async {
+    final res = await _send(() => _dio.post<Map<String, dynamic>>('/v1/trips/$tripId/ptt/floor'));
+    return DateTime.parse(res.data!['expires_at'] as String);
+  }
+
+  Future<void> releaseFloor(String tripId) => _send(() => _dio.delete<void>('/v1/trips/$tripId/ptt/floor'));
+
   Future<Trip> _trip(Future<Response<dynamic>> Function() request) async {
     final res = await _send(request);
     return Trip.fromJson(res.data as Map<String, dynamic>);

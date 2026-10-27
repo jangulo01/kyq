@@ -226,6 +226,9 @@ func (s *Service) persist(ctx context.Context, q *store.Queries, t *Trip, before
 	if err := save(ctx, q, t); err != nil {
 		return nil, err
 	}
+	if err := syncPTTChannel(ctx, q, t, before, now); err != nil {
+		return nil, err
+	}
 	var msgs []Message
 	switch {
 	case before.Active() && !t.Status.Active():
@@ -261,6 +264,30 @@ func (s *Service) persist(ctx context.Context, q *store.Queries, t *Trip, before
 		passengerName = name
 	}
 	return append(eventsFor(before, beforeProposal, t, false, passengerName, driver, now), msgs...), nil
+}
+
+// PTTCloseDelay keeps the voice channel open after the trip ends, for forgotten objects and
+// similar (RN-KYQ-014).
+const PTTCloseDelay = 15 * time.Minute
+
+// syncPTTChannel opens the trip's voice channel on ACCEPTED (RN-KYQ-009) and schedules its
+// closing on COMPLETED or CANCELLED; package ptt closes it when due.
+func syncPTTChannel(ctx context.Context, q *store.Queries, t *Trip, before Status, now time.Time) error {
+	if before == t.Status {
+		return nil
+	}
+	switch t.Status {
+	case StatusAccepted:
+		return q.OpenPTTChannel(ctx, store.OpenPTTChannelParams{TripID: t.ID, RoomName: "trip-" + t.ID.String(), OpenedAt: now})
+	case StatusCompleted:
+		return q.SchedulePTTClose(ctx, store.SchedulePTTCloseParams{
+			TripID: t.ID, ClosesAt: pgtype.Timestamptz{Time: now.Add(PTTCloseDelay), Valid: true},
+		})
+	case StatusCancelled:
+		// Sin fila si el viaje no llegó a aceptarse: el UPDATE no toca nada.
+		return q.SchedulePTTClose(ctx, store.SchedulePTTCloseParams{TripID: t.ID, ClosesAt: pgtype.Timestamptz{Time: now, Valid: true}})
+	}
+	return nil
 }
 
 func presenceMessage(driverID uuid.UUID, presence store.DriverPresence, busyUntil *time.Time, now time.Time) Message {

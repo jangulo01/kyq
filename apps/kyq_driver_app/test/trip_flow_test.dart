@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kyq_api/kyq_api.dart';
 import 'package:kyq_driver_app/app/app.dart';
+import 'package:kyq_ptt/kyq_ptt.dart';
+import 'package:kyq_ptt/testing.dart';
 import 'package:kyq_realtime/kyq_realtime.dart';
 import 'package:kyq_ui/kyq_ui.dart';
 import 'package:mocktail/mocktail.dart';
@@ -23,6 +25,7 @@ class _Harness {
   final events = FakeEventSource();
   final permissions = FakePermissions();
   final service = FakeOnlineService();
+  final ptts = <FakePtt>[];
 
   Future<void> pump(WidgetTester tester) async {
     when(() => api.currentSession()).thenAnswer((_) async => _session);
@@ -32,7 +35,7 @@ class _Harness {
       KyqDriverApp(
         api: api,
         auth: auth,
-        services: fakeServices(events: events, permissions: permissions, service: service),
+        services: fakeServices(events: events, permissions: permissions, service: service, ptt: fakePttFactory(ptts)),
       ),
     );
     await tester.pumpAndSettle();
@@ -189,6 +192,42 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Recibes el 100 %: \$ 14.700'), findsOneWidget);
     expect(find.text('Comisión Kyq: \$ 0'), findsOneWidget);
+  });
+
+  testWidgets('el walkie-talkie aparece al aceptar, sigue en el resumen y se oculta con ptt.closed', (tester) async {
+    final h = _Harness();
+    when(() => h.api.acceptTrip('t1')).thenAnswer((_) async => trip(status: TripStatus.inProgress));
+    when(() => h.api.getTrip('t1')).thenAnswer((_) async => trip(status: TripStatus.inProgress));
+    when(() => h.api.completeTrip('t1')).thenAnswer((_) async => trip(status: TripStatus.completed));
+    await h.pump(tester);
+
+    h.events.push(offerEvent(expiresAt: DateTime.now().add(const Duration(seconds: 25))));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('offer.accept')));
+    await tester.pumpAndSettle();
+    expect(find.byType(PttButton), findsOneWidget);
+    expect(find.text('Mantén pulsado para hablar'), findsOneWidget);
+    final ptt = h.ptts.single;
+    expect(ptt.room.connects, 1);
+
+    final gesture = await tester.startGesture(tester.getCenter(find.byKey(const Key('ptt.button'))));
+    await tester.pump();
+    expect(ptt.room.micEnabled, isTrue);
+    await gesture.up();
+    await tester.pump();
+    expect(ptt.api.floorReleases, 1);
+
+    await tester.tap(find.byKey(const Key('trip.complete')));
+    await tester.pumpAndSettle();
+    expect(find.text('Viaje terminado'), findsOneWidget);
+    expect(find.byType(PttButton), findsOneWidget);
+
+    h.events.push(PttClosed(tripNow, tripId: 'otro'));
+    await tester.pumpAndSettle();
+    expect(find.byType(PttButton), findsOneWidget);
+    h.events.push(PttClosed(tripNow, tripId: 't1'));
+    await tester.pumpAndSettle();
+    expect(find.byType(PttButton), findsNothing);
   });
 
   testWidgets('cancelar antes de iniciar pide confirmación', (tester) async {

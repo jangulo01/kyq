@@ -18,6 +18,7 @@ import (
 	"github.com/kyq/backend/internal/drivers"
 	"github.com/kyq/backend/internal/fares"
 	"github.com/kyq/backend/internal/httpapi"
+	"github.com/kyq/backend/internal/ptt"
 	"github.com/kyq/backend/internal/realtime"
 	"github.com/kyq/backend/internal/store"
 	"github.com/kyq/backend/internal/trips"
@@ -63,6 +64,15 @@ func run(logger *slog.Logger) error {
 	routes := fares.OSRM{BaseURL: cfg.OSRMURL}
 	tripService := &trips.Service{Store: st, Routes: routes, Publisher: publisher, CityCode: cfg.CityCode, Logger: logger}
 	go tripService.RunSweeper(ctx, time.Second)
+	apiURL := cfg.LiveKitAPIURL
+	if apiURL == "" {
+		apiURL = ptt.APIURLFrom(cfg.LiveKitURL)
+	}
+	livekit := ptt.LiveKit{APIURL: apiURL, APIKey: cfg.LiveKitAPIKey, APISecret: cfg.LiveKitAPISecret}
+	pttService := &ptt.Service{
+		Store: st, LiveKit: livekit, Rooms: livekit, PublicURL: cfg.LiveKitURL, Publisher: publisher, Logger: logger,
+	}
+	go pttService.RunSweeper(ctx, time.Second)
 	handler := httpapi.NewRouter(httpapi.Deps{
 		Logger: logger,
 		Tokens: tokens,
@@ -76,6 +86,7 @@ func run(logger *slog.Logger) error {
 		Drivers:  &drivers.Handlers{Store: st},
 		Presence: &drivers.Presence{Store: st, Routes: routes, Publisher: publisher, Logger: logger},
 		Trips:    &trips.Handlers{Service: tripService},
+		PTT:      &ptt.Handlers{Service: pttService},
 	})
 
 	srv := &http.Server{

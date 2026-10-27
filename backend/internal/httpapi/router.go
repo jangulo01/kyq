@@ -9,6 +9,7 @@ import (
 	"github.com/kyq/backend/internal/affiliations"
 	"github.com/kyq/backend/internal/auth"
 	"github.com/kyq/backend/internal/drivers"
+	"github.com/kyq/backend/internal/ptt"
 	"github.com/kyq/backend/internal/realtime"
 	"github.com/kyq/backend/internal/trips"
 )
@@ -24,6 +25,7 @@ type Deps struct {
 	Drivers  *drivers.Handlers
 	Presence *drivers.Presence
 	Trips    *trips.Handlers
+	PTT      *ptt.Handlers
 }
 
 // NewRouter returns the root handler with every module mounted and the common middleware.
@@ -60,6 +62,9 @@ func NewRouter(d Deps) http.Handler {
 		}
 		if d.Trips != nil {
 			d.Trips.Register(mux, requireAuth)
+		}
+		if d.PTT != nil {
+			d.PTT.Register(mux, requireAuth)
 		}
 	}
 

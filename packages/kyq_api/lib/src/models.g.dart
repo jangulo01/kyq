@@ -255,3 +255,17 @@ const _$TripStatusEnumMap = {
   TripStatus.completed: 'COMPLETED',
   TripStatus.cancelled: 'CANCELLED',
 };
+
+_PttCredentials _$PttCredentialsFromJson(Map<String, dynamic> json) => _PttCredentials(
+  url: json['url'] as String,
+  token: json['token'] as String,
+  room: json['room'] as String,
+  closesAt: json['closes_at'] == null ? null : DateTime.parse(json['closes_at'] as String),
+);
+
+Map<String, dynamic> _$PttCredentialsToJson(_PttCredentials instance) => <String, dynamic>{
+  'url': instance.url,
+  'token': instance.token,
+  'room': instance.room,
+  'closes_at': instance.closesAt?.toIso8601String(),
+};

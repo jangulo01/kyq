@@ -340,7 +340,12 @@ paths:
                   url: { type: string, example: 'wss://voice.kyq.example' }
                   token: { type: string }
                   room: { type: string, example: 'trip-0192...' }
-                  closes_at: { type: [string, 'null'], format: date-time }
+                  closes_at:
+                    type: [string, 'null']
+                    format: date-time
+                    description: Null mientras el viaje sigue activo; el token caduca a las 4 h y se pide otro.
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { description: 'El canal aún no está abierto (viaje sin aceptar), `ptt_not_open`' }
         '410': { description: Canal cerrado }
   /v1/trips/{tripId}/ptt/floor:
     post:
@@ -355,13 +360,15 @@ paths:
                 type: object
                 properties:
                   expires_at: { type: string, format: date-time }
-        '409': { description: Canal ocupado por la otra parte }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { description: 'Canal ocupado por la otra parte (`ptt_busy`) o aún sin abrir (`ptt_not_open`)' }
         '410': { description: Canal cerrado }
     delete:
-      summary: Libera el turno
+      summary: Libera el turno (sin efecto si el llamante no lo tiene)
       parameters: [ { $ref: '#/components/parameters/TripId' } ]
       responses:
         '204': { description: Liberado }
+        '404': { $ref: '#/components/responses/Error' }
 
   /v1/admin/drivers:
     get:

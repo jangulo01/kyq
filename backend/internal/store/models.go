@@ -418,6 +418,16 @@ type FareTable struct {
 	UpdatedAt      time.Time
 }
 
+type PttChannel struct {
+	TripID         uuid.UUID
+	RoomName       string
+	OpenedAt       time.Time
+	ClosesAt       pgtype.Timestamptz
+	ClosedAt       pgtype.Timestamptz
+	FloorHolderID  uuid.NullUUID
+	FloorExpiresAt pgtype.Timestamptz
+}
+
 type RefreshToken struct {
 	ID        uuid.UUID
 	UserID    uuid.UUID

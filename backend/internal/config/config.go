@@ -17,7 +17,8 @@ type Config struct {
 	CentrifugoAPIKey      string
 	CentrifugoTokenSecret []byte
 
-	LiveKitURL       string
+	LiveKitURL       string // WebSocket URL the apps connect to
+	LiveKitAPIURL    string // HTTP URL the API calls; defaults to LiveKitURL
 	LiveKitAPIKey    string
 	LiveKitAPISecret string
 
@@ -40,6 +41,7 @@ func Load() (Config, error) {
 		CentrifugoAPIKey:       os.Getenv("KYQ_CENTRIFUGO_API_KEY"),
 		CentrifugoTokenSecret:  []byte(os.Getenv("KYQ_CENTRIFUGO_TOKEN_SECRET")),
 		LiveKitURL:             os.Getenv("KYQ_LIVEKIT_URL"),
+		LiveKitAPIURL:          os.Getenv("KYQ_LIVEKIT_API_URL"),
 		LiveKitAPIKey:          os.Getenv("KYQ_LIVEKIT_API_KEY"),
 		LiveKitAPISecret:       os.Getenv("KYQ_LIVEKIT_API_SECRET"),
 		OSRMURL:                os.Getenv("KYQ_OSRM_URL"),
@@ -66,6 +68,9 @@ func (c Config) Validate() error {
 	require("KYQ_DATABASE_URL", c.DatabaseURL)
 	require("KYQ_CENTRIFUGO_API_URL", c.CentrifugoAPIURL)
 	require("KYQ_CENTRIFUGO_API_KEY", c.CentrifugoAPIKey)
+	require("KYQ_LIVEKIT_URL", c.LiveKitURL)
+	require("KYQ_LIVEKIT_API_KEY", c.LiveKitAPIKey)
+	require("KYQ_LIVEKIT_API_SECRET", c.LiveKitAPISecret)
 	if len(c.JWTSecret) < 32 {
 		errs = append(errs, errors.New("KYQ_JWT_SECRET must be at least 32 bytes"))
 	}

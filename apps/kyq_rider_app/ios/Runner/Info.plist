@@ -4,6 +4,8 @@
 <dict>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Usamos tu ubicación para marcar dónde te recoge tu conductor.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Usamos el micrófono para que hables con tu conductor por el walkie-talkie del viaje.</string>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 	<key>CFBundleDevelopmentRegion</key>

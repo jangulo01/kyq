@@ -6,6 +6,8 @@ import 'package:kyq_driver_app/background/foreground_service.dart';
 import 'package:kyq_driver_app/background/location_reporter.dart';
 import 'package:kyq_driver_app/background/online_permissions.dart';
 import 'package:kyq_driver_app/realtime/driver_events.dart';
+import 'package:kyq_ptt/kyq_ptt.dart';
+import 'package:kyq_ptt/testing.dart';
 import 'package:kyq_realtime/kyq_realtime.dart';
 import 'package:mocktail/mocktail.dart';
 
@@ -72,13 +74,18 @@ class FakePositions implements PositionSource {
   Future<void> stop() async => stops++;
 }
 
-DriverServices fakeServices({FakeEventSource? events, FakePermissions? permissions, FakeOnlineService? service}) =>
-    DriverServices(
-      events: events ?? FakeEventSource(),
-      permissions: permissions ?? FakePermissions(),
-      onlineService: service ?? FakeOnlineService(),
-      positions: FakePositions(),
-    );
+DriverServices fakeServices({
+  FakeEventSource? events,
+  FakePermissions? permissions,
+  FakeOnlineService? service,
+  PttControllerFactory? ptt,
+}) => DriverServices(
+  events: events ?? FakeEventSource(),
+  permissions: permissions ?? FakePermissions(),
+  onlineService: service ?? FakeOnlineService(),
+  positions: FakePositions(),
+  ptt: ptt ?? fakePttFactory([]),
+);
 
 final tripNow = DateTime.utc(2026, 10, 27, 12);
 

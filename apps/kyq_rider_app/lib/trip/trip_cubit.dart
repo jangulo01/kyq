@@ -49,6 +49,7 @@ class TripCubit extends Cubit<TripState> {
   final Duration? refreshEvery;
 
   StreamSubscription<RealtimeEvent>? _userEvents;
+  final _pttClosed = StreamController<void>.broadcast();
   StreamSubscription<RealtimeEvent>? _locations;
   Timer? _poll;
   Timer? _retry;
@@ -67,7 +68,14 @@ class TripCubit extends Cubit<TripState> {
     if (every != null) _poll = Timer.periodic(every, (_) => refresh());
   }
 
+  /// Emite cuando llega `ptt.closed` de este viaje (FR-020).
+  Stream<void> get pttClosed => _pttClosed.stream;
+
   void _onUserEvent(RealtimeEvent e) {
+    if (e is PttClosed && e.tripId == tripId) {
+      _pttClosed.add(null);
+      return;
+    }
     final forThisTrip = switch (e) {
       TripStatusChanged(:final tripId) ||
       FareProposed(:final tripId) ||
@@ -172,6 +180,7 @@ class TripCubit extends Cubit<TripState> {
   Future<void> close() async {
     _stopLive();
     await _userEvents?.cancel();
+    await _pttClosed.close();
     return super.close();
   }
 }

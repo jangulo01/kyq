@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:kyq_api/kyq_api.dart';
+import 'package:kyq_ptt/kyq_ptt.dart';
 
 import '../map/trip_map.dart';
 import '../request/awaiting_driver_view.dart';
@@ -10,11 +11,14 @@ import 'trip_summary_view.dart';
 import 'trip_tracking_view.dart';
 
 /// Pantalla única del viaje: muestra la vista que corresponde al estado actual.
+///
+/// Con [ptt], el walkie-talkie queda abajo desde ACCEPTED hasta que cierra el canal (T075).
 class TripPage extends StatelessWidget {
-  const TripPage({super.key, required this.driverName, this.map = maplibreTripMap});
+  const TripPage({super.key, required this.driverName, this.map = maplibreTripMap, this.ptt});
 
   final String driverName;
   final TripMapBuilder map;
+  final PttController? ptt;
 
   @override
   Widget build(BuildContext context) {
@@ -49,6 +53,10 @@ class TripPage extends StatelessWidget {
               busy: state.busy,
             ),
             _ => AwaitingDriverView(trip: trip, driverName: driverName, busy: state.busy),
+          },
+          bottomNavigationBar: switch ((trip, ptt)) {
+            (final trip?, final ptt?) => TripPttBar(controller: ptt, status: trip.status, remoteName: driverName),
+            _ => null,
           },
         );
       },
