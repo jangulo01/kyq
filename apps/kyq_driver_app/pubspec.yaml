@@ -25,7 +25,6 @@ dependencies:
     path: ../../packages/kyq_realtime
   kyq_ui:
     path: ../../packages/kyq_ui
-  maplibre_gl: ^0.27.1
   pdf: ^3.13.1
   printing: ^5.15.1
   qr_flutter: ^4.1.0

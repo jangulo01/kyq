@@ -91,17 +91,20 @@ class _DriverTile extends StatelessWidget {
     return ListTile(
       leading: CircleAvatar(child: Text(driver.displayName.characters.first.toUpperCase())),
       title: Text(driver.displayName),
-      subtitle: Text(driver.vehicleDescription),
-      trailing: Row(
-        mainAxisSize: MainAxisSize.min,
+      // El estado va bajo el vehículo: a la derecha robaba ancho y partía el nombre en dos líneas.
+      subtitle: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          Text(driver.vehicleDescription),
+          const SizedBox(height: 4),
           PresenceChip(presence: driver.presence, busyUntil: driver.busyUntilEstimate),
-          IconButton(
-            tooltip: 'Quitar de mi lista',
-            icon: const Icon(Icons.more_vert),
-            onPressed: () => _confirmRemove(context),
-          ),
         ],
+      ),
+      isThreeLine: true,
+      trailing: IconButton(
+        tooltip: 'Quitar de mi lista',
+        icon: const Icon(Icons.more_vert),
+        onPressed: () => _confirmRemove(context),
       ),
     );
   }

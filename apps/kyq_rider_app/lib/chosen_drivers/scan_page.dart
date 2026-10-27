@@ -50,7 +50,8 @@ class _ScanPageState extends State<ScanPage> {
               ),
               Align(
                 alignment: Alignment.bottomCenter,
-                child: ScanResult(onDone: () => Navigator.of(context).pop(true)),
+                // SafeArea: sin él, el panel queda bajo la barra de navegación del sistema.
+                child: SafeArea(child: ScanResult(onDone: () => Navigator.of(context).pop(true))),
               ),
             ],
           ),

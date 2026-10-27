@@ -57,15 +57,18 @@ func New(t *testing.T) *store.Store {
 
 	db := stdlib.OpenDBFromPool(pool)
 	t.Cleanup(func() { _ = db.Close() })
-	if err := migrate(db); err != nil {
+	if err := migrate(db, schema); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
 	return store.Wrap(pool)
 }
 
-func migrate(db *sql.DB) error {
+func migrate(db *sql.DB, schema string) error {
 	goose.SetBaseFS(migrations.FS)
 	goose.SetLogger(goose.NopLogger())
+	// Tabla de versiones dentro del esquema de la prueba: si quedara en public, goose vería
+	// una base ya migrada y no crearía las tablas en el esquema aislado.
+	goose.SetTableName(schema + ".goose_db_version")
 	if err := goose.SetDialect("postgres"); err != nil {
 		return err
 	}
