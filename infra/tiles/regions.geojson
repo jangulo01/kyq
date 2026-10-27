@@ -1,0 +1,21 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": { "name": "Cali (Cali, Yumbo, Jamundí, Palmira, Candelaria)" },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[[-76.65, 3.2], [-76.25, 3.2], [-76.25, 3.62], [-76.65, 3.62], [-76.65, 3.2]]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": { "name": "Bogotá (Bogotá, Soacha, Chía, Cota)" },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[[-74.25, 4.45], [-73.95, 4.45], [-73.95, 4.9], [-74.25, 4.9], [-74.25, 4.45]]]
+      }
+    }
+  ]
+}

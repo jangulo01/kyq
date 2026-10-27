@@ -1,8 +1,13 @@
 {
   "client": {
-    "token": { "hmac_secret_key": "dev-only-change-me" },
     "allowed_origins": ["*"]
   },
-  "http_api": { "key": "dev-only-api-key" },
-  "admin": { "enabled": true, "password": "admin", "secret": "dev-only-admin-secret" }
+  "admin": { "enabled": true },
+  "channel": {
+    "namespaces": [
+      { "name": "user", "history_size": 50, "history_ttl": "300s", "force_recovery": true },
+      { "name": "driver_presence", "history_size": 1, "history_ttl": "300s", "force_recovery": true },
+      { "name": "trip", "history_size": 10, "history_ttl": "120s", "force_recovery": true }
+    ]
+  }
 }

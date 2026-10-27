@@ -1,0 +1,654 @@
+openapi: 3.1.0
+info:
+  title: Kyq API (MVP 001)
+  version: 0.1.0
+  description: |
+    API REST del MVP Conductor Elegido + Viaje + PTT. Todas las rutas salvo /v1/auth/* exigen
+    `Authorization: Bearer <access_token>`. Errores con cuerpo `Error`.
+
+    Autorización obligatoria en todo `/v1/trips/{tripId}/*`:
+    - El llamante MUST ser el pasajero o el conductor del viaje; si no, `404 not_found`
+      (no se revela que el viaje existe).
+    - Solo conductor: `accept`, `reject`, `negotiation`, `arrive`, `start`, `complete`.
+    - Solo pasajero: `negotiation/response`.
+    - `proposals/{proposalId}/{decision}`: solo la parte que NO hizo la propuesta
+      (`proposed_by` distinto del rol del llamante); si no, `403 forbidden`.
+    - `proposals`, `cancel`, `ptt/token`, `ptt/floor`: cualquiera de las dos partes.
+    - Acción válida para el rol pero no para el estado actual: `409`.
+    Rutas `/v1/driver/*` exigen rol `driver`; `/v1/admin/*` exigen rol `admin` (`403` si no).
+servers:
+  - url: http://localhost:8080
+security:
+  - bearer: []
+
+paths:
+  /v1/auth/otp/request:
+    post:
+      summary: Envía un código OTP por SMS (FR-001)
+      description: |
+        Límites por hora: 5 por teléfono, 20 por IP de origen y 500 en total (429 `rate_limited`).
+        Solo se envían códigos a países atendidos (400 `country_not_served`).
+      security: []
+      requestBody: { $ref: '#/components/requestBodies/Phone' }
+      responses:
+        '204': { description: Código enviado }
+        '400': { $ref: '#/components/responses/Error' }
+        '429': { $ref: '#/components/responses/Error' }
+  /v1/auth/otp/verify:
+    post:
+      summary: Verifica el OTP y emite tokens (FR-001)
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [phone_e164, code]
+              properties:
+                phone_e164: { type: string, example: '+573001234567' }
+                code: { type: string, pattern: '^[0-9]{6}$' }
+                display_name: { type: string, description: Obligatorio en el primer registro }
+      responses:
+        '200': { $ref: '#/components/responses/Tokens' }
+        '400': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+  /v1/auth/refresh:
+    post:
+      summary: Rota el token de refresco
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refresh_token]
+              properties:
+                refresh_token: { type: string }
+      responses:
+        '200': { $ref: '#/components/responses/Tokens' }
+        '401': { $ref: '#/components/responses/Error' }
+
+  /v1/realtime/token:
+    post:
+      summary: Token de conexión a Centrifugo
+      responses:
+        '200': { $ref: '#/components/responses/RealtimeToken' }
+        '401': { $ref: '#/components/responses/Error' }
+  /v1/realtime/subscription-token:
+    post:
+      summary: Token de suscripción a un canal autorizado (ver realtime.md)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [channel]
+              properties:
+                channel: { type: string, example: 'driver_presence:0192...' }
+      responses:
+        '200': { $ref: '#/components/responses/RealtimeToken' }
+        '403': { $ref: '#/components/responses/Error' }
+
+  /v1/driver/me:
+    get:
+      summary: Perfil, QR, suscripción, documentos y si puede ponerse ONLINE (FR-002, FR-005)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DriverMe' }
+  /v1/driver/presence:
+    post:
+      summary: Cambia presencia ONLINE/OFFLINE (FR-002, FR-003)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [online]
+              properties:
+                online: { type: boolean }
+      responses:
+        '200':
+          description: Presencia actual
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  presence: { $ref: '#/components/schemas/Presence' }
+        '409':
+          description: Bloqueado; `code` = subscription_suspended | kyc_expired | trip_in_progress
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+  /v1/driver/location:
+    post:
+      summary: Posición del conductor ONLINE, cada 3 s (FR-008, FR-014)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LocationFix' }
+      responses:
+        '204': { description: Aceptada }
+        '409': { description: '`offline`: hay que estar ONLINE' }
+  /v1/driver/clients:
+    get:
+      summary: Cartera de pasajeros afiliados (FR-007)
+      responses:
+        '403': { $ref: '#/components/responses/Error' }
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    passenger_id: { type: string, format: uuid }
+                    display_name: { type: string }
+                    affiliated_at: { type: string, format: date-time }
+
+  /v1/affiliations:
+    get:
+      summary: Mis Conductores Elegidos con presencia actual (FR-008)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/ChosenDriver' }
+    post:
+      summary: Afilia un conductor por su QR (FR-006)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [qr_token]
+              properties:
+                qr_token: { type: string }
+      responses:
+        '201':
+          description: Afiliación creada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ChosenDriver' }
+        '200':
+          description: Ya estaba afiliado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ChosenDriver' }
+        '404': { $ref: '#/components/responses/Error' }
+  /v1/affiliations/{driverId}:
+    delete:
+      summary: Elimina un conductor de la lista (FR-006)
+      parameters: [ { $ref: '#/components/parameters/DriverId' } ]
+      responses:
+        '204': { description: Eliminado }
+        '404': { $ref: '#/components/responses/Error' }
+
+  /v1/fares/quote:
+    post:
+      summary: Tarifa sugerida para una ruta (FR-010)
+      requestBody: { $ref: '#/components/requestBodies/Route' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FareQuote' }
+
+  /v1/trips:
+    post:
+      summary: Solicita un viaje a un Conductor Elegido libre (FR-009, FR-011)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '#/components/schemas/RouteRequest'
+                - type: object
+                  required: [driver_id]
+                  properties:
+                    driver_id: { type: string, format: uuid }
+      responses:
+        '201': { $ref: '#/components/responses/Trip' }
+        '409':
+          description: '`code` = driver_not_free | not_affiliated | passenger_has_active_trip'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+  /v1/trips/{tripId}:
+    get:
+      summary: Estado actual del viaje
+      parameters: [ { $ref: '#/components/parameters/TripId' } ]
+      responses:
+        '200': { $ref: '#/components/responses/Trip' }
+
+  /v1/trips/{tripId}/accept:
+    post:
+      summary: Conductor acepta; con `fare_minor` distinto pasa a FARE_PENDING (FR-010a)
+      parameters: [ { $ref: '#/components/parameters/TripId' } ]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                fare_minor: { type: integer, minimum: 1 }
+      responses:
+        '200': { $ref: '#/components/responses/Trip' }
+        '409': { $ref: '#/components/responses/Error' }
+  /v1/trips/{tripId}/reject:
+    post:
+      summary: Conductor rechaza la oferta (FR-011)
+      parameters: [ { $ref: '#/components/parameters/TripId' } ]
+      responses:
+        '200': { $ref: '#/components/responses/Trip' }
+  /v1/trips/{tripId}/negotiation:
+    post:
+      summary: Conductor propone negociar; pasa a NEGOTIATION_PENDING (FR-010c)
+      parameters: [ { $ref: '#/components/parameters/TripId' } ]
+      responses:
+        '200': { $ref: '#/components/responses/Trip' }
+  /v1/trips/{tripId}/negotiation/response:
+    post:
+      summary: Pasajero acepta o rechaza negociar (FR-010c)
+      parameters: [ { $ref: '#/components/parameters/TripId' } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [accept]
+              properties:
+                accept: { type: boolean }
+      responses:
+        '200': { $ref: '#/components/responses/Trip' }
+  /v1/trips/{tripId}/proposals:
+    post:
+      summary: Nueva propuesta o contrapropuesta en NEGOTIATING (FR-010c)
+      parameters: [ { $ref: '#/components/parameters/TripId' } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [amount_minor]
+              properties:
+                amount_minor: { type: integer, minimum: 1 }
+      responses:
+        '201':
+          description: Propuesta abierta
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FareProposal' }
+        '409': { $ref: '#/components/responses/Error' }
+  /v1/trips/{tripId}/proposals/{proposalId}/{decision}:
+    post:
+      summary: La otra parte acepta o rechaza una propuesta (FR-010a, FR-010c)
+      parameters:
+        - { $ref: '#/components/parameters/TripId' }
+        - { name: proposalId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: decision, in: path, required: true, schema: { type: string, enum: [accept, reject] } }
+      responses:
+        '200': { $ref: '#/components/responses/Trip' }
+        '409': { $ref: '#/components/responses/Error' }
+  /v1/trips/{tripId}/{transition}:
+    post:
+      summary: Avance del viaje por el conductor (FR-013)
+      parameters:
+        - { $ref: '#/components/parameters/TripId' }
+        - { name: transition, in: path, required: true, schema: { type: string, enum: [arrive, start, complete] } }
+      responses:
+        '200': { $ref: '#/components/responses/Trip' }
+        '409': { $ref: '#/components/responses/Error' }
+  /v1/trips/{tripId}/cancel:
+    post:
+      summary: Cancelación por cualquiera de las partes antes de IN_PROGRESS
+      parameters: [ { $ref: '#/components/parameters/TripId' } ]
+      responses:
+        '200': { $ref: '#/components/responses/Trip' }
+        '409': { $ref: '#/components/responses/Error' }
+
+  /v1/trips/active:
+    get:
+      summary: Viaje sin terminar del llamante (pasajero o conductor), para retomarlo al reabrir la app
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Trip' }
+        '204': { description: Sin viaje activo }
+
+  /v1/trips/{tripId}/ptt/token:
+    post:
+      summary: Credenciales para la sala de voz del viaje (FR-016, FR-020)
+      parameters: [ { $ref: '#/components/parameters/TripId' } ]
+      responses:
+        '200':
+          description: |
+            El token permite escuchar y enviar mensajes de datos, no publicar audio: el backend
+            concede publicar micrófono solo a quien tiene el turno. Caduca a los 10 min o al
+            cierre del canal (lo que llegue antes); LiveKit renueva la sesión conectada y las
+            apps piden otro token al reconectar.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  url: { type: string, example: 'wss://voice.kyq.example' }
+                  token: { type: string }
+                  room: { type: string, example: 'trip-0192...' }
+                  closes_at:
+                    type: [string, 'null']
+                    format: date-time
+                    description: Null mientras el viaje sigue activo.
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { description: 'El canal aún no está abierto (viaje sin aceptar), `ptt_not_open`' }
+        '410': { description: Canal cerrado }
+        '503': { description: 'Servidor de voz no disponible, `ptt_unavailable`' }
+  /v1/trips/{tripId}/ptt/floor:
+    post:
+      summary: Pide el turno de palabra (FR-017)
+      parameters: [ { $ref: '#/components/parameters/TripId' } ]
+      responses:
+        '200':
+          description: Turno concedido
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  expires_at: { type: string, format: date-time }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { description: 'Canal ocupado por la otra parte (`ptt_busy`) o aún sin abrir (`ptt_not_open`)' }
+        '410': { description: Canal cerrado }
+        '503': { description: 'No se pudo dar permiso de micrófono en la sala, `ptt_unavailable`' }
+    delete:
+      summary: Libera el turno (sin efecto si el llamante no lo tiene)
+      parameters: [ { $ref: '#/components/parameters/TripId' } ]
+      responses:
+        '204': { description: Liberado }
+        '404': { $ref: '#/components/responses/Error' }
+        '503': { description: 'LiveKit no confirmó la retirada del permiso; el turno sigue y caduca solo, `ptt_unavailable`' }
+
+  /v1/admin/usage:
+    get:
+      summary: Coste por conductor entre dos fechas (constitución VII)
+      parameters:
+        - { name: from, in: query, schema: { type: string, format: date }, description: 'Por defecto hace 30 días' }
+        - { name: to, in: query, schema: { type: string, format: date }, description: 'Por defecto hoy (UTC)' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    driver_id: { type: [string, 'null'], description: 'Null: cotizaciones antes de elegir conductor' }
+                    display_name: { type: string }
+                    voice_minutes: { type: number, description: Minutos de participante en LiveKit de sus viajes (ambas partes) }
+                    realtime_events: { type: integer }
+                    route_requests: { type: integer }
+        '400': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+
+  /v1/livekit/webhook:
+    post:
+      summary: Webhook de LiveKit (participant_left) para medir minutos de voz
+      description: Sin token Kyq; LiveKit firma la llamada con un JWT de su clave de API cuyo claim sha256 es el del cuerpo.
+      security: []
+      responses:
+        '200': { description: Recibido }
+        '401': { $ref: '#/components/responses/Error' }
+
+  /v1/admin/drivers:
+    get:
+      summary: Lista de conductores con suscripción y documentos (FR-004)
+      responses:
+        '200': { description: OK }
+    post:
+      summary: Alta de conductor por un administrador
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [phone_e164, display_name, vehicle_plate, vehicle_description]
+              properties:
+                phone_e164: { type: string }
+                display_name: { type: string }
+                vehicle_plate: { type: string }
+                vehicle_description: { type: string }
+      responses:
+        '201': { description: Creado }
+  /v1/admin/drivers/{driverId}/subscription:
+    put:
+      summary: Registra el pago de la suscripción (FR-004)
+      parameters: [ { $ref: '#/components/parameters/DriverId' } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [paid_until]
+              properties:
+                paid_until: { type: string, format: date-time }
+      responses:
+        '200': { description: OK }
+  /v1/admin/drivers/{driverId}/documents/{docType}:
+    put:
+      summary: Aprueba un documento y su vencimiento (FR-004)
+      parameters:
+        - { $ref: '#/components/parameters/DriverId' }
+        - { name: docType, in: path, required: true, schema: { $ref: '#/components/schemas/DocType' } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [expires_at, approved]
+              properties:
+                expires_at: { type: string, format: date }
+                approved: { type: boolean }
+      responses:
+        '200': { description: OK }
+  /v1/admin/fare-tables/{cityCode}:
+    put:
+      summary: Define la tabla de tarifas de la ciudad (FR-010b)
+      parameters:
+        - { name: cityCode, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/FareTable' }
+      responses:
+        '200': { description: OK }
+
+components:
+  securitySchemes:
+    bearer: { type: http, scheme: bearer, bearerFormat: JWT }
+
+  parameters:
+    TripId: { name: tripId, in: path, required: true, schema: { type: string, format: uuid } }
+    DriverId: { name: driverId, in: path, required: true, schema: { type: string, format: uuid } }
+
+  requestBodies:
+    Phone:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [phone_e164]
+            properties:
+              phone_e164: { type: string }
+    Route:
+      required: true
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/RouteRequest' }
+
+  responses:
+    Error:
+      description: Error
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Tokens:
+      description: Tokens de sesión
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              access_token: { type: string }
+              refresh_token: { type: string }
+              role: { type: string, enum: [passenger, driver, admin] }
+    RealtimeToken:
+      description: Token de Centrifugo
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              token: { type: string }
+    Trip:
+      description: Viaje
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Trip' }
+
+  schemas:
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code: { type: string }
+        message: { type: string }
+    Point:
+      type: object
+      required: [lat, lng]
+      properties:
+        lat: { type: number, minimum: -90, maximum: 90 }
+        lng: { type: number, minimum: -180, maximum: 180 }
+    LocationFix:
+      allOf:
+        - $ref: '#/components/schemas/Point'
+        - type: object
+          properties:
+            heading: { type: number }
+            speed_mps: { type: number }
+            recorded_at: { type: string, format: date-time }
+    RouteRequest:
+      type: object
+      required: [pickup, dropoff]
+      properties:
+        pickup: { $ref: '#/components/schemas/Point' }
+        dropoff: { $ref: '#/components/schemas/Point' }
+    FareQuote:
+      type: object
+      properties:
+        distance_m: { type: integer }
+        duration_s: { type: integer }
+        suggested_fare_minor: { type: integer }
+        currency: { type: string }
+    FareTable:
+      type: object
+      required: [currency, base_minor, per_km_minor, per_minute_minor, minimum_minor]
+      properties:
+        currency: { type: string, minLength: 3, maxLength: 3 }
+        base_minor: { type: integer, minimum: 0 }
+        per_km_minor: { type: integer, minimum: 0 }
+        per_minute_minor: { type: integer, minimum: 0 }
+        minimum_minor: { type: integer, minimum: 0 }
+        rounding_minor: { type: integer, minimum: 1, default: 1, description: Se redondea al múltiplo más cercano }
+    Presence:
+      type: string
+      enum: [offline, free, busy]
+    DocType:
+      type: string
+      enum: [license, mandatory_insurance, vehicle_registration]
+    ChosenDriver:
+      type: object
+      properties:
+        driver_id: { type: string, format: uuid }
+        display_name: { type: string }
+        vehicle_description: { type: string }
+        presence: { $ref: '#/components/schemas/Presence' }
+        busy_until_estimate: { type: [string, 'null'], format: date-time }
+    DriverMe:
+      type: object
+      properties:
+        driver_id: { type: string, format: uuid }
+        qr_token: { type: string }
+        presence: { $ref: '#/components/schemas/Presence' }
+        subscription_status: { type: string, enum: [active, grace_period, suspended] }
+        paid_until: { type: string, format: date-time }
+        can_go_online: { type: boolean }
+        block_reason: { type: [string, 'null'], enum: [subscription_suspended, kyc_expired, null] }
+        documents:
+          type: array
+          items:
+            type: object
+            properties:
+              doc_type: { $ref: '#/components/schemas/DocType' }
+              expires_at: { type: string, format: date }
+              approved: { type: boolean }
+    FareProposal:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        proposed_by: { type: string, enum: [driver, passenger] }
+        amount_minor: { type: integer }
+        status: { type: string, enum: [open, accepted, rejected, superseded, expired] }
+        expires_at: { type: string, format: date-time }
+    TripStatus:
+      type: string
+      enum: [REQUESTED, FARE_PENDING, NEGOTIATION_PENDING, NEGOTIATING, ACCEPTED, ARRIVED, IN_PROGRESS, COMPLETED, CANCELLED]
+    Trip:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        status: { $ref: '#/components/schemas/TripStatus' }
+        passenger_id: { type: string, format: uuid }
+        driver_id: { type: string, format: uuid }
+        pickup: { $ref: '#/components/schemas/Point' }
+        dropoff: { $ref: '#/components/schemas/Point' }
+        distance_m: { type: integer }
+        duration_s: { type: integer }
+        currency: { type: string }
+        suggested_fare_minor: { type: integer }
+        agreed_fare_minor: { type: [integer, 'null'] }
+        driver_payout_minor: { type: [integer, 'null'] }
+        platform_commission_minor: { type: integer, const: 0 }
+        open_proposal: { oneOf: [ { $ref: '#/components/schemas/FareProposal' }, { type: 'null' } ] }
+        offer_expires_at:
+          type: [string, 'null']
+          format: date-time
+          description: Plazo de la respuesta pendiente (oferta 25 s; confirmación, aceptar negociar o propuesta 30 s)
+        negotiation_expires_at: { type: [string, 'null'], format: date-time }
+        cancel_reason: { type: [string, 'null'] }
