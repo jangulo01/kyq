@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 
 import 'app/app.dart';
+import 'app/bootstrap.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  final deps = bootstrap();
-  runApp(KyqAdminApp(api: deps.api, auth: deps.auth));
+  runBootstrapped(() {
+    final deps = bootstrap();
+    runApp(KyqAdminApp(api: deps.api, auth: deps.auth));
+  });
 }

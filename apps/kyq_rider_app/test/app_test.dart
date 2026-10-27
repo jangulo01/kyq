@@ -6,7 +6,11 @@ import 'package:kyq_rider_app/chosen_drivers/chosen_drivers_page.dart';
 import 'package:kyq_ui/kyq_ui.dart';
 import 'package:mocktail/mocktail.dart';
 
-class _MockApi extends Mock implements KyqApiClient {}
+class _MockApi extends Mock implements KyqApiClient {
+  // La pantalla de inicio siempre pregunta por un viaje en curso; por defecto no hay ninguno.
+  @override
+  Future<Trip?> activeTrip() async => null;
+}
 
 const _session = Tokens(accessToken: 'a', refreshToken: 'r', role: UserRole.passenger);
 

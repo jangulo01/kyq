@@ -8,6 +8,8 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+
+	"github.com/kyq/backend/internal/observability"
 )
 
 // MaxBodyBytes caps every JSON request body.
@@ -36,6 +38,7 @@ func WriteError(w http.ResponseWriter, status int, code, message string) {
 // InternalError logs err and writes a generic 500 without leaking details.
 func InternalError(w http.ResponseWriter, r *http.Request, err error) {
 	slog.ErrorContext(r.Context(), "internal error", "path", r.URL.Path, "err", err)
+	observability.CaptureError(r.Context(), err, r.URL.Path)
 	WriteError(w, http.StatusInternalServerError, "internal", "error interno")
 }
 

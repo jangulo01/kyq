@@ -11,6 +11,7 @@ import (
 	"github.com/kyq/backend/internal/drivers"
 	"github.com/kyq/backend/internal/ptt"
 	"github.com/kyq/backend/internal/realtime"
+	"github.com/kyq/backend/internal/telemetry"
 	"github.com/kyq/backend/internal/trips"
 )
 
@@ -26,6 +27,9 @@ type Deps struct {
 	Presence *drivers.Presence
 	Trips    *trips.Handlers
 	PTT      *ptt.Handlers
+	Usage    *telemetry.Handlers
+	// LiveKitWebhook is public: LiveKit authenticates it with its own signature.
+	LiveKitWebhook *telemetry.LiveKitWebhook
 }
 
 // NewRouter returns the root handler with every module mounted and the common middleware.
@@ -42,6 +46,9 @@ func NewRouter(d Deps) http.Handler {
 
 	if d.Auth != nil {
 		d.Auth.Register(mux)
+	}
+	if d.LiveKitWebhook != nil {
+		d.LiveKitWebhook.Register(mux)
 	}
 	if d.Tokens != nil {
 		requireAuth := auth.RequireAuth(d.Tokens)
@@ -65,6 +72,9 @@ func NewRouter(d Deps) http.Handler {
 		}
 		if d.PTT != nil {
 			d.PTT.Register(mux, requireAuth)
+		}
+		if d.Usage != nil {
+			d.Usage.Register(mux, requireAuth)
 		}
 	}
 

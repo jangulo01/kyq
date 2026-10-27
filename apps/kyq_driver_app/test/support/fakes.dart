@@ -11,7 +11,11 @@ import 'package:kyq_ptt/testing.dart';
 import 'package:kyq_realtime/kyq_realtime.dart';
 import 'package:mocktail/mocktail.dart';
 
-class MockApi extends Mock implements KyqApiClient {}
+class MockApi extends Mock implements KyqApiClient {
+  // La pantalla de inicio siempre pregunta por un viaje en curso; por defecto no hay ninguno.
+  @override
+  Future<Trip?> activeTrip() async => null;
+}
 
 /// Eventos de tiempo real empujados a mano, sin sockets.
 class FakeEventSource implements DriverEventSource {

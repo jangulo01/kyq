@@ -325,6 +325,17 @@ paths:
         '200': { $ref: '#/components/responses/Trip' }
         '409': { $ref: '#/components/responses/Error' }
 
+  /v1/trips/active:
+    get:
+      summary: Viaje sin terminar del llamante (pasajero o conductor), para retomarlo al reabrir la app
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Trip' }
+        '204': { description: Sin viaje activo }
+
   /v1/trips/{tripId}/ptt/token:
     post:
       summary: Credenciales para la sala de voz del viaje (FR-016, FR-020)
@@ -375,6 +386,39 @@ paths:
       responses:
         '204': { description: Liberado }
         '404': { $ref: '#/components/responses/Error' }
+
+  /v1/admin/usage:
+    get:
+      summary: Coste por conductor entre dos fechas (constitución VII)
+      parameters:
+        - { name: from, in: query, schema: { type: string, format: date }, description: 'Por defecto hace 30 días' }
+        - { name: to, in: query, schema: { type: string, format: date }, description: 'Por defecto hoy (UTC)' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    driver_id: { type: [string, 'null'], description: 'Null: cotizaciones antes de elegir conductor' }
+                    display_name: { type: string }
+                    voice_minutes: { type: number, description: Minutos de participante en LiveKit de sus viajes (ambas partes) }
+                    realtime_events: { type: integer }
+                    route_requests: { type: integer }
+        '400': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+
+  /v1/livekit/webhook:
+    post:
+      summary: Webhook de LiveKit (participant_left) para medir minutos de voz
+      description: Sin token Kyq; LiveKit firma la llamada con un JWT de su clave de API cuyo claim sha256 es el del cuerpo.
+      security: []
+      responses:
+        '200': { description: Recibido }
+        '401': { $ref: '#/components/responses/Error' }
 
   /v1/admin/drivers:
     get:

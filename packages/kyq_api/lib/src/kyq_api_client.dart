@@ -168,6 +168,13 @@ class KyqApiClient {
 
   Future<Trip> getTrip(String tripId) => _trip(() => _dio.get('/v1/trips/$tripId'));
 
+  /// Viaje sin terminar del usuario, o null; sirve para retomarlo al reabrir la app.
+  Future<Trip?> activeTrip() async {
+    final res = await _send(() => _dio.get('/v1/trips/active'));
+    final data = res.data;
+    return data is Map<String, dynamic> ? Trip.fromJson(data) : null;
+  }
+
   /// El conductor acepta; con [fareMinor] distinto de la sugerida el pasajero debe confirmarla.
   Future<Trip> acceptTrip(String tripId, {int? fareMinor}) =>
       _trip(() => _dio.post('/v1/trips/$tripId/accept', data: {'fare_minor': ?fareMinor}));

@@ -18,9 +18,11 @@ import (
 	"github.com/kyq/backend/internal/drivers"
 	"github.com/kyq/backend/internal/fares"
 	"github.com/kyq/backend/internal/httpapi"
+	"github.com/kyq/backend/internal/observability"
 	"github.com/kyq/backend/internal/ptt"
 	"github.com/kyq/backend/internal/realtime"
 	"github.com/kyq/backend/internal/store"
+	"github.com/kyq/backend/internal/telemetry"
 	"github.com/kyq/backend/internal/trips"
 )
 
@@ -38,6 +40,12 @@ func run(logger *slog.Logger) error {
 	if err != nil {
 		return err
 	}
+
+	flush, err := observability.Init(observability.Options{DSN: cfg.SentryDSN, Environment: cfg.SentryEnvironment, Release: "kyq-api"})
+	if err != nil {
+		return err
+	}
+	defer flush()
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -62,7 +70,9 @@ func run(logger *slog.Logger) error {
 	affils := affiliations.NewService(affiliations.NewPgRepo(st.Queries))
 	publisher := &realtime.Client{APIURL: cfg.CentrifugoAPIURL, APIKey: cfg.CentrifugoAPIKey}
 	routes := fares.OSRM{BaseURL: cfg.OSRMURL}
-	tripService := &trips.Service{Store: st, Routes: routes, Publisher: publisher, CityCode: cfg.CityCode, Logger: logger}
+	usage := &telemetry.Recorder{Store: st, Logger: logger}
+	go usage.Run(ctx, 30*time.Second)
+	tripService := &trips.Service{Store: st, Routes: routes, Publisher: publisher, Usage: usage, CityCode: cfg.CityCode, Logger: logger}
 	go tripService.RunSweeper(ctx, time.Second)
 	apiURL := cfg.LiveKitAPIURL
 	if apiURL == "" {
@@ -70,7 +80,7 @@ func run(logger *slog.Logger) error {
 	}
 	livekit := ptt.LiveKit{APIURL: apiURL, APIKey: cfg.LiveKitAPIKey, APISecret: cfg.LiveKitAPISecret}
 	pttService := &ptt.Service{
-		Store: st, LiveKit: livekit, Rooms: livekit, PublicURL: cfg.LiveKitURL, Publisher: publisher, Logger: logger,
+		Store: st, LiveKit: livekit, Rooms: livekit, PublicURL: cfg.LiveKitURL, Publisher: publisher, Usage: usage, Logger: logger,
 	}
 	go pttService.RunSweeper(ctx, time.Second)
 	handler := httpapi.NewRouter(httpapi.Deps{
@@ -84,9 +94,13 @@ func run(logger *slog.Logger) error {
 		Admin:    &admin.Handlers{Store: st},
 		Affils:   &affiliations.Handlers{Service: affils},
 		Drivers:  &drivers.Handlers{Store: st},
-		Presence: &drivers.Presence{Store: st, Routes: routes, Publisher: publisher, Logger: logger},
+		Presence: &drivers.Presence{Store: st, Routes: routes, Publisher: publisher, Usage: usage, Logger: logger},
 		Trips:    &trips.Handlers{Service: tripService},
 		PTT:      &ptt.Handlers{Service: pttService},
+		Usage:    &telemetry.Handlers{Store: st},
+		LiveKitWebhook: &telemetry.LiveKitWebhook{
+			APIKey: cfg.LiveKitAPIKey, APISecret: cfg.LiveKitAPISecret, Store: st, Usage: usage,
+		},
 	})
 
 	srv := &http.Server{

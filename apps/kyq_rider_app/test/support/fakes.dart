@@ -7,7 +7,11 @@ import 'package:kyq_rider_app/realtime/realtime_events.dart';
 import 'package:kyq_rider_app/request/location_source.dart';
 import 'package:mocktail/mocktail.dart';
 
-class MockApi extends Mock implements KyqApiClient {}
+class MockApi extends Mock implements KyqApiClient {
+  // La pantalla de inicio siempre pregunta por un viaje en curso; por defecto no hay ninguno.
+  @override
+  Future<Trip?> activeTrip() async => null;
+}
 
 /// Tiempo real en memoria: las pruebas empujan eventos con [emit].
 class FakeRealtime implements RealtimeEvents {

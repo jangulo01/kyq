@@ -103,6 +103,14 @@ func TestIntegrationTripLifecycle(t *testing.T) {
 
 	_, err = f.svc.Get(ctx, uuid.New(), trip.ID)
 	assert.ErrorIs(t, err, ErrNotFound, "terceros no ven el viaje")
+	for _, who := range []struct {
+		id       uuid.UUID
+		asDriver bool
+	}{{f.passenger, false}, {f.driver, true}} {
+		active, err := f.svc.Active(ctx, who.id, who.asDriver)
+		require.NoError(t, err)
+		assert.Equal(t, trip.ID, active.ID, "una app reiniciada encuentra su viaje")
+	}
 
 	f.advance(5 * time.Second)
 	for _, step := range []func(*Trip, Party, time.Time) error{
@@ -120,6 +128,8 @@ func TestIntegrationTripLifecycle(t *testing.T) {
 	assert.Equal(t, StatusCompleted, done.Status)
 	assert.Equal(t, done.SuggestedFare, *done.DriverPayout, "RN-KYQ-001: 100 % para el conductor")
 	assert.Equal(t, store.DriverPresenceFree, f.presence(t), "al terminar vuelve a estar libre")
+	_, err = f.svc.Active(ctx, f.passenger, false)
+	assert.ErrorIs(t, err, ErrNotFound, "un viaje terminado ya no está activo")
 }
 
 func TestIntegrationOfferExpiresAndFreesDriver(t *testing.T) {

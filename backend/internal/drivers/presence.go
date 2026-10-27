@@ -15,6 +15,7 @@ import (
 	"github.com/kyq/backend/internal/httpx"
 	"github.com/kyq/backend/internal/realtime"
 	"github.com/kyq/backend/internal/store"
+	"github.com/kyq/backend/internal/telemetry"
 )
 
 // etaRefresh limits OSRM calls per busy driver (research R7).
@@ -26,6 +27,7 @@ type Presence struct {
 	Store     *store.Store
 	Routes    fares.RouteEstimator
 	Publisher realtime.Publisher
+	Usage     telemetry.Usage
 	Now       func() time.Time
 	Logger    *slog.Logger
 }
@@ -207,6 +209,7 @@ func (p *Presence) location(w http.ResponseWriter, r *http.Request) {
 		if err := p.Publisher.Publish(ctx, "trip:"+trip.ID.String(), realtime.Event{Type: "trip.location", OccurredAt: now, Data: data}); err != nil {
 			p.logger().WarnContext(ctx, "publish trip.location", "err", err)
 		}
+		telemetry.Add(p.Usage, principal.UserID, telemetry.Events, 1)
 	}
 	if refreshETA {
 		p.refreshBusyUntil(ctx, principal.UserID, *trip, *body.Lat, *body.Lng, now)
@@ -220,6 +223,7 @@ func (p *Presence) refreshBusyUntil(ctx context.Context, driverID uuid.UUID, tri
 		return
 	}
 	var remaining time.Duration
+	telemetry.Add(p.Usage, driverID, telemetry.Routes, 1)
 	if store.TripStatus(trip.Status) == store.TripStatusINPROGRESS {
 		route, err := p.Routes.Route(ctx, lat, lng, trip.DropoffLat, trip.DropoffLng)
 		if err != nil {
@@ -257,4 +261,5 @@ func (p *Presence) publishPresence(ctx context.Context, driverID uuid.UUID, pres
 	if err != nil {
 		p.logger().WarnContext(ctx, "publish driver.presence", "err", err)
 	}
+	telemetry.Add(p.Usage, driverID, telemetry.Events, 1)
 }

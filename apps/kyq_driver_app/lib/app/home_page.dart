@@ -43,6 +43,12 @@ class HomePage extends StatelessWidget {
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
+                    ActiveTripBanner(
+                      load: context.read<KyqApiClient>().activeTrip,
+                      onOpen: (trip) => context.push('/trip/${trip.id}', extra: trip),
+                      // Pasar a ocupado o a libre es cuando aparece o termina un viaje.
+                      refreshKey: state.presence,
+                    ),
                     OnlineSwitchCard(state: state),
                     const SizedBox(height: 8),
                     _AccountStatusCard(me: me),

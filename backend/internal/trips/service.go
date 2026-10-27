@@ -12,6 +12,7 @@ import (
 	"github.com/kyq/backend/internal/fares"
 	"github.com/kyq/backend/internal/realtime"
 	"github.com/kyq/backend/internal/store"
+	"github.com/kyq/backend/internal/telemetry"
 )
 
 var (
@@ -30,6 +31,7 @@ type Service struct {
 	Store     *store.Store
 	Routes    fares.RouteEstimator
 	Publisher realtime.Publisher
+	Usage     telemetry.Usage
 	CityCode  string
 	Now       func() time.Time
 	Logger    *slog.Logger
@@ -51,6 +53,11 @@ func (s *Service) logger() *slog.Logger {
 
 // Quote returns the suggested fare for a route (FR-010).
 func (s *Service) Quote(ctx context.Context, pickup, dropoff Point) (fares.Table, fares.Route, int64, error) {
+	// La cotización previa no tiene conductor: cuenta como coste sin asignar (uuid nulo).
+	return s.quote(ctx, uuid.Nil, pickup, dropoff)
+}
+
+func (s *Service) quote(ctx context.Context, driverID uuid.UUID, pickup, dropoff Point) (fares.Table, fares.Route, int64, error) {
 	row, err := s.Store.GetFareTable(ctx, s.CityCode)
 	if store.IsNotFound(err) {
 		return fares.Table{}, fares.Route{}, 0, ErrCityNotConfigured
@@ -62,6 +69,7 @@ func (s *Service) Quote(ctx context.Context, pickup, dropoff Point) (fares.Table
 		CityCode: row.CityCode, Currency: row.Currency, BaseMinor: row.BaseMinor, PerKmMinor: row.PerKmMinor,
 		PerMinuteMinor: row.PerMinuteMinor, MinimumMinor: row.MinimumMinor, RoundingMinor: row.RoundingMinor,
 	}
+	telemetry.Add(s.Usage, driverID, telemetry.Routes, 1)
 	route, err := s.Routes.Route(ctx, pickup.Lat, pickup.Lng, dropoff.Lat, dropoff.Lng)
 	if err != nil {
 		return fares.Table{}, fares.Route{}, 0, err
@@ -71,7 +79,7 @@ func (s *Service) Quote(ctx context.Context, pickup, dropoff Point) (fares.Table
 
 // Request creates a nominal trip to a chosen, free driver (FR-009, FR-011, FR-012).
 func (s *Service) Request(ctx context.Context, passengerID, driverID uuid.UUID, pickup, dropoff Point) (*Trip, error) {
-	table, route, fare, err := s.Quote(ctx, pickup, dropoff)
+	table, route, fare, err := s.quote(ctx, driverID, pickup, dropoff)
 	if err != nil {
 		return nil, err
 	}
@@ -125,7 +133,27 @@ func (s *Service) Request(ctx context.Context, passengerID, driverID uuid.UUID, 
 	msgs := eventsFor("", nil, trip, true, passengerName, nil, now)
 	msgs = append(msgs, presenceMessage(driverID, store.DriverPresenceBusy, nil, now))
 	s.publish(ctx, msgs)
+	telemetry.Add(s.Usage, driverID, telemetry.Events, int64(len(msgs)))
 	return trip, nil
+}
+
+// Active returns the user's trip that has not ended yet, so an app that restarted can go back
+// to it. ErrNotFound when there is none.
+func (s *Service) Active(ctx context.Context, userID uuid.UUID, asDriver bool) (*Trip, error) {
+	var row store.Trip
+	var err error
+	if asDriver {
+		row, err = s.Store.GetActiveTripForDriver(ctx, userID)
+	} else {
+		row, err = s.Store.GetActiveTripForPassenger(ctx, userID)
+	}
+	if store.IsNotFound(err) {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	return s.Get(ctx, userID, row.ID)
 }
 
 // Get returns a trip the user takes part in.
@@ -175,6 +203,7 @@ func (s *Service) Act(ctx context.Context, userID, tripID uuid.UUID, op func(t *
 		return nil, err
 	}
 	s.publish(ctx, msgs)
+	telemetry.Add(s.Usage, trip.DriverID, telemetry.Events, int64(len(msgs)))
 	return trip, nil
 }
 
@@ -202,6 +231,7 @@ func (s *Service) ExpireDue(ctx context.Context) (int, error) {
 				return err
 			}
 			msgs = append(msgs, m...)
+			telemetry.Add(s.Usage, trip.DriverID, telemetry.Events, int64(len(m)))
 			count++
 		}
 		return nil

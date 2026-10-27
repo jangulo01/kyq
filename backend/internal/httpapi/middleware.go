@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/kyq/backend/internal/httpx"
+	"github.com/kyq/backend/internal/observability"
 )
 
 // Chain applies middlewares so the first one listed is the outermost.
@@ -75,6 +76,7 @@ func Recover(logger *slog.Logger) func(http.Handler) http.Handler {
 			defer func() {
 				if v := recover(); v != nil {
 					logger.ErrorContext(r.Context(), "panic", "value", v, "stack", string(debug.Stack()))
+					observability.CapturePanic(r.Context(), v, r.URL.Path)
 					httpx.WriteError(w, http.StatusInternalServerError, "internal", "error interno")
 				}
 			}()

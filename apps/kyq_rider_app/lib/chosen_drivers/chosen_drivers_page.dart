@@ -5,6 +5,7 @@ import 'package:kyq_api/kyq_api.dart';
 import 'package:kyq_ui/kyq_ui.dart';
 
 import '../request/request_page.dart';
+import '../trip/trip_route.dart';
 import 'chosen_drivers_cubit.dart';
 
 /// Pantalla principal del pasajero: sus Conductores Elegidos primero (RN-KYQ-006).
@@ -34,34 +35,56 @@ class ChosenDriversPage extends StatelessWidget {
         icon: const Icon(Icons.qr_code_scanner),
         label: const Text('Escanear QR'),
       ),
-      body: BlocConsumer<ChosenDriversCubit, ChosenDriversState>(
-        listenWhen: (a, b) => b.error != null && a.error != b.error,
-        listener: (context, state) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(state.error!))),
-        builder: (context, state) {
-          if (state.loading && state.drivers.isEmpty) return const Center(child: CircularProgressIndicator());
-          return RefreshIndicator(
-            onRefresh: context.read<ChosenDriversCubit>().load,
-            child: state.drivers.isEmpty
-                ? ListView(
-                    padding: const EdgeInsets.all(32),
-                    children: const [
-                      Icon(Icons.local_taxi, size: 56),
-                      SizedBox(height: 16),
-                      Text(
-                        'Aún no tienes conductores guardados. Escanea el código QR de tu conductor de confianza.',
-                        textAlign: TextAlign.center,
-                      ),
-                    ],
-                  )
-                : ListView.separated(
-                    padding: const EdgeInsets.only(bottom: 96),
-                    itemCount: state.drivers.length,
-                    separatorBuilder: (_, _) => const Divider(height: 1),
-                    itemBuilder: (context, i) => _DriverTile(driver: state.drivers[i]),
-                  ),
-          );
-        },
+      body: Column(
+        children: [
+          BlocBuilder<ChosenDriversCubit, ChosenDriversState>(
+            builder: (context, state) => Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: ActiveTripBanner(
+                load: context.read<KyqApiClient>().activeTrip,
+                onOpen: (trip) => context.push(tripLocation(trip.id, _driverName(state, trip.driverId))),
+                // El conductor pasa a ocupado al pedirle y a libre al terminar: ahí cambia el aviso.
+                refreshKey: state.drivers.map((d) => '${d.driverId}:${d.presence.name}').join(','),
+              ),
+            ),
+          ),
+          Expanded(child: _driverList()),
+        ],
       ),
+    );
+  }
+
+  static String _driverName(ChosenDriversState state, String driverId) =>
+      state.drivers.where((d) => d.driverId == driverId).firstOrNull?.displayName ?? '';
+
+  Widget _driverList() {
+    return BlocConsumer<ChosenDriversCubit, ChosenDriversState>(
+      listenWhen: (a, b) => b.error != null && a.error != b.error,
+      listener: (context, state) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(state.error!))),
+      builder: (context, state) {
+        if (state.loading && state.drivers.isEmpty) return const Center(child: CircularProgressIndicator());
+        return RefreshIndicator(
+          onRefresh: context.read<ChosenDriversCubit>().load,
+          child: state.drivers.isEmpty
+              ? ListView(
+                  padding: const EdgeInsets.all(32),
+                  children: const [
+                    Icon(Icons.local_taxi, size: 56),
+                    SizedBox(height: 16),
+                    Text(
+                      'Aún no tienes conductores guardados. Escanea el código QR de tu conductor de confianza.',
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                )
+              : ListView.separated(
+                  padding: const EdgeInsets.only(bottom: 96),
+                  itemCount: state.drivers.length,
+                  separatorBuilder: (_, _) => const Divider(height: 1),
+                  itemBuilder: (context, i) => _DriverTile(driver: state.drivers[i]),
+                ),
+        );
+      },
     );
   }
 }

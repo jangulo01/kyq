@@ -119,7 +119,7 @@ tarifa, ciclo completo del viaje y liquidación 100 % conductor
 - [X] T040 [P] [US2] Escribir `backend/internal/trips/statemachine_test.go`: todas las transiciones válidas e inválidas de la máquina de [data-model.md](data-model.md), incluidos FARE_PENDING, NEGOTIATION_PENDING y NEGOTIATING
 - [X] T041 [P] [US2] Escribir `backend/internal/trips/rules_test.go`: autorización por parte y rol de la descripción de [contracts/api.yaml](contracts/api.yaml) (404 a terceros, 403 por rol o por aceptar la propia propuesta), RN-KYQ-001 (`platform_commission_minor` = 0 y `driver_payout_minor` = `agreed_fare_minor`), RN-KYQ-007 (oferta exclusiva 25 s), FR-010a (confirmación 30 s), FR-010c (propuesta 30 s, negociación 3 min, rechazo vuelve a REQUESTED con 25 s nuevos), FR-012 (un viaje activo por conductor)
 - [X] T042 [P] [US2] Escribir `backend/internal/trips/integration_test.go` contra PostgreSQL: pasajero pide, conductor acepta, avanza a COMPLETED; dos pasajeros piden al mismo conductor a la vez y solo uno obtiene oferta
-- [ ] T043 [P] [US2] Pruebas bloc en `apps/kyq_driver_app/test/offers/offer_cubit_test.dart` y `apps/kyq_rider_app/test/request/request_cubit_test.dart`: cuenta atrás, aceptar, cambiar tarifa, negociar y vencimientos
+- [X] T043 [P] [US2] Pruebas bloc en `apps/kyq_driver_app/test/offers/offer_cubit_test.dart` y `apps/kyq_rider_app/test/request/request_cubit_test.dart`: cuenta atrás, aceptar, cambiar tarifa, negociar y vencimientos
 
 ### Implementation for User Story 2 — backend
 
@@ -136,20 +136,20 @@ tarifa, ciclo completo del viaje y liquidación 100 % conductor
 
 ### Implementation for User Story 2 — app del conductor
 
-- [ ] T054 [US2] Servicio en primer plano en `apps/kyq_driver_app/lib/background/foreground_service.dart` con `flutter_foreground_task` (tipos `location|microphone|mediaPlayback`) mientras está ONLINE; declarar permisos en `apps/kyq_driver_app/android/app/src/main/AndroidManifest.xml`
-- [ ] T055 [US2] Envío de ubicación cada 3 s en `apps/kyq_driver_app/lib/background/location_reporter.dart` con `geolocator` (`forceLocationManager` si no hay Google Play Services)
-- [ ] T056 [US2] Pantalla de inicio con interruptor ONLINE, motivo de bloqueo y asistente de permisos (ubicación en segundo plano, micrófono, exclusión de batería) en `apps/kyq_driver_app/lib/onboarding/home_page.dart`
-- [ ] T057 [US2] Tarjeta de oferta con cuenta atrás de 25 s, aceptar, aceptar con otra tarifa, proponer negociar y rechazar en `apps/kyq_driver_app/lib/offers/`
+- [X] T054 [US2] Servicio en primer plano en `apps/kyq_driver_app/lib/background/foreground_service.dart` con `flutter_foreground_task` (tipos `location|microphone|mediaPlayback`) mientras está ONLINE; declarar permisos en `apps/kyq_driver_app/android/app/src/main/AndroidManifest.xml`
+- [X] T055 [US2] Envío de ubicación cada 3 s en `apps/kyq_driver_app/lib/background/location_reporter.dart` con `geolocator` (`forceLocationManager` si no hay Google Play Services)
+- [X] T056 [US2] Pantalla de inicio con interruptor ONLINE, motivo de bloqueo y asistente de permisos (ubicación en segundo plano, micrófono, exclusión de batería) en `apps/kyq_driver_app/lib/onboarding/home_page.dart` (implementado en `lib/app/home_page.dart`, `online_switch_card.dart` y `lib/background/online_permissions.dart`)
+- [X] T057 [US2] Tarjeta de oferta con cuenta atrás de 25 s, aceptar, aceptar con otra tarifa, proponer negociar y rechazar en `apps/kyq_driver_app/lib/offers/`
 - [X] T058 [US2] Pantalla de negociación compartida (propuesta actual, contrapropuesta, aceptar, abandonar, cuenta atrás 30 s y total 3 min) en `packages/kyq_ui/lib/src/negotiation/negotiation_panel.dart`
-- [ ] T059 [US2] Pantalla del viaje con botones Llegué / Iniciar / Finalizar, cancelar antes de IN_PROGRESS y abrir ruta en app externa (`geo:` / Waze / Google Maps) en `apps/kyq_driver_app/lib/trip/trip_page.dart`
-- [ ] T060 [US2] Resumen del viaje con tarifa acordada, 100 % para el conductor y comisión 0 en `apps/kyq_driver_app/lib/trip/trip_summary_page.dart`
+- [X] T059 [US2] Pantalla del viaje con botones Llegué / Iniciar / Finalizar, cancelar antes de IN_PROGRESS y abrir ruta en app externa (`geo:` / Waze / Google Maps) en `apps/kyq_driver_app/lib/trip/trip_page.dart`
+- [X] T060 [US2] Resumen del viaje con tarifa acordada, 100 % para el conductor y comisión 0 en `apps/kyq_driver_app/lib/trip/trip_summary_page.dart`
 
 ### Implementation for User Story 2 — app del pasajero
 
-- [ ] T061 [US2] Presencia en vivo de los conductores elegidos (Libre / Ocupado + minutos / Desconectado) en `apps/kyq_rider_app/lib/chosen_drivers/chosen_drivers_page.dart` suscribiéndose a `driver_presence:{driverId}`
-- [ ] T062 [US2] Pantalla de solicitud con mapa MapLibre (PMTiles), origen por ubicación actual, selección de destino, cotización y botón pedir en `apps/kyq_rider_app/lib/request/request_page.dart`
-- [ ] T063 [US2] Espera de respuesta, confirmación de nueva tarifa en 30 s y aceptación de negociación usando T058 en `apps/kyq_rider_app/lib/request/awaiting_driver_page.dart`
-- [ ] T064 [US2] Seguimiento del viaje con posición del conductor (`trip:{tripId}`), estado y cancelar en `apps/kyq_rider_app/lib/trip/trip_page.dart`, y resumen final en `trip_summary_page.dart`
+- [X] T061 [US2] Presencia en vivo de los conductores elegidos (Libre / Ocupado + minutos / Desconectado) en `apps/kyq_rider_app/lib/chosen_drivers/chosen_drivers_page.dart` suscribiéndose a `driver_presence:{driverId}`
+- [X] T062 [US2] Pantalla de solicitud con mapa MapLibre (PMTiles), origen por ubicación actual, selección de destino, cotización y botón pedir en `apps/kyq_rider_app/lib/request/request_page.dart`
+- [X] T063 [US2] Espera de respuesta, confirmación de nueva tarifa en 30 s y aceptación de negociación usando T058 en `apps/kyq_rider_app/lib/request/awaiting_driver_page.dart` (implementado en `awaiting_driver_view.dart`)
+- [X] T064 [US2] Seguimiento del viaje con posición del conductor (`trip:{tripId}`), estado y cancelar en `apps/kyq_rider_app/lib/trip/trip_page.dart`, y resumen final en `trip_summary_page.dart` (resumen en `trip_summary_view.dart`)
 
 **Checkpoint**: US1 + US2 funcionan; viaje completo con las tres vías de tarifa
 
@@ -187,12 +187,12 @@ reproducción automática y atenuación del GPS
 
 ## Phase 6: Polish & Cross-Cutting Concerns
 
-- [ ] T076 [P] Integrar Sentry (Flutter y Go) con datos personales filtrados en `apps/*/lib/app/bootstrap.dart` y `backend/internal/observability/sentry.go`
-- [ ] T077 [P] Métricas de coste por conductor (minutos de voz desde webhooks de LiveKit, eventos publicados, cotizaciones OSRM) en `backend/internal/telemetry/` (constitución VII)
-- [ ] T078 [P] Comprobar que ninguna respuesta ni evento expone `phone_e164` de la otra parte (FR-020) con una prueba en `backend/internal/contracttest/privacy_test.go`
+- [X] T076 [P] Integrar Sentry (Flutter y Go) con datos personales filtrados en `apps/*/lib/app/bootstrap.dart` y `backend/internal/observability/sentry.go`
+- [X] T077 [P] Métricas de coste por conductor (minutos de voz desde webhooks de LiveKit, eventos publicados, cotizaciones OSRM) en `backend/internal/telemetry/` (constitución VII)
+- [X] T078 [P] Comprobar que ninguna respuesta ni evento expone `phone_e164` de la otra parte (FR-020) con una prueba en `backend/internal/contracttest/privacy_test.go`
 - [ ] T079 Probar en un teléfono sin Google Play Services (Huawei) los escenarios 2–7 de [quickstart.md](quickstart.md) y registrar resultados en `specs/001-chosen-driver-trip-ptt/validation.md`
 - [ ] T080 Medir SC-002, SC-004 y SC-005 según la sección "Medición" de [quickstart.md](quickstart.md) y anotarlos en `specs/001-chosen-driver-trip-ptt/validation.md`
-- [ ] T081 Actualizar `README.md` con el arranque completo (migraciones, semilla, OSRM, PMTiles)
+- [X] T081 Actualizar `README.md` con el arranque completo (migraciones, semilla, OSRM, PMTiles)
 
 ---
 

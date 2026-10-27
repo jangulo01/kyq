@@ -25,6 +25,9 @@ type Config struct {
 	OSRMURL  string
 	CityCode string
 
+	SentryDSN         string // vacío: sin envío de errores
+	SentryEnvironment string
+
 	DevOTPCode             string
 	TwilioAccountSID       string
 	TwilioAuthToken        string
@@ -46,6 +49,8 @@ func Load() (Config, error) {
 		LiveKitAPISecret:       os.Getenv("KYQ_LIVEKIT_API_SECRET"),
 		OSRMURL:                os.Getenv("KYQ_OSRM_URL"),
 		CityCode:               getenv("KYQ_CITY_CODE", "bogota"),
+		SentryDSN:              os.Getenv("KYQ_SENTRY_DSN"),
+		SentryEnvironment:      getenv("KYQ_SENTRY_ENVIRONMENT", "dev"),
 		DevOTPCode:             os.Getenv("KYQ_DEV_OTP_CODE"),
 		TwilioAccountSID:       os.Getenv("KYQ_TWILIO_ACCOUNT_SID"),
 		TwilioAuthToken:        os.Getenv("KYQ_TWILIO_AUTH_TOKEN"),

@@ -54,6 +54,7 @@ services:
       KYQ_LIVEKIT_API_SECRET: secret
       KYQ_OSRM_URL: http://osrm:5000
       KYQ_DEV_OTP_CODE: ${KYQ_DEV_OTP_CODE}
+      KYQ_SENTRY_DSN: ${KYQ_SENTRY_DSN:-}
     ports:
       - "8080:8080"
     depends_on:
@@ -100,11 +101,14 @@ services:
   tiles:
     profiles: ["routing"]
     image: caddy:2-alpine
-    command: caddy file-server --root /srv --listen :8081
+    # Mapa base: city.pmtiles + style.json + fonts/ + sprites/ (ver tiles/build.sh), con CORS y Range.
+    command: caddy run --config /etc/caddy/Caddyfile --adapter caddyfile
     volumes:
       - ./data/tiles:/srv:ro
+      - ./tiles/Caddyfile:/etc/caddy/Caddyfile:ro
     ports:
       - "8081:8081"
+    restart: unless-stopped
 
 volumes:
   pgdata:

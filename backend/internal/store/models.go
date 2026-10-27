@@ -396,6 +396,14 @@ type DriverDocument struct {
 	ApprovedAt pgtype.Timestamptz
 }
 
+type DriverUsageDaily struct {
+	DriverID                uuid.UUID
+	Day                     time.Time
+	VoiceParticipantSeconds int64
+	RealtimeEvents          int64
+	RouteRequests           int64
+}
+
 type FareProposal struct {
 	ID          uuid.UUID
 	TripID      uuid.UUID

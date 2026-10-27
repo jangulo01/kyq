@@ -117,6 +117,30 @@ void main() {
     expect(client.requestFloor('t1'), throwsA(isA<ApiException>().having((e) => e.statusCode, 'status', 409)));
   });
 
+  test('activeTrip devuelve el viaje en curso o null si no hay', () async {
+    adapter.onGet(
+      '/v1/trips/active',
+      (s) => s.reply(200, {
+        'id': 't1',
+        'status': 'ACCEPTED',
+        'passenger_id': 'p1',
+        'driver_id': 'd1',
+        'pickup': {'lat': 4.6, 'lng': -74.08},
+        'dropoff': {'lat': 4.65, 'lng': -74.05},
+        'distance_m': 5200,
+        'duration_s': 900,
+        'currency': 'COP',
+        'suggested_fare_minor': 1470000,
+      }),
+    );
+    final trip = await client.activeTrip();
+    expect(trip?.id, 't1');
+    expect(trip?.status, TripStatus.accepted);
+
+    adapter.onGet('/v1/trips/active', (s) => s.reply(204, null));
+    expect(await client.activeTrip(), isNull);
+  });
+
   test('releaseFloor libera el turno', () async {
     adapter.onDelete('/v1/trips/t1/ptt/floor', (s) => s.reply(204, null));
 

@@ -13,6 +13,7 @@ import (
 
 	"github.com/kyq/backend/internal/realtime"
 	"github.com/kyq/backend/internal/store"
+	"github.com/kyq/backend/internal/telemetry"
 )
 
 const (
@@ -50,6 +51,7 @@ type Service struct {
 	Rooms     Rooms
 	PublicURL string // LiveKit WebSocket URL handed to the apps
 	Publisher realtime.Publisher
+	Usage     telemetry.Usage
 	Now       func() time.Time
 	Logger    *slog.Logger
 }
@@ -255,6 +257,7 @@ func (s *Service) CloseDue(ctx context.Context) (int, error) {
 				s.logger().WarnContext(ctx, "publish ptt.closed", "trip_id", ch.TripID, "err", err)
 			}
 		}
+		telemetry.Add(s.Usage, ch.DriverID, telemetry.Events, 2)
 	}
 	return count, nil
 }

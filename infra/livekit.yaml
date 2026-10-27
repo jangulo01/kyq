@@ -2,3 +2,8 @@
 # de cerrar el canal no puede volver a abrir la sala (RN-KYQ-014).
 room:
   auto_create: false
+# Minutos de voz por conductor (T077): la API valida la firma con la misma clave.
+webhook:
+  api_key: devkey
+  urls:
+    - http://api:8080/v1/livekit/webhook

@@ -4,11 +4,17 @@ import 'package:maplibre_gl/maplibre_gl.dart';
 
 import 'trip_map.dart';
 
-/// Estilo del mapa. Por defecto los tiles de demostración de MapLibre.
-const mapStyleUrl = String.fromEnvironment(
-  'KYQ_MAP_STYLE_URL',
-  defaultValue: 'https://demotiles.maplibre.org/style.json',
-);
+/// Estilo del mapa base (Protomaps sobre PMTiles propios, ver `infra/tiles/build.sh`).
+///
+/// `KYQ_MAP_STYLE_URL` lo fija; si no se define, se usa el servicio `tiles` (puerto 8081) del mismo
+/// host que `KYQ_API_URL`, que en desarrollo es la VM.
+final mapStyleUrl = _styleOverride.isNotEmpty ? _styleOverride : _styleFromApiHost();
+
+const _styleOverride = String.fromEnvironment('KYQ_MAP_STYLE_URL');
+const _apiUrl = String.fromEnvironment('KYQ_API_URL', defaultValue: 'http://10.0.2.2:8080');
+
+String _styleFromApiHost() =>
+    Uri.parse(_apiUrl).replace(port: 8081, path: '/style.json', query: null, fragment: null).toString();
 
 /// Centro inicial si aún no sabemos dónde está el pasajero (Bogotá).
 const _fallbackCenter = LatLng(4.7110, -74.0721);

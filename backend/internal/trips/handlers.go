@@ -26,6 +26,7 @@ func (h *Handlers) Register(mux *http.ServeMux, authMW func(http.Handler) http.H
 	mux.Handle("PUT /v1/admin/fare-tables/{cityCode}", admin(h.putFareTable))
 	mux.Handle("POST /v1/fares/quote", passenger(h.quote))
 	mux.Handle("POST /v1/trips", passenger(h.request))
+	mux.Handle("GET /v1/trips/active", authed(h.active))
 	mux.Handle("GET /v1/trips/{tripId}", authed(h.get))
 
 	act := func(op func(r *http.Request) (func(t *Trip, p Party, now time.Time) error, bool)) http.Handler {
@@ -170,6 +171,20 @@ func (h *Handlers) request(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	httpx.WriteJSON(w, http.StatusCreated, viewOf(trip))
+}
+
+func (h *Handlers) active(w http.ResponseWriter, r *http.Request) {
+	p, _ := auth.FromContext(r.Context())
+	trip, err := h.Service.Active(r.Context(), p.UserID, p.Role == auth.RoleDriver)
+	if errors.Is(err, ErrNotFound) {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	httpx.WriteJSON(w, http.StatusOK, viewOf(trip))
 }
 
 func (h *Handlers) get(w http.ResponseWriter, r *http.Request) {

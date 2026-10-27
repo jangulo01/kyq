@@ -1,0 +1,13 @@
+# Sirve infra/data/tiles: city.pmtiles (peticiones Range), style.json, fonts/ y sprites/.
+:8081 {
+	root * /srv
+	header {
+		Access-Control-Allow-Origin *
+		Access-Control-Allow-Methods "GET, HEAD, OPTIONS"
+		Access-Control-Allow-Headers "Range, If-Match, If-None-Match"
+		Access-Control-Expose-Headers "ETag, Content-Range, Content-Length, Accept-Ranges"
+	}
+	@preflight method OPTIONS
+	respond @preflight 204
+	file_server
+}
