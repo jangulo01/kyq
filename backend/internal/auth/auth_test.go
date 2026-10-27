@@ -56,6 +56,32 @@ func TestRequestOTPAgainstSMSPumping(t *testing.T) {
 	assert.NoError(t, svc.RequestOTP(ctx, "+573009999998", "10.0.0.4"), "otra IP sigue pudiendo")
 }
 
+func TestBlockedIPDoesNotSpendPhoneBudget(t *testing.T) {
+	svc, _, _, _ := newTestService()
+	ctx := context.Background()
+	for i := range 20 {
+		require.NoError(t, svc.RequestOTP(ctx, fmt.Sprintf("+57300000%04d", i), "10.0.0.9"))
+	}
+	for range 10 {
+		assert.ErrorIs(t, svc.RequestOTP(ctx, "+573001234567", "10.0.0.9"), ErrRateLimited)
+	}
+	assert.NoError(t, svc.RequestOTP(ctx, "+573001234567", "10.0.0.10"), "la víctima conserva su cupo")
+}
+
+func TestIPv6GroupedBy64(t *testing.T) {
+	assert.Equal(t, ipKey("2001:db8:1:2::1"), ipKey("2001:db8:1:2:ffff::9"))
+	assert.NotEqual(t, ipKey("2001:db8:1:2::1"), ipKey("2001:db8:1:3::1"))
+	assert.Equal(t, "10.0.0.1", ipKey("10.0.0.1"))
+}
+
+func TestGlobalVolumeDoesNotBlock(t *testing.T) {
+	svc, _, _, _ := newTestService()
+	ctx := context.Background()
+	for i := range 520 {
+		require.NoError(t, svc.RequestOTP(ctx, fmt.Sprintf("+5730%08d", i), fmt.Sprintf("10.1.%d.%d", i/250, i%250)))
+	}
+}
+
 func TestRateLimiterSweepsStaleKeys(t *testing.T) {
 	l := newRateLimiter(1, time.Minute)
 	start := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)

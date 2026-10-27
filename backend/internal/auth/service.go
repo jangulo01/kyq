@@ -5,6 +5,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
+	"net/netip"
 	"regexp"
 	"strings"
 	"time"
@@ -26,9 +28,11 @@ var (
 // Límites de envío de OTP por hora contra el bombeo de SMS (números rotados desde un mismo
 // origen o en masa). Ajustar cuando haya volumen real.
 const (
-	otpRequestsPerPhoneHour  = 5
-	otpRequestsPerIPHour     = 20
-	otpRequestsGlobalPerHour = 500
+	otpRequestsPerPhoneHour = 5
+	otpRequestsPerIPHour    = 20
+	// Umbral de alerta, no de bloqueo: bloquear a todos permitiría a un atacante dejar sin
+	// login a todo el país.
+	otpRequestsGlobalAlertPerHour = 500
 )
 
 // DefaultOTPCountryPrefixes son los mercados atendidos: solo se envían SMS a estos prefijos.
@@ -95,7 +99,7 @@ func NewService(repo Repo, otp OTPSender, tokens *TokenIssuer, now func() time.T
 		tokens:        tokens,
 		limiter:       newRateLimiter(otpRequestsPerPhoneHour, time.Hour),
 		ipLimiter:     newRateLimiter(otpRequestsPerIPHour, time.Hour),
-		globalLimiter: newRateLimiter(otpRequestsGlobalPerHour, time.Hour),
+		globalLimiter: newRateLimiter(otpRequestsGlobalAlertPerHour, time.Hour),
 		prefixes:      DefaultOTPCountryPrefixes,
 		now:           now,
 	}
@@ -107,8 +111,8 @@ func (s *Service) WithCountryPrefixes(prefixes []string) *Service {
 	return s
 }
 
-// RequestOTP sends a code to phone. Limits per hour: 5 per phone, 20 per client IP and 500 in
-// total; only phones of served countries receive SMS.
+// RequestOTP sends a code to phone. Limits per hour: 20 per client IP (IPv6 by /64) and 5 per
+// phone; above 500 in total it logs an alert. Only phones of served countries receive SMS.
 func (s *Service) RequestOTP(ctx context.Context, phone, clientIP string) error {
 	if !phoneE164.MatchString(phone) {
 		return ErrInvalidPhone
@@ -117,8 +121,13 @@ func (s *Service) RequestOTP(ctx context.Context, phone, clientIP string) error 
 		return ErrCountryNotServed
 	}
 	now := s.now()
-	if !s.limiter.allow(phone, now) || !s.ipLimiter.allow(clientIP, now) || !s.globalLimiter.allow("all", now) {
+	// Primero la IP: así una IP bloqueada no gasta el cupo del teléfono de la víctima.
+	if !s.ipLimiter.allow(ipKey(clientIP), now) || !s.limiter.allow(phone, now) {
 		return ErrRateLimited
+	}
+	if !s.globalLimiter.allow("all", now) {
+		slog.WarnContext(ctx, "otp: volumen global de SMS por encima del umbral; revisar posible bombeo",
+			"threshold_per_hour", otpRequestsGlobalAlertPerHour)
 	}
 	return s.otp.Send(ctx, phone)
 }
@@ -217,4 +226,17 @@ func (s *Service) issue(ctx context.Context, user User) (Tokens, error) {
 		return Tokens{}, fmt.Errorf("store refresh token: %w", err)
 	}
 	return Tokens{AccessToken: access, RefreshToken: raw, Role: user.Role}, nil
+}
+
+// ipKey groups IPv6 clients by /64, the usual allocation to one customer.
+func ipKey(ip string) string {
+	addr, err := netip.ParseAddr(ip)
+	if err != nil || addr.Is4() || addr.Is4In6() {
+		return ip
+	}
+	prefix, err := addr.Prefix(64)
+	if err != nil {
+		return ip
+	}
+	return prefix.String()
 }
