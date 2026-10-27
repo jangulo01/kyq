@@ -86,7 +86,7 @@ services:
 
   osrm:
     profiles: ["routing"]
-    image: osrm/osrm-backend:v5.27.1
+    image: ghcr.io/project-osrm/osrm-backend:v5.27.1
     command: osrm-routed --algorithm mld /data/city.osrm
     volumes:
       - ./data/osrm:/data

@@ -130,6 +130,24 @@ Map<String, dynamic> _$ChosenDriverToJson(_ChosenDriver instance) => <String, dy
   'busy_until_estimate': instance.busyUntilEstimate?.toIso8601String(),
 };
 
+_FareTableInput _$FareTableInputFromJson(Map<String, dynamic> json) => _FareTableInput(
+  currency: json['currency'] as String,
+  baseMinor: (json['base_minor'] as num).toInt(),
+  perKmMinor: (json['per_km_minor'] as num).toInt(),
+  perMinuteMinor: (json['per_minute_minor'] as num).toInt(),
+  minimumMinor: (json['minimum_minor'] as num).toInt(),
+  roundingMinor: (json['rounding_minor'] as num?)?.toInt() ?? 1,
+);
+
+Map<String, dynamic> _$FareTableInputToJson(_FareTableInput instance) => <String, dynamic>{
+  'currency': instance.currency,
+  'base_minor': instance.baseMinor,
+  'per_km_minor': instance.perKmMinor,
+  'per_minute_minor': instance.perMinuteMinor,
+  'minimum_minor': instance.minimumMinor,
+  'rounding_minor': instance.roundingMinor,
+};
+
 _DriverClient _$DriverClientFromJson(Map<String, dynamic> json) => _DriverClient(
   passengerId: json['passenger_id'] as String,
   displayName: json['display_name'] as String,
@@ -177,6 +195,7 @@ const _$ProposalPartyEnumMap = {ProposalParty.driver: 'driver', ProposalParty.pa
 const _$ProposalStatusEnumMap = {
   ProposalStatus.open: 'open',
   ProposalStatus.accepted: 'accepted',
+  ProposalStatus.rejected: 'rejected',
   ProposalStatus.superseded: 'superseded',
   ProposalStatus.expired: 'expired',
 };

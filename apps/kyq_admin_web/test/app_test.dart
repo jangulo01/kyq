@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kyq_admin_web/app/app.dart';
 import 'package:kyq_admin_web/drivers/drivers_cubit.dart';
 import 'package:kyq_admin_web/drivers/drivers_page.dart';
+import 'package:kyq_admin_web/fares/fare_table_page.dart';
 import 'package:kyq_api/kyq_api.dart';
 import 'package:kyq_ui/kyq_ui.dart';
 import 'package:mocktail/mocktail.dart';
@@ -80,4 +81,31 @@ void main() {
     expect(find.textContaining('Carlos'), findsOneWidget);
     expect(find.text('Suscripción suspendida'), findsOneWidget);
   });
+
+  testWidgets('tabla de tarifas: ejemplo y guardado en unidades mínimas', (tester) async {
+    final api = _MockApi();
+    registerFallbackValue(
+      const FareTableInput(currency: 'COP', baseMinor: 0, perKmMinor: 0, perMinuteMinor: 0, minimumMinor: 0),
+    );
+    when(() => api.adminSetFareTable(any(), any())).thenAnswer((_) async {});
+    await tester.pumpWidget(
+      MaterialApp(
+        home: RepositoryProvider<KyqApiClient>.value(value: api, child: const FarePageHost()),
+      ),
+    );
+    // 4000 + 1200×5 + 300×15 = 14 500 → redondeo a 100 → $ 14.500
+    expect(find.text(r'Ejemplo, 5 km y 15 min: $ 14.500'), findsOneWidget);
+    await tester.tap(find.text('Guardar'));
+    await tester.pumpAndSettle();
+    final saved = verify(() => api.adminSetFareTable('bogota', captureAny())).captured.single as FareTableInput;
+    expect(saved.baseMinor, 400000);
+    expect(saved.roundingMinor, 10000);
+  });
+}
+
+class FarePageHost extends StatelessWidget {
+  const FarePageHost({super.key});
+
+  @override
+  Widget build(BuildContext context) => const FareTablePage();
 }

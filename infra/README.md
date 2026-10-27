@@ -23,9 +23,9 @@ Los datos no se versionan (`infra/data/` está en `.gitignore`).
 2. Preprocesar con el perfil de coche:
 
 ```bash
-docker run --rm -t -v "$PWD/infra/data/osrm:/data" osrm/osrm-backend:v5.27.1 osrm-extract -p /opt/car.lua /data/city.osm.pbf
-docker run --rm -t -v "$PWD/infra/data/osrm:/data" osrm/osrm-backend:v5.27.1 osrm-partition /data/city.osrm
-docker run --rm -t -v "$PWD/infra/data/osrm:/data" osrm/osrm-backend:v5.27.1 osrm-customize /data/city.osrm
+docker run --rm -t -v "$PWD/infra/data/osrm:/data" ghcr.io/project-osrm/osrm-backend:v5.27.1 osrm-extract -p /opt/car.lua /data/city.osm.pbf
+docker run --rm -t -v "$PWD/infra/data/osrm:/data" ghcr.io/project-osrm/osrm-backend:v5.27.1 osrm-partition /data/city.osrm
+docker run --rm -t -v "$PWD/infra/data/osrm:/data" ghcr.io/project-osrm/osrm-backend:v5.27.1 osrm-customize /data/city.osrm
 ```
 
 3. Reiniciar el servicio `osrm`. Prueba:

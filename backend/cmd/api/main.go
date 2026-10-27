@@ -16,9 +16,11 @@ import (
 	"github.com/kyq/backend/internal/auth"
 	"github.com/kyq/backend/internal/config"
 	"github.com/kyq/backend/internal/drivers"
+	"github.com/kyq/backend/internal/fares"
 	"github.com/kyq/backend/internal/httpapi"
 	"github.com/kyq/backend/internal/realtime"
 	"github.com/kyq/backend/internal/store"
+	"github.com/kyq/backend/internal/trips"
 )
 
 func main() {
@@ -57,18 +59,23 @@ func run(logger *slog.Logger) error {
 
 	tokens := auth.NewTokenIssuer(cfg.JWTSecret, nil)
 	affils := affiliations.NewService(affiliations.NewPgRepo(st.Queries))
+	publisher := &realtime.Client{APIURL: cfg.CentrifugoAPIURL, APIKey: cfg.CentrifugoAPIKey}
+	routes := fares.OSRM{BaseURL: cfg.OSRMURL}
+	tripService := &trips.Service{Store: st, Routes: routes, Publisher: publisher, CityCode: cfg.CityCode, Logger: logger}
+	go tripService.RunSweeper(ctx, time.Second)
 	handler := httpapi.NewRouter(httpapi.Deps{
 		Logger: logger,
 		Tokens: tokens,
 		Auth:   auth.NewHandlers(auth.NewService(auth.NewPgRepo(st.Queries), otp, tokens, nil)),
 		Realtime: &realtime.Handlers{
-			Tokens: realtime.Tokens{Secret: cfg.CentrifugoTokenSecret},
-			// El verificador de participantes de viaje se conecta en US2.
-			Authorizer: realtime.Authorizer{Affiliations: affils},
+			Tokens:     realtime.Tokens{Secret: cfg.CentrifugoTokenSecret},
+			Authorizer: realtime.Authorizer{Affiliations: affils, Trips: trips.ParticipantChecker{Q: st.Queries}},
 		},
-		Admin:   &admin.Handlers{Store: st},
-		Affils:  &affiliations.Handlers{Service: affils},
-		Drivers: &drivers.Handlers{Store: st},
+		Admin:    &admin.Handlers{Store: st},
+		Affils:   &affiliations.Handlers{Service: affils},
+		Drivers:  &drivers.Handlers{Store: st},
+		Presence: &drivers.Presence{Store: st, Routes: routes, Publisher: publisher, Logger: logger},
+		Trips:    &trips.Handlers{Service: tripService},
 	})
 
 	srv := &http.Server{

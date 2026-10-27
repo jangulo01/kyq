@@ -128,7 +128,84 @@ class KyqApiClient {
 
   Future<void> removeChosenDriver(String driverId) => _send(() => _dio.delete<void>('/v1/affiliations/$driverId'));
 
+  // Conductor: presencia y ubicación
+
+  /// Pasa a ONLINE u OFFLINE. Lanza [ApiException] con `subscription_suspended`, `kyc_expired`
+  /// o `trip_in_progress` cuando no se permite.
+  Future<DriverPresence> setOnline(bool online) async {
+    final res = await _send(() => _dio.post<Map<String, dynamic>>('/v1/driver/presence', data: {'online': online}));
+    return DriverPresence.values.byName(res.data!['presence'] as String);
+  }
+
+  Future<void> sendLocation(GeoPoint point, {double? heading, double? speedMps, DateTime? recordedAt}) => _send(
+    () => _dio.post<void>(
+      '/v1/driver/location',
+      data: {
+        'lat': point.lat,
+        'lng': point.lng,
+        'heading': ?heading,
+        'speed_mps': ?speedMps,
+        if (recordedAt != null) 'recorded_at': recordedAt.toUtc().toIso8601String(),
+      },
+    ),
+  );
+
+  // Viajes
+
+  Future<FareQuote> quote(GeoPoint pickup, GeoPoint dropoff) async {
+    final res = await _send(
+      () => _dio.post<Map<String, dynamic>>(
+        '/v1/fares/quote',
+        data: {'pickup': pickup.toJson(), 'dropoff': dropoff.toJson()},
+      ),
+    );
+    return FareQuote.fromJson(res.data!);
+  }
+
+  Future<Trip> requestTrip({required String driverId, required GeoPoint pickup, required GeoPoint dropoff}) => _trip(
+    () => _dio.post('/v1/trips', data: {'driver_id': driverId, 'pickup': pickup.toJson(), 'dropoff': dropoff.toJson()}),
+  );
+
+  Future<Trip> getTrip(String tripId) => _trip(() => _dio.get('/v1/trips/$tripId'));
+
+  /// El conductor acepta; con [fareMinor] distinto de la sugerida el pasajero debe confirmarla.
+  Future<Trip> acceptTrip(String tripId, {int? fareMinor}) =>
+      _trip(() => _dio.post('/v1/trips/$tripId/accept', data: {'fare_minor': ?fareMinor}));
+
+  Future<Trip> rejectTrip(String tripId) => _trip(() => _dio.post('/v1/trips/$tripId/reject'));
+
+  Future<Trip> requestNegotiation(String tripId) => _trip(() => _dio.post('/v1/trips/$tripId/negotiation'));
+
+  Future<Trip> respondNegotiation(String tripId, {required bool accept}) =>
+      _trip(() => _dio.post('/v1/trips/$tripId/negotiation/response', data: {'accept': accept}));
+
+  Future<FareProposal> propose(String tripId, int amountMinor) async {
+    final res = await _send(
+      () => _dio.post<Map<String, dynamic>>('/v1/trips/$tripId/proposals', data: {'amount_minor': amountMinor}),
+    );
+    return FareProposal.fromJson(res.data!);
+  }
+
+  Future<Trip> decideProposal(String tripId, String proposalId, {required bool accept}) =>
+      _trip(() => _dio.post('/v1/trips/$tripId/proposals/$proposalId/${accept ? 'accept' : 'reject'}'));
+
+  Future<Trip> arrive(String tripId) => _trip(() => _dio.post('/v1/trips/$tripId/arrive'));
+
+  Future<Trip> startTrip(String tripId) => _trip(() => _dio.post('/v1/trips/$tripId/start'));
+
+  Future<Trip> completeTrip(String tripId) => _trip(() => _dio.post('/v1/trips/$tripId/complete'));
+
+  Future<Trip> cancelTrip(String tripId) => _trip(() => _dio.post('/v1/trips/$tripId/cancel'));
+
+  Future<Trip> _trip(Future<Response<dynamic>> Function() request) async {
+    final res = await _send(request);
+    return Trip.fromJson(res.data as Map<String, dynamic>);
+  }
+
   // Admin
+
+  Future<void> adminSetFareTable(String cityCode, FareTableInput table) =>
+      _send(() => _dio.put<void>('/v1/admin/fare-tables/$cityCode', data: table.toJson()));
 
   Future<List<AdminDriver>> adminListDrivers() async {
     final res = await _send(() => _dio.get<List<dynamic>>('/v1/admin/drivers'));

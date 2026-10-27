@@ -140,6 +140,188 @@ func (ns NullDriverPresence) Value() (driver.Value, error) {
 	return string(ns.DriverPresence), nil
 }
 
+type FareParty string
+
+const (
+	FarePartyDriver    FareParty = "driver"
+	FarePartyPassenger FareParty = "passenger"
+)
+
+func (e *FareParty) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = FareParty(s)
+	case string:
+		*e = FareParty(s)
+	default:
+		return fmt.Errorf("unsupported scan type for FareParty: %T", src)
+	}
+	return nil
+}
+
+type NullFareParty struct {
+	FareParty FareParty
+	Valid     bool // Valid is true if FareParty is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullFareParty) Scan(value interface{}) error {
+	if value == nil {
+		ns.FareParty, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.FareParty.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullFareParty) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.FareParty), nil
+}
+
+type FareProposalStatus string
+
+const (
+	FareProposalStatusOpen       FareProposalStatus = "open"
+	FareProposalStatusAccepted   FareProposalStatus = "accepted"
+	FareProposalStatusRejected   FareProposalStatus = "rejected"
+	FareProposalStatusSuperseded FareProposalStatus = "superseded"
+	FareProposalStatusExpired    FareProposalStatus = "expired"
+)
+
+func (e *FareProposalStatus) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = FareProposalStatus(s)
+	case string:
+		*e = FareProposalStatus(s)
+	default:
+		return fmt.Errorf("unsupported scan type for FareProposalStatus: %T", src)
+	}
+	return nil
+}
+
+type NullFareProposalStatus struct {
+	FareProposalStatus FareProposalStatus
+	Valid              bool // Valid is true if FareProposalStatus is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullFareProposalStatus) Scan(value interface{}) error {
+	if value == nil {
+		ns.FareProposalStatus, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.FareProposalStatus.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullFareProposalStatus) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.FareProposalStatus), nil
+}
+
+type TripCancelReason string
+
+const (
+	TripCancelReasonPassenger         TripCancelReason = "passenger"
+	TripCancelReasonDriver            TripCancelReason = "driver"
+	TripCancelReasonOfferExpired      TripCancelReason = "offer_expired"
+	TripCancelReasonOfferRejected     TripCancelReason = "offer_rejected"
+	TripCancelReasonFareRejected      TripCancelReason = "fare_rejected"
+	TripCancelReasonNegotiationFailed TripCancelReason = "negotiation_failed"
+)
+
+func (e *TripCancelReason) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = TripCancelReason(s)
+	case string:
+		*e = TripCancelReason(s)
+	default:
+		return fmt.Errorf("unsupported scan type for TripCancelReason: %T", src)
+	}
+	return nil
+}
+
+type NullTripCancelReason struct {
+	TripCancelReason TripCancelReason
+	Valid            bool // Valid is true if TripCancelReason is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullTripCancelReason) Scan(value interface{}) error {
+	if value == nil {
+		ns.TripCancelReason, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.TripCancelReason.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullTripCancelReason) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.TripCancelReason), nil
+}
+
+type TripStatus string
+
+const (
+	TripStatusREQUESTED          TripStatus = "REQUESTED"
+	TripStatusFAREPENDING        TripStatus = "FARE_PENDING"
+	TripStatusNEGOTIATIONPENDING TripStatus = "NEGOTIATION_PENDING"
+	TripStatusNEGOTIATING        TripStatus = "NEGOTIATING"
+	TripStatusACCEPTED           TripStatus = "ACCEPTED"
+	TripStatusARRIVED            TripStatus = "ARRIVED"
+	TripStatusINPROGRESS         TripStatus = "IN_PROGRESS"
+	TripStatusCOMPLETED          TripStatus = "COMPLETED"
+	TripStatusCANCELLED          TripStatus = "CANCELLED"
+)
+
+func (e *TripStatus) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = TripStatus(s)
+	case string:
+		*e = TripStatus(s)
+	default:
+		return fmt.Errorf("unsupported scan type for TripStatus: %T", src)
+	}
+	return nil
+}
+
+type NullTripStatus struct {
+	TripStatus TripStatus
+	Valid      bool // Valid is true if TripStatus is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullTripStatus) Scan(value interface{}) error {
+	if value == nil {
+		ns.TripStatus, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.TripStatus.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullTripStatus) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.TripStatus), nil
+}
+
 type UserRole string
 
 const (
@@ -192,14 +374,17 @@ type Affiliation struct {
 }
 
 type Driver struct {
-	UserID             uuid.UUID
-	QrToken            string
-	VehiclePlate       string
-	VehicleDescription string
-	Presence           DriverPresence
-	LastLocation       interface{}
-	LastLocationAt     pgtype.Timestamptz
-	BusyUntilEstimate  pgtype.Timestamptz
+	UserID                uuid.UUID
+	QrToken               string
+	VehiclePlate          string
+	VehicleDescription    string
+	Presence              DriverPresence
+	LastLocation          interface{}
+	LastLocationAt        pgtype.Timestamptz
+	BusyUntilEstimate     pgtype.Timestamptz
+	LastLat               pgtype.Float8
+	LastLng               pgtype.Float8
+	BusyEstimateUpdatedAt pgtype.Timestamptz
 }
 
 type DriverDocument struct {
@@ -209,6 +394,28 @@ type DriverDocument struct {
 	ExpiresAt  time.Time
 	ApprovedBy uuid.NullUUID
 	ApprovedAt pgtype.Timestamptz
+}
+
+type FareProposal struct {
+	ID          uuid.UUID
+	TripID      uuid.UUID
+	ProposedBy  FareParty
+	AmountMinor int64
+	Status      FareProposalStatus
+	CreatedAt   time.Time
+	ExpiresAt   time.Time
+}
+
+type FareTable struct {
+	CityCode       string
+	Currency       string
+	BaseMinor      int64
+	PerKmMinor     int64
+	PerMinuteMinor int64
+	MinimumMinor   int64
+	RoundingMinor  int64
+	UpdatedBy      uuid.UUID
+	UpdatedAt      time.Time
 }
 
 type RefreshToken struct {
@@ -225,6 +432,34 @@ type Subscription struct {
 	PaidUntil time.Time
 	UpdatedBy uuid.UUID
 	UpdatedAt time.Time
+}
+
+type Trip struct {
+	ID                      uuid.UUID
+	PassengerID             uuid.UUID
+	DriverID                uuid.UUID
+	CityCode                string
+	Currency                string
+	PickupLat               float64
+	PickupLng               float64
+	DropoffLat              float64
+	DropoffLng              float64
+	RouteDistanceM          int32
+	RouteDurationS          int32
+	SuggestedFareMinor      int64
+	AgreedFareMinor         pgtype.Int8
+	DriverPayoutMinor       pgtype.Int8
+	PlatformCommissionMinor int64
+	Status                  TripStatus
+	CancelReason            NullTripCancelReason
+	RespondBy               pgtype.Timestamptz
+	NegotiationExpiresAt    pgtype.Timestamptz
+	CreatedAt               time.Time
+	AcceptedAt              pgtype.Timestamptz
+	ArrivedAt               pgtype.Timestamptz
+	StartedAt               pgtype.Timestamptz
+	CompletedAt             pgtype.Timestamptz
+	CancelledAt             pgtype.Timestamptz
 }
 
 type User struct {

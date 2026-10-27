@@ -4,31 +4,38 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kyq_api/kyq_api.dart';
 import 'package:kyq_driver_app/app/app.dart';
+import 'package:kyq_driver_app/app/driver_services.dart';
 import 'package:kyq_driver_app/onboarding/my_qr_page.dart';
 import 'package:kyq_ui/kyq_ui.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
-class _MockApi extends Mock implements KyqApiClient {}
+import 'support/fakes.dart';
 
 const _session = Tokens(accessToken: 'a', refreshToken: 'r', role: UserRole.driver);
 
-DriverMe _me({bool canGoOnline = true, String? blockReason}) => DriverMe(
-  driverId: 'd1',
-  qrToken: 'q3T9xZk2LmN8pR4sV7wY1a',
-  presence: DriverPresence.offline,
-  subscriptionStatus: canGoOnline ? SubscriptionStatus.active : SubscriptionStatus.suspended,
-  canGoOnline: canGoOnline,
-  blockReason: blockReason,
-);
+DriverMe _me({bool canGoOnline = true, String? blockReason, DriverPresence presence = DriverPresence.offline}) =>
+    DriverMe(
+      driverId: 'd1',
+      qrToken: 'q3T9xZk2LmN8pR4sV7wY1a',
+      presence: presence,
+      subscriptionStatus: canGoOnline ? SubscriptionStatus.active : SubscriptionStatus.suspended,
+      canGoOnline: canGoOnline,
+      blockReason: blockReason,
+    );
 
-Future<_MockApi> _pumpSignedIn(WidgetTester tester, {DriverMe? me, List<DriverClient> clients = const []}) async {
-  final api = _MockApi();
+Future<MockApi> _pumpSignedIn(
+  WidgetTester tester, {
+  DriverMe? me,
+  List<DriverClient> clients = const [],
+  DriverServices? services,
+}) async {
+  final api = MockApi();
   when(() => api.currentSession()).thenAnswer((_) async => _session);
   when(() => api.driverMe()).thenAnswer((_) async => me ?? _me());
   when(() => api.driverClients()).thenAnswer((_) async => clients);
   final auth = AuthCubit(api, allowedRoles: {UserRole.driver}, wrongRoleMessage: '')..start();
-  await tester.pumpWidget(KyqDriverApp(api: api, auth: auth));
+  await tester.pumpWidget(KyqDriverApp(api: api, auth: auth, services: services ?? fakeServices()));
   await tester.pumpAndSettle();
   return api;
 }
@@ -36,7 +43,7 @@ Future<_MockApi> _pumpSignedIn(WidgetTester tester, {DriverMe? me, List<DriverCl
 void main() {
   testWidgets('sin sesión muestra el login', (tester) async {
     final deps = bootstrap(tokenStore: InMemoryTokenStore());
-    await tester.pumpWidget(KyqDriverApp(api: deps.api, auth: deps.auth));
+    await tester.pumpWidget(KyqDriverApp(api: deps.api, auth: deps.auth, services: fakeServices()));
     await tester.pumpAndSettle();
     expect(find.text('Kyq Conductor'), findsWidgets);
     expect(find.text('Enviarme un código'), findsOneWidget);

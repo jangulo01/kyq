@@ -97,6 +97,12 @@ Decisiones de la Fase 0. Versiones concretas de dependencias se fijan al impleme
 - **Alternatives considered**: `time.AfterFunc` en memoria (se pierden al reiniciar);
   cron por sondeo (latencia y carga).
 
+**Revisión (implementación US2):** se sustituyó River por una columna `respond_by` en `trips` y
+un barrido (`Service.ExpireDue`, `SELECT ... FOR UPDATE SKIP LOCKED`) cada segundo. Mismas
+garantías (sobrevive a reinicios, transaccional, idempotente) con una dependencia y un esquema de
+tablas menos; latencia máxima de vencimiento ~1 s. El cierre del canal PTT (US3) usará el mismo
+mecanismo.
+
 ## R11. Acceso a datos y migraciones en Go
 
 - **Decision**: `pgx` v5 + `sqlc` para consultas tipadas; `goose` para migraciones; router

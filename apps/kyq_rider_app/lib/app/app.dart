@@ -2,17 +2,30 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:kyq_api/kyq_api.dart';
+import 'package:kyq_realtime/kyq_realtime.dart';
 import 'package:kyq_ui/kyq_ui.dart';
 
 import '../chosen_drivers/chosen_drivers_cubit.dart';
 import '../chosen_drivers/chosen_drivers_page.dart';
 import '../chosen_drivers/scan_page.dart';
+import '../realtime/realtime_events.dart';
+import '../request/location_source.dart';
+import '../request/request_cubit.dart';
+import '../request/request_page.dart';
+import '../trip/trip_cubit.dart';
+import '../trip/trip_page.dart';
 
 /// URL del backend. En el emulador de Android, 10.0.2.2 es el localhost del PC.
 const apiBaseUrl = String.fromEnvironment('KYQ_API_URL', defaultValue: 'http://10.0.2.2:8080');
 
-/// Crea el cliente y la sesión con almacenamiento seguro.
-({KyqApiClient api, AuthCubit auth}) bootstrap({TokenStore? tokenStore}) {
+/// WebSocket de Centrifugo.
+const realtimeUrl = String.fromEnvironment(
+  'KYQ_REALTIME_URL',
+  defaultValue: 'ws://192.168.1.66:8000/connection/websocket',
+);
+
+/// Crea el cliente, la sesión con almacenamiento seguro y el tiempo real (conecta al primer uso).
+({KyqApiClient api, AuthCubit auth, RealtimeEvents realtime}) bootstrap({TokenStore? tokenStore}) {
   late final AuthCubit auth;
   final api = KyqApiClient(
     baseUrl: apiBaseUrl,
@@ -24,14 +37,25 @@ const apiBaseUrl = String.fromEnvironment('KYQ_API_URL', defaultValue: 'http://1
     allowedRoles: {UserRole.passenger},
     wrongRoleMessage: 'Esta app es para pasajeros. Usa Kyq Conductor.',
   )..start();
-  return (api: api, auth: auth);
+  final realtime = CentrifugoRealtimeEvents(
+    () => KyqRealtime(url: realtimeUrl, connectionToken: api.realtimeToken, subscriptionToken: api.subscriptionToken),
+  );
+  return (api: api, auth: auth, realtime: realtime);
 }
 
 class KyqRiderApp extends StatefulWidget {
-  const KyqRiderApp({super.key, required this.api, required this.auth});
+  const KyqRiderApp({
+    super.key,
+    required this.api,
+    required this.auth,
+    this.realtime = const NoRealtimeEvents(),
+    this.location = const GeolocatorLocationSource(),
+  });
 
   final KyqApiClient api;
   final AuthCubit auth;
+  final RealtimeEvents realtime;
+  final LocationSource location;
 
   @override
   State<KyqRiderApp> createState() => _KyqRiderAppState();
@@ -45,10 +69,38 @@ class _KyqRiderAppState extends State<KyqRiderApp> {
       GoRoute(
         path: '/',
         builder: (context, state) => BlocProvider(
-          create: (context) => ChosenDriversCubit(context.read<KyqApiClient>())..load(),
+          create: (context) =>
+              ChosenDriversCubit(context.read<KyqApiClient>(), realtime: context.read<RealtimeEvents>())..load(),
           child: const ChosenDriversPage(),
         ),
-        routes: [GoRoute(path: 'scan', builder: (context, state) => const ScanPage())],
+        routes: [
+          GoRoute(path: 'scan', builder: (context, state) => const ScanPage()),
+          GoRoute(
+            path: 'request/:driverId',
+            builder: (context, state) => BlocProvider(
+              create: (context) => RequestCubit(
+                api: context.read<KyqApiClient>(),
+                location: widget.location,
+                realtime: context.read<RealtimeEvents>(),
+                driverId: state.pathParameters['driverId']!,
+                driverName: state.uri.queryParameters['name'] ?? 'tu conductor',
+              )..start(),
+              child: const RequestPage(),
+            ),
+          ),
+          GoRoute(
+            path: 'trip/:tripId',
+            builder: (context, state) => BlocProvider(
+              create: (context) => TripCubit(
+                api: context.read<KyqApiClient>(),
+                realtime: context.read<RealtimeEvents>(),
+                tripId: state.pathParameters['tripId']!,
+                refreshEvery: const Duration(seconds: 15),
+              )..start(),
+              child: TripPage(driverName: state.uri.queryParameters['name'] ?? 'tu conductor'),
+            ),
+          ),
+        ],
       ),
     ],
   );
@@ -62,7 +114,10 @@ class _KyqRiderAppState extends State<KyqRiderApp> {
   @override
   Widget build(BuildContext context) {
     return MultiRepositoryProvider(
-      providers: [RepositoryProvider.value(value: widget.api)],
+      providers: [
+        RepositoryProvider.value(value: widget.api),
+        RepositoryProvider<RealtimeEvents>.value(value: widget.realtime),
+      ],
       child: BlocProvider.value(
         value: widget.auth,
         child: MaterialApp.router(title: 'Kyq Pasajero', theme: kyqTheme(), routerConfig: _router),

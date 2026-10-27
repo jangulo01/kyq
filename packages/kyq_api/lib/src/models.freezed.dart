@@ -1684,6 +1684,284 @@ as DateTime?,
 
 
 /// @nodoc
+mixin _$FareTableInput {
+
+ String get currency; int get baseMinor; int get perKmMinor; int get perMinuteMinor; int get minimumMinor; int get roundingMinor;
+/// Create a copy of FareTableInput
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$FareTableInputCopyWith<FareTableInput> get copyWith => _$FareTableInputCopyWithImpl<FareTableInput>(this as FareTableInput, _$identity);
+
+  /// Serializes this FareTableInput to a JSON map.
+  Map<String, dynamic> toJson();
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is FareTableInput&&(identical(other.currency, currency) || other.currency == currency)&&(identical(other.baseMinor, baseMinor) || other.baseMinor == baseMinor)&&(identical(other.perKmMinor, perKmMinor) || other.perKmMinor == perKmMinor)&&(identical(other.perMinuteMinor, perMinuteMinor) || other.perMinuteMinor == perMinuteMinor)&&(identical(other.minimumMinor, minimumMinor) || other.minimumMinor == minimumMinor)&&(identical(other.roundingMinor, roundingMinor) || other.roundingMinor == roundingMinor));
+}
+
+@JsonKey(includeFromJson: false, includeToJson: false)
+@override
+int get hashCode => Object.hash(runtimeType,currency,baseMinor,perKmMinor,perMinuteMinor,minimumMinor,roundingMinor);
+
+@override
+String toString() {
+  return 'FareTableInput(currency: $currency, baseMinor: $baseMinor, perKmMinor: $perKmMinor, perMinuteMinor: $perMinuteMinor, minimumMinor: $minimumMinor, roundingMinor: $roundingMinor)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $FareTableInputCopyWith<$Res>  {
+  factory $FareTableInputCopyWith(FareTableInput value, $Res Function(FareTableInput) _then) = _$FareTableInputCopyWithImpl;
+@useResult
+$Res call({
+ String currency, int baseMinor, int perKmMinor, int perMinuteMinor, int minimumMinor, int roundingMinor
+});
+
+
+
+
+}
+/// @nodoc
+class _$FareTableInputCopyWithImpl<$Res>
+    implements $FareTableInputCopyWith<$Res> {
+  _$FareTableInputCopyWithImpl(this._self, this._then);
+
+  final FareTableInput _self;
+  final $Res Function(FareTableInput) _then;
+
+/// Create a copy of FareTableInput
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') @override $Res call({Object? currency = null,Object? baseMinor = null,Object? perKmMinor = null,Object? perMinuteMinor = null,Object? minimumMinor = null,Object? roundingMinor = null,}) {
+  return _then(_self.copyWith(
+currency: null == currency ? _self.currency : currency // ignore: cast_nullable_to_non_nullable
+as String,baseMinor: null == baseMinor ? _self.baseMinor : baseMinor // ignore: cast_nullable_to_non_nullable
+as int,perKmMinor: null == perKmMinor ? _self.perKmMinor : perKmMinor // ignore: cast_nullable_to_non_nullable
+as int,perMinuteMinor: null == perMinuteMinor ? _self.perMinuteMinor : perMinuteMinor // ignore: cast_nullable_to_non_nullable
+as int,minimumMinor: null == minimumMinor ? _self.minimumMinor : minimumMinor // ignore: cast_nullable_to_non_nullable
+as int,roundingMinor: null == roundingMinor ? _self.roundingMinor : roundingMinor // ignore: cast_nullable_to_non_nullable
+as int,
+  ));
+}
+
+}
+
+
+/// Adds pattern-matching-related methods to [FareTableInput].
+extension FareTableInputPatterns on FareTableInput {
+/// A variant of `map` that fallback to returning `orElse`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeMap<TResult extends Object?>(TResult Function( _FareTableInput value)?  $default,{required TResult orElse(),}){
+final _that = this;
+switch (_that) {
+case _FareTableInput() when $default != null:
+return $default(_that);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// Callbacks receives the raw object, upcasted.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case final Subclass2 value:
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult map<TResult extends Object?>(TResult Function( _FareTableInput value)  $default,){
+final _that = this;
+switch (_that) {
+case _FareTableInput():
+return $default(_that);case _:
+  throw StateError('Unexpected subclass');
+
+}
+}
+/// A variant of `map` that fallback to returning `null`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>(TResult? Function( _FareTableInput value)?  $default,){
+final _that = this;
+switch (_that) {
+case _FareTableInput() when $default != null:
+return $default(_that);case _:
+  return null;
+
+}
+}
+/// A variant of `when` that fallback to an `orElse` callback.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String currency,  int baseMinor,  int perKmMinor,  int perMinuteMinor,  int minimumMinor,  int roundingMinor)?  $default,{required TResult orElse(),}) {final _that = this;
+switch (_that) {
+case _FareTableInput() when $default != null:
+return $default(_that.currency,_that.baseMinor,_that.perKmMinor,_that.perMinuteMinor,_that.minimumMinor,_that.roundingMinor);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// As opposed to `map`, this offers destructuring.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case Subclass2(:final field2):
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String currency,  int baseMinor,  int perKmMinor,  int perMinuteMinor,  int minimumMinor,  int roundingMinor)  $default,) {final _that = this;
+switch (_that) {
+case _FareTableInput():
+return $default(_that.currency,_that.baseMinor,_that.perKmMinor,_that.perMinuteMinor,_that.minimumMinor,_that.roundingMinor);case _:
+  throw StateError('Unexpected subclass');
+
+}
+}
+/// A variant of `when` that fallback to returning `null`
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String currency,  int baseMinor,  int perKmMinor,  int perMinuteMinor,  int minimumMinor,  int roundingMinor)?  $default,) {final _that = this;
+switch (_that) {
+case _FareTableInput() when $default != null:
+return $default(_that.currency,_that.baseMinor,_that.perKmMinor,_that.perMinuteMinor,_that.minimumMinor,_that.roundingMinor);case _:
+  return null;
+
+}
+}
+
+}
+
+/// @nodoc
+@JsonSerializable()
+
+class _FareTableInput implements FareTableInput {
+  const _FareTableInput({required this.currency, required this.baseMinor, required this.perKmMinor, required this.perMinuteMinor, required this.minimumMinor, this.roundingMinor = 1});
+  factory _FareTableInput.fromJson(Map<String, dynamic> json) => _$FareTableInputFromJson(json);
+
+@override final  String currency;
+@override final  int baseMinor;
+@override final  int perKmMinor;
+@override final  int perMinuteMinor;
+@override final  int minimumMinor;
+@override@JsonKey() final  int roundingMinor;
+
+/// Create a copy of FareTableInput
+/// with the given fields replaced by the non-null parameter values.
+@override @JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+_$FareTableInputCopyWith<_FareTableInput> get copyWith => __$FareTableInputCopyWithImpl<_FareTableInput>(this, _$identity);
+
+@override
+Map<String, dynamic> toJson() {
+  return _$FareTableInputToJson(this, );
+}
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _FareTableInput&&(identical(other.currency, currency) || other.currency == currency)&&(identical(other.baseMinor, baseMinor) || other.baseMinor == baseMinor)&&(identical(other.perKmMinor, perKmMinor) || other.perKmMinor == perKmMinor)&&(identical(other.perMinuteMinor, perMinuteMinor) || other.perMinuteMinor == perMinuteMinor)&&(identical(other.minimumMinor, minimumMinor) || other.minimumMinor == minimumMinor)&&(identical(other.roundingMinor, roundingMinor) || other.roundingMinor == roundingMinor));
+}
+
+@JsonKey(includeFromJson: false, includeToJson: false)
+@override
+int get hashCode => Object.hash(runtimeType,currency,baseMinor,perKmMinor,perMinuteMinor,minimumMinor,roundingMinor);
+
+@override
+String toString() {
+  return 'FareTableInput(currency: $currency, baseMinor: $baseMinor, perKmMinor: $perKmMinor, perMinuteMinor: $perMinuteMinor, minimumMinor: $minimumMinor, roundingMinor: $roundingMinor)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class _$FareTableInputCopyWith<$Res> implements $FareTableInputCopyWith<$Res> {
+  factory _$FareTableInputCopyWith(_FareTableInput value, $Res Function(_FareTableInput) _then) = __$FareTableInputCopyWithImpl;
+@override @useResult
+$Res call({
+ String currency, int baseMinor, int perKmMinor, int perMinuteMinor, int minimumMinor, int roundingMinor
+});
+
+
+
+
+}
+/// @nodoc
+class __$FareTableInputCopyWithImpl<$Res>
+    implements _$FareTableInputCopyWith<$Res> {
+  __$FareTableInputCopyWithImpl(this._self, this._then);
+
+  final _FareTableInput _self;
+  final $Res Function(_FareTableInput) _then;
+
+/// Create a copy of FareTableInput
+/// with the given fields replaced by the non-null parameter values.
+@override @pragma('vm:prefer-inline') $Res call({Object? currency = null,Object? baseMinor = null,Object? perKmMinor = null,Object? perMinuteMinor = null,Object? minimumMinor = null,Object? roundingMinor = null,}) {
+  return _then(_FareTableInput(
+currency: null == currency ? _self.currency : currency // ignore: cast_nullable_to_non_nullable
+as String,baseMinor: null == baseMinor ? _self.baseMinor : baseMinor // ignore: cast_nullable_to_non_nullable
+as int,perKmMinor: null == perKmMinor ? _self.perKmMinor : perKmMinor // ignore: cast_nullable_to_non_nullable
+as int,perMinuteMinor: null == perMinuteMinor ? _self.perMinuteMinor : perMinuteMinor // ignore: cast_nullable_to_non_nullable
+as int,minimumMinor: null == minimumMinor ? _self.minimumMinor : minimumMinor // ignore: cast_nullable_to_non_nullable
+as int,roundingMinor: null == roundingMinor ? _self.roundingMinor : roundingMinor // ignore: cast_nullable_to_non_nullable
+as int,
+  ));
+}
+
+
+}
+
+
+/// @nodoc
 mixin _$DriverClient {
 
  String get passengerId; String get displayName; DateTime get affiliatedAt;

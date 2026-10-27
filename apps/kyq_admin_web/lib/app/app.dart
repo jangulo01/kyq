@@ -6,6 +6,7 @@ import 'package:kyq_ui/kyq_ui.dart';
 
 import '../drivers/drivers_cubit.dart';
 import '../drivers/drivers_page.dart';
+import '../fares/fare_table_page.dart';
 
 const apiBaseUrl = String.fromEnvironment('KYQ_API_URL', defaultValue: 'http://localhost:8080');
 
@@ -41,6 +42,7 @@ class _KyqAdminAppState extends State<KyqAdminApp> {
         path: '/',
         builder: (context, state) =>
             BlocProvider(create: (_) => DriversCubit(widget.api)..load(), child: const DriversPage()),
+        routes: [GoRoute(path: 'fares', builder: (context, state) => const FareTablePage())],
       ),
     ],
   );
@@ -53,9 +55,12 @@ class _KyqAdminAppState extends State<KyqAdminApp> {
 
   @override
   Widget build(BuildContext context) {
-    return BlocProvider.value(
-      value: widget.auth,
-      child: MaterialApp.router(title: 'Kyq Admin', theme: kyqTheme(), routerConfig: _router),
+    return RepositoryProvider.value(
+      value: widget.api,
+      child: BlocProvider.value(
+        value: widget.auth,
+        child: MaterialApp.router(title: 'Kyq Admin', theme: kyqTheme(), routerConfig: _router),
+      ),
     );
   }
 }

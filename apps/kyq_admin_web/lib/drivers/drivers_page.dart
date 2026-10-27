@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
 import 'package:kyq_api/kyq_api.dart';
 import 'package:kyq_ui/kyq_ui.dart';
 
@@ -24,6 +25,11 @@ class DriversPage extends StatelessWidget {
       appBar: AppBar(
         title: const Text('Conductores'),
         actions: [
+          TextButton.icon(
+            onPressed: () => context.go('/fares'),
+            icon: const Icon(Icons.payments),
+            label: const Text('Tarifas'),
+          ),
           IconButton(
             tooltip: 'Recargar',
             icon: const Icon(Icons.refresh),

@@ -21,7 +21,8 @@ type Config struct {
 	LiveKitAPIKey    string
 	LiveKitAPISecret string
 
-	OSRMURL string
+	OSRMURL  string
+	CityCode string
 
 	DevOTPCode             string
 	TwilioAccountSID       string
@@ -42,6 +43,7 @@ func Load() (Config, error) {
 		LiveKitAPIKey:          os.Getenv("KYQ_LIVEKIT_API_KEY"),
 		LiveKitAPISecret:       os.Getenv("KYQ_LIVEKIT_API_SECRET"),
 		OSRMURL:                os.Getenv("KYQ_OSRM_URL"),
+		CityCode:               getenv("KYQ_CITY_CODE", "bogota"),
 		DevOTPCode:             os.Getenv("KYQ_DEV_OTP_CODE"),
 		TwilioAccountSID:       os.Getenv("KYQ_TWILIO_ACCOUNT_SID"),
 		TwilioAuthToken:        os.Getenv("KYQ_TWILIO_AUTH_TOKEN"),

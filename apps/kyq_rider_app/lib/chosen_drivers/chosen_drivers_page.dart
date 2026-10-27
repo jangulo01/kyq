@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:kyq_api/kyq_api.dart';
 import 'package:kyq_ui/kyq_ui.dart';
 
+import '../request/request_page.dart';
 import 'chosen_drivers_cubit.dart';
 
 /// Pantalla principal del pasajero: sus Conductores Elegidos primero (RN-KYQ-006).
@@ -97,7 +98,21 @@ class _DriverTile extends StatelessWidget {
         children: [
           Text(driver.vehicleDescription),
           const SizedBox(height: 4),
-          PresenceChip(presence: driver.presence, busyUntil: driver.busyUntilEstimate),
+          Row(
+            children: [
+              PresenceChip(presence: driver.presence, busyUntil: driver.busyUntilEstimate),
+              const Spacer(),
+              // Solo se pide viaje a conductores libres (FR-009, FR-012).
+              if (driver.presence == DriverPresence.free)
+                FilledButton.tonal(
+                  key: Key('chosen.request.${driver.driverId}'),
+                  // El tema da ancho completo a los botones; aquí va junto al chip.
+                  style: FilledButton.styleFrom(minimumSize: const Size(0, 36)),
+                  onPressed: () => context.push(requestLocation(driver)),
+                  child: const Text('Pedir viaje'),
+                ),
+            ],
+          ),
         ],
       ),
       isThreeLine: true,

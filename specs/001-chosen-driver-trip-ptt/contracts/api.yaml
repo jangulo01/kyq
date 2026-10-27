@@ -137,6 +137,7 @@ paths:
             schema: { $ref: '#/components/schemas/LocationFix' }
       responses:
         '204': { description: Aceptada }
+        '409': { description: '`offline`: hay que estar ONLINE' }
   /v1/driver/clients:
     get:
       summary: Cartera de pasajeros afiliados (FR-007)
@@ -526,6 +527,7 @@ components:
         per_km_minor: { type: integer, minimum: 0 }
         per_minute_minor: { type: integer, minimum: 0 }
         minimum_minor: { type: integer, minimum: 0 }
+        rounding_minor: { type: integer, minimum: 1, default: 1, description: Se redondea al múltiplo más cercano }
     Presence:
       type: string
       enum: [offline, free, busy]
@@ -564,7 +566,7 @@ components:
         id: { type: string, format: uuid }
         proposed_by: { type: string, enum: [driver, passenger] }
         amount_minor: { type: integer }
-        status: { type: string, enum: [open, accepted, superseded, expired] }
+        status: { type: string, enum: [open, accepted, rejected, superseded, expired] }
         expires_at: { type: string, format: date-time }
     TripStatus:
       type: string
@@ -586,6 +588,9 @@ components:
         driver_payout_minor: { type: [integer, 'null'] }
         platform_commission_minor: { type: integer, const: 0 }
         open_proposal: { oneOf: [ { $ref: '#/components/schemas/FareProposal' }, { type: 'null' } ] }
-        offer_expires_at: { type: [string, 'null'], format: date-time }
+        offer_expires_at:
+          type: [string, 'null']
+          format: date-time
+          description: Plazo de la respuesta pendiente (oferta 25 s; confirmación, aceptar negociar o propuesta 30 s)
         negotiation_expires_at: { type: [string, 'null'], format: date-time }
         cancel_reason: { type: [string, 'null'] }

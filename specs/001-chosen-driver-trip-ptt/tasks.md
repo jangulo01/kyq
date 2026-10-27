@@ -115,24 +115,24 @@ tarifa, ciclo completo del viaje y liquidación 100 % conductor
 
 ### Tests for User Story 2
 
-- [ ] T039 [P] [US2] Escribir `backend/internal/fares/quote_test.go`: tarifa = `max(minimum, base + per_km × km + per_minute × min)` con redondeo, y RN-KYQ-013 (tabla por ciudad)
-- [ ] T040 [P] [US2] Escribir `backend/internal/trips/statemachine_test.go`: todas las transiciones válidas e inválidas de la máquina de [data-model.md](data-model.md), incluidos FARE_PENDING, NEGOTIATION_PENDING y NEGOTIATING
-- [ ] T041 [P] [US2] Escribir `backend/internal/trips/rules_test.go`: autorización por parte y rol de la descripción de [contracts/api.yaml](contracts/api.yaml) (404 a terceros, 403 por rol o por aceptar la propia propuesta), RN-KYQ-001 (`platform_commission_minor` = 0 y `driver_payout_minor` = `agreed_fare_minor`), RN-KYQ-007 (oferta exclusiva 25 s), FR-010a (confirmación 30 s), FR-010c (propuesta 30 s, negociación 3 min, rechazo vuelve a REQUESTED con 25 s nuevos), FR-012 (un viaje activo por conductor)
-- [ ] T042 [P] [US2] Escribir `backend/internal/trips/integration_test.go` contra PostgreSQL: pasajero pide, conductor acepta, avanza a COMPLETED; dos pasajeros piden al mismo conductor a la vez y solo uno obtiene oferta
+- [X] T039 [P] [US2] Escribir `backend/internal/fares/quote_test.go`: tarifa = `max(minimum, base + per_km × km + per_minute × min)` con redondeo, y RN-KYQ-013 (tabla por ciudad)
+- [X] T040 [P] [US2] Escribir `backend/internal/trips/statemachine_test.go`: todas las transiciones válidas e inválidas de la máquina de [data-model.md](data-model.md), incluidos FARE_PENDING, NEGOTIATION_PENDING y NEGOTIATING
+- [X] T041 [P] [US2] Escribir `backend/internal/trips/rules_test.go`: autorización por parte y rol de la descripción de [contracts/api.yaml](contracts/api.yaml) (404 a terceros, 403 por rol o por aceptar la propia propuesta), RN-KYQ-001 (`platform_commission_minor` = 0 y `driver_payout_minor` = `agreed_fare_minor`), RN-KYQ-007 (oferta exclusiva 25 s), FR-010a (confirmación 30 s), FR-010c (propuesta 30 s, negociación 3 min, rechazo vuelve a REQUESTED con 25 s nuevos), FR-012 (un viaje activo por conductor)
+- [X] T042 [P] [US2] Escribir `backend/internal/trips/integration_test.go` contra PostgreSQL: pasajero pide, conductor acepta, avanza a COMPLETED; dos pasajeros piden al mismo conductor a la vez y solo uno obtiene oferta
 - [ ] T043 [P] [US2] Pruebas bloc en `apps/kyq_driver_app/test/offers/offer_cubit_test.dart` y `apps/kyq_rider_app/test/request/request_cubit_test.dart`: cuenta atrás, aceptar, cambiar tarifa, negociar y vencimientos
 
 ### Implementation for User Story 2 — backend
 
-- [ ] T044 [US2] Crear `backend/migrations/00004_trips.sql`: `fare_tables` (`currency char(3)`, importes ≥ 0), `trips` (estados y `cancel_reason` del data model, CHECK `platform_commission_minor = 0`, índice único parcial de viaje activo por `driver_id`), `fare_proposals` (`amount_minor > 0`, `status` enum `open | accepted | superseded | expired`, una `open` por viaje) y consultas en `backend/internal/store/queries/trips.sql`
-- [ ] T045 [P] [US2] Implementar `backend/internal/fares/route.go`: interfaz `RouteEstimator` y cliente OSRM (`/route/v1/driving`) que devuelve distancia en metros y duración en segundos
-- [ ] T046 [US2] Implementar `backend/internal/fares/`: `PUT /v1/admin/fare-tables/{cityCode}` y `POST /v1/fares/quote`
-- [ ] T047 [US2] Implementar `backend/internal/drivers/presence.go`: `POST /v1/driver/presence` usando el gate de T020 (409 con `subscription_suspended`, `kyc_expired` o `trip_in_progress`), `POST /v1/driver/location`, publicación `driver.presence` y `trip.location`; recálculo de `busy_until_estimate` con OSRM como máximo cada 30 s
-- [ ] T048 [US2] Implementar `backend/internal/trips/statemachine.go` (transiciones puras) y `service.go` (transacciones, validación de afiliación y conductor `free`)
-- [ ] T049 [US2] Implementar trabajos River en `backend/internal/trips/jobs.go`: vencimiento de oferta 25 s, confirmación de tarifa 30 s, propuesta 30 s y negociación 3 min; cada trabajo revalida el estado antes de actuar
-- [ ] T050 [US2] Implementar handlers en `backend/internal/trips/handlers.go`: `POST /v1/trips`, `GET /v1/trips/{tripId}`, `accept`, `reject`, `negotiation`, `negotiation/response`, `proposals`, `proposals/{proposalId}/{decision}`, `arrive`, `start`, `complete`, `cancel`
-- [ ] T051 [US2] Publicar eventos `trip.offer`, `trip.offer_closed`, `trip.status`, `trip.fare_proposal` y `trip.negotiation_requested` desde `backend/internal/trips/events.go`
-- [ ] T052 [US2] Arrancar el cliente River junto al servidor en `backend/cmd/api/main.go` y registrar rutas en `backend/internal/httpapi/router.go`
-- [ ] T053 [P] [US2] Tabla de tarifas en `apps/kyq_admin_web/lib/fares/fare_table_page.dart` (FR-010b)
+- [X] T044 [US2] Crear `backend/migrations/00004_trips.sql`: `fare_tables` (`currency char(3)`, importes ≥ 0), `trips` (estados y `cancel_reason` del data model, CHECK `platform_commission_minor = 0`, índice único parcial de viaje activo por `driver_id`), `fare_proposals` (`amount_minor > 0`, `status` enum `open | accepted | superseded | expired`, una `open` por viaje) y consultas en `backend/internal/store/queries/trips.sql`
+- [X] T045 [P] [US2] Implementar `backend/internal/fares/route.go`: interfaz `RouteEstimator` y cliente OSRM (`/route/v1/driving`) que devuelve distancia en metros y duración en segundos
+- [X] T046 [US2] Implementar `backend/internal/fares/`: `PUT /v1/admin/fare-tables/{cityCode}` y `POST /v1/fares/quote`
+- [X] T047 [US2] Implementar `backend/internal/drivers/presence.go`: `POST /v1/driver/presence` usando el gate de T020 (409 con `subscription_suspended`, `kyc_expired` o `trip_in_progress`), `POST /v1/driver/location`, publicación `driver.presence` y `trip.location`; recálculo de `busy_until_estimate` con OSRM como máximo cada 30 s
+- [X] T048 [US2] Implementar `backend/internal/trips/statemachine.go` (transiciones puras) y `service.go` (transacciones, validación de afiliación y conductor `free`)
+- [X] T049 [US2] (Hecho con columna `respond_by` y barrido SQL cada segundo en `backend/internal/trips/service.go` en lugar de River; ver research R10) Implementar trabajos River en `backend/internal/trips/jobs.go`: vencimiento de oferta 25 s, confirmación de tarifa 30 s, propuesta 30 s y negociación 3 min; cada trabajo revalida el estado antes de actuar
+- [X] T050 [US2] Implementar handlers en `backend/internal/trips/handlers.go`: `POST /v1/trips`, `GET /v1/trips/{tripId}`, `accept`, `reject`, `negotiation`, `negotiation/response`, `proposals`, `proposals/{proposalId}/{decision}`, `arrive`, `start`, `complete`, `cancel`
+- [X] T051 [US2] Publicar eventos `trip.offer`, `trip.offer_closed`, `trip.status`, `trip.fare_proposal` y `trip.negotiation_requested` desde `backend/internal/trips/events.go`
+- [X] T052 [US2] Arrancar el cliente River junto al servidor en `backend/cmd/api/main.go` y registrar rutas en `backend/internal/httpapi/router.go`
+- [X] T053 [P] [US2] Tabla de tarifas en `apps/kyq_admin_web/lib/fares/fare_table_page.dart` (FR-010b)
 
 ### Implementation for User Story 2 — app del conductor
 
@@ -140,7 +140,7 @@ tarifa, ciclo completo del viaje y liquidación 100 % conductor
 - [ ] T055 [US2] Envío de ubicación cada 3 s en `apps/kyq_driver_app/lib/background/location_reporter.dart` con `geolocator` (`forceLocationManager` si no hay Google Play Services)
 - [ ] T056 [US2] Pantalla de inicio con interruptor ONLINE, motivo de bloqueo y asistente de permisos (ubicación en segundo plano, micrófono, exclusión de batería) en `apps/kyq_driver_app/lib/onboarding/home_page.dart`
 - [ ] T057 [US2] Tarjeta de oferta con cuenta atrás de 25 s, aceptar, aceptar con otra tarifa, proponer negociar y rechazar en `apps/kyq_driver_app/lib/offers/`
-- [ ] T058 [US2] Pantalla de negociación compartida (propuesta actual, contrapropuesta, aceptar, abandonar, cuenta atrás 30 s y total 3 min) en `packages/kyq_ui/lib/src/negotiation/negotiation_panel.dart`
+- [X] T058 [US2] Pantalla de negociación compartida (propuesta actual, contrapropuesta, aceptar, abandonar, cuenta atrás 30 s y total 3 min) en `packages/kyq_ui/lib/src/negotiation/negotiation_panel.dart`
 - [ ] T059 [US2] Pantalla del viaje con botones Llegué / Iniciar / Finalizar, cancelar antes de IN_PROGRESS y abrir ruta en app externa (`geo:` / Waze / Google Maps) en `apps/kyq_driver_app/lib/trip/trip_page.dart`
 - [ ] T060 [US2] Resumen del viaje con tarifa acordada, 100 % para el conductor y comisión 0 en `apps/kyq_driver_app/lib/trip/trip_summary_page.dart`
 

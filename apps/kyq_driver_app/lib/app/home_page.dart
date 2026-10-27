@@ -4,22 +4,12 @@ import 'package:go_router/go_router.dart';
 import 'package:kyq_api/kyq_api.dart';
 import 'package:kyq_ui/kyq_ui.dart';
 
-/// Inicio del conductor: estado de la cuenta y accesos a su QR y su cartera.
-/// El interruptor ONLINE llega con US2.
-class HomePage extends StatefulWidget {
+import '../presence/presence_cubit.dart';
+import 'online_switch_card.dart';
+
+/// Inicio del conductor: interruptor ONLINE, estado de la cuenta y accesos a su QR y su cartera.
+class HomePage extends StatelessWidget {
   const HomePage({super.key});
-
-  @override
-  State<HomePage> createState() => _HomePageState();
-}
-
-class _HomePageState extends State<HomePage> {
-  late Future<DriverMe> _me = context.read<KyqApiClient>().driverMe();
-
-  Future<void> _reload() async {
-    setState(() => _me = context.read<KyqApiClient>().driverMe());
-    await _me;
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -35,20 +25,29 @@ class _HomePageState extends State<HomePage> {
         ],
       ),
       body: RefreshIndicator(
-        onRefresh: _reload,
+        onRefresh: context.read<PresenceCubit>().load,
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            FutureBuilder<DriverMe>(
-              future: _me,
-              builder: (context, snap) {
-                if (snap.hasError) {
-                  return const Card(
-                    child: ListTile(title: Text('No pudimos cargar tu cuenta. Desliza para reintentar.')),
-                  );
+            BlocBuilder<PresenceCubit, PresenceState>(
+              builder: (context, state) {
+                final me = state.me;
+                if (me == null) {
+                  if (state.loadFailed) {
+                    return const Card(
+                      child: ListTile(title: Text('No pudimos cargar tu cuenta. Desliza para reintentar.')),
+                    );
+                  }
+                  return const Center(child: CircularProgressIndicator());
                 }
-                if (!snap.hasData) return const Center(child: CircularProgressIndicator());
-                return _AccountStatusCard(me: snap.data!);
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    OnlineSwitchCard(state: state),
+                    const SizedBox(height: 8),
+                    _AccountStatusCard(me: me),
+                  ],
+                );
               },
             ),
             const SizedBox(height: 16),

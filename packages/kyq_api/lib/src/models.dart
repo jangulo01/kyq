@@ -123,6 +123,21 @@ abstract class ChosenDriver with _$ChosenDriver {
   factory ChosenDriver.fromJson(Map<String, dynamic> json) => _$ChosenDriverFromJson(json);
 }
 
+/// Tabla de tarifas de una ciudad (`PUT /v1/admin/fare-tables/{cityCode}`).
+@freezed
+abstract class FareTableInput with _$FareTableInput {
+  const factory FareTableInput({
+    required String currency,
+    required int baseMinor,
+    required int perKmMinor,
+    required int perMinuteMinor,
+    required int minimumMinor,
+    @Default(1) int roundingMinor,
+  }) = _FareTableInput;
+
+  factory FareTableInput.fromJson(Map<String, dynamic> json) => _$FareTableInputFromJson(json);
+}
+
 /// Pasajero de la cartera del conductor (`GET /v1/driver/clients`).
 @freezed
 abstract class DriverClient with _$DriverClient {
@@ -149,7 +164,7 @@ abstract class FareQuote with _$FareQuote {
 
 enum ProposalParty { driver, passenger }
 
-enum ProposalStatus { open, accepted, superseded, expired }
+enum ProposalStatus { open, accepted, rejected, superseded, expired }
 
 @freezed
 abstract class FareProposal with _$FareProposal {
