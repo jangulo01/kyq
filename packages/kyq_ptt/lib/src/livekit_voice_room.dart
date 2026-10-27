@@ -40,7 +40,7 @@ class LiveKitVoiceRoom implements VoiceRoom {
   String? get localIdentity => _room?.localParticipant?.identity;
 
   @override
-  Future<void> connect(String url, String token, {required bool publishMicrophone}) async {
+  Future<void> connect(String url, String token) async {
     await _initialize();
     await disconnect();
     _leaving = false;
@@ -60,16 +60,26 @@ class LiveKitVoiceRoom implements VoiceRoom {
     await room.connect(url, token);
     // Altavoz por defecto: el teléfono va en el soporte del carro, no en la oreja.
     await AudioManager.instance.setSpeakerOutputPreferred(true);
-    if (publishMicrophone) await _publishMuted(room);
     _events.add(const VoiceConnectionChanged(VoiceConnection.connected));
   }
 
-  Future<void> _publishMuted(Room room) async {
-    final track = await LocalAudioTrack.create(room.roomOptions.defaultAudioCaptureOptions);
-    // Deshabilitada antes de publicar para no enviar ni un instante de audio.
-    await track.disable();
-    await room.localParticipant!.publishAudioTrack(track);
-    await room.localParticipant!.setMicrophoneEnabled(false);
+  /// El backend concede publicar antes de responder al turno, pero el aviso llega a la sala por
+  /// la señalización de LiveKit y puede ir unos milisegundos detrás.
+  static const _grantWait = Duration(seconds: 3);
+
+  Future<void> _awaitPublishGrant(Room room) async {
+    final local = room.localParticipant;
+    if (local == null || local.permissions.canPublish) return;
+    final granted = Completer<void>();
+    final listener = room.createListener()
+      ..on<ParticipantPermissionsUpdatedEvent>((e) {
+        if (e.participant == local && e.permissions.canPublish && !granted.isCompleted) granted.complete();
+      });
+    try {
+      if (!local.permissions.canPublish) await granted.future.timeout(_grantWait);
+    } finally {
+      await listener.dispose();
+    }
   }
 
   void _onData(DataReceivedEvent e) {
@@ -85,7 +95,12 @@ class LiveKitVoiceRoom implements VoiceRoom {
 
   @override
   Future<void> setMicrophoneEnabled(bool enabled) async {
-    await _room?.localParticipant?.setMicrophoneEnabled(enabled);
+    final room = _room;
+    if (room == null) return;
+    // Al soltar, el backend retira el permiso y LiveKit despublica la pista; al pulsar de nuevo
+    // se publica otra.
+    if (enabled) await _awaitPublishGrant(room);
+    await room.localParticipant?.setMicrophoneEnabled(enabled);
   }
 
   @override

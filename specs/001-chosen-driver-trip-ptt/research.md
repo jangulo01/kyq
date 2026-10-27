@@ -25,6 +25,15 @@ Decisiones de la Fase 0. Versiones concretas de dependencias se fijan al impleme
 - **Alternatives considered**: Redis SETNX (pieza extra sin necesidad en el MVP); resolver en
   el cliente con mensajes de datos (carreras entre dispositivos).
 
+**Revisión (implementación US3, revisión de seguridad):** el turno se impone también en LiveKit.
+Los tokens no permiten publicar audio; `POST /ptt/floor` concede publicar micrófono al titular con
+`UpdateParticipant` y lo retira a la otra parte, y al soltar o caducar (barrido cada segundo) se
+retira. Con ello la app ya no publica el micrófono silenciado al conectar: lo publica al obtener
+el turno, lo que añade la negociación de la pista a la latencia de cada pulsación (medir en
+T080). Los tokens duran 10 min como máximo y nunca pasan del cierre; LiveKit corre sin creación
+automática de salas (`infra/livekit.yaml`) y el cierre reintenta borrar la sala hasta lograrlo,
+así que un token antiguo no reabre el canal.
+
 ## R3. Tiempo real (ofertas, estados, posición)
 
 - **Decision**: Centrifugo, nodo único con motor en memoria. El backend publica por la API HTTP

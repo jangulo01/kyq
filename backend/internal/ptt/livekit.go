@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -12,14 +13,21 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
-// Rooms creates and deletes LiveKit rooms.
+// Rooms manages LiveKit rooms and who may publish audio in them.
 type Rooms interface {
 	CreateRoom(ctx context.Context, name string) error
+	// DeleteRoom succeeds when the room no longer exists.
 	DeleteRoom(ctx context.Context, name string) error
+	// SetCanPublish succeeds when the participant is not in the room: it gets the default
+	// (no publishing) from its token when it joins.
+	SetCanPublish(ctx context.Context, room, identity string, canPublish bool) error
 }
 
+// errNotFound is a Twirp not_found answer (room or participant gone).
+var errNotFound = errors.New("livekit: not found")
+
 // LiveKit signs access tokens and calls the RoomService Twirp API. A small client instead of
-// the server SDK: two calls and one JWT are all the MVP needs.
+// the server SDK: three calls and one JWT are all the MVP needs.
 type LiveKit struct {
 	APIURL    string // e.g. http://livekit:7880
 	APIKey    string
@@ -42,6 +50,7 @@ type videoGrant struct {
 	Room              string   `json:"room,omitempty"`
 	RoomJoin          bool     `json:"roomJoin,omitempty"`
 	RoomCreate        bool     `json:"roomCreate,omitempty"`
+	RoomAdmin         bool     `json:"roomAdmin,omitempty"`
 	CanPublish        *bool    `json:"canPublish,omitempty"`
 	CanSubscribe      *bool    `json:"canSubscribe,omitempty"`
 	CanPublishData    *bool    `json:"canPublishData,omitempty"`
@@ -54,15 +63,16 @@ type claims struct {
 	Video videoGrant `json:"video"`
 }
 
-// ParticipantToken lets identity join room and publish only microphone audio and data
-// messages (FR-016) until now+ttl.
+// ParticipantToken lets identity join room, listen and send data messages until now+ttl.
+// Publishing audio is off: the server grants it only to the floor holder (FR-017), so a
+// modified app cannot talk over the other party.
 func (l LiveKit) ParticipantToken(identity, name, room string, now time.Time, ttl time.Duration) (string, error) {
-	yes := true
+	yes, no := true, false
 	return l.sign(claims{
 		RegisteredClaims: jwt.RegisteredClaims{Subject: identity},
 		Name:             name,
 		Video: videoGrant{
-			Room: room, RoomJoin: true, CanPublish: &yes, CanSubscribe: &yes, CanPublishData: &yes,
+			Room: room, RoomJoin: true, CanPublish: &no, CanSubscribe: &yes, CanPublishData: &yes,
 			CanPublishSources: []string{"microphone"},
 		},
 	}, now, ttl)
@@ -77,16 +87,34 @@ func (l LiveKit) sign(c claims, now time.Time, ttl time.Duration) (string, error
 
 // CreateRoom is idempotent: LiveKit returns the existing room when the name is taken.
 func (l LiveKit) CreateRoom(ctx context.Context, name string) error {
-	return l.call(ctx, "CreateRoom", map[string]any{"name": name, "max_participants": 2, "empty_timeout": 300})
+	return l.call(ctx, "CreateRoom", videoGrant{RoomCreate: true}, map[string]any{"name": name, "max_participants": 2, "empty_timeout": 300})
 }
 
 // DeleteRoom disconnects everyone in the room.
 func (l LiveKit) DeleteRoom(ctx context.Context, name string) error {
-	return l.call(ctx, "DeleteRoom", map[string]any{"room": name})
+	if err := l.call(ctx, "DeleteRoom", videoGrant{RoomCreate: true}, map[string]any{"room": name}); !errors.Is(err, errNotFound) {
+		return err
+	}
+	return nil
 }
 
-func (l LiveKit) call(ctx context.Context, method string, body any) error {
-	token, err := l.sign(claims{Video: videoGrant{RoomCreate: true}}, time.Now(), time.Minute)
+// SetCanPublish grants or revokes microphone publishing; revoking unpublishes the track.
+func (l LiveKit) SetCanPublish(ctx context.Context, room, identity string, canPublish bool) error {
+	err := l.call(ctx, "UpdateParticipant", videoGrant{Room: room, RoomAdmin: true}, map[string]any{
+		"room": room, "identity": identity,
+		"permission": map[string]any{
+			"can_subscribe": true, "can_publish": canPublish, "can_publish_data": true,
+			"can_publish_sources": []string{"MICROPHONE"},
+		},
+	})
+	if errors.Is(err, errNotFound) {
+		return nil
+	}
+	return err
+}
+
+func (l LiveKit) call(ctx context.Context, method string, grant videoGrant, body any) error {
+	token, err := l.sign(claims{Video: grant}, time.Now(), time.Minute)
 	if err != nil {
 		return err
 	}
@@ -110,8 +138,11 @@ func (l LiveKit) call(ctx context.Context, method string, body any) error {
 		return err
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("livekit %s: status %d", method, resp.StatusCode)
+	switch resp.StatusCode {
+	case http.StatusOK:
+		return nil
+	case http.StatusNotFound:
+		return errNotFound
 	}
-	return nil
+	return fmt.Errorf("livekit %s: status %d", method, resp.StatusCode)
 }

@@ -13,6 +13,25 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const clearExpiredPTTFloor = `-- name: ClearExpiredPTTFloor :execrows
+UPDATE ptt_channels SET floor_holder_id = NULL, floor_expires_at = NULL
+WHERE trip_id = $1 AND floor_holder_id = $2 AND floor_expires_at < $3
+`
+
+type ClearExpiredPTTFloorParams struct {
+	TripID   uuid.UUID
+	HolderID uuid.NullUUID
+	Now      pgtype.Timestamptz
+}
+
+func (q *Queries) ClearExpiredPTTFloor(ctx context.Context, arg ClearExpiredPTTFloorParams) (int64, error) {
+	result, err := q.db.Exec(ctx, clearExpiredPTTFloor, arg.TripID, arg.HolderID, arg.Now)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const getPTTChannel = `-- name: GetPTTChannel :one
 SELECT trip_id, room_name, opened_at, closes_at, closed_at, floor_holder_id, floor_expires_at FROM ptt_channels WHERE trip_id = $1
 `
@@ -32,6 +51,22 @@ func (q *Queries) GetPTTChannel(ctx context.Context, tripID uuid.UUID) (PttChann
 	return i, err
 }
 
+const getTripParties = `-- name: GetTripParties :one
+SELECT passenger_id, driver_id FROM trips WHERE id = $1
+`
+
+type GetTripPartiesRow struct {
+	PassengerID uuid.UUID
+	DriverID    uuid.UUID
+}
+
+func (q *Queries) GetTripParties(ctx context.Context, id uuid.UUID) (GetTripPartiesRow, error) {
+	row := q.db.QueryRow(ctx, getTripParties, id)
+	var i GetTripPartiesRow
+	err := row.Scan(&i.PassengerID, &i.DriverID)
+	return i, err
+}
+
 const listDuePTTChannels = `-- name: ListDuePTTChannels :many
 SELECT c.trip_id, c.room_name, t.passenger_id, t.driver_id
 FROM ptt_channels c
@@ -39,7 +74,6 @@ JOIN trips t ON t.id = c.trip_id
 WHERE c.closed_at IS NULL AND c.closes_at <= $1
 ORDER BY c.closes_at
 LIMIT 100
-FOR UPDATE OF c SKIP LOCKED
 `
 
 type ListDuePTTChannelsRow struct {
@@ -74,8 +108,42 @@ func (q *Queries) ListDuePTTChannels(ctx context.Context, closesAt pgtype.Timest
 	return items, nil
 }
 
-const markPTTClosed = `-- name: MarkPTTClosed :exec
-UPDATE ptt_channels SET closed_at = $2, floor_holder_id = NULL, floor_expires_at = NULL WHERE trip_id = $1
+const listExpiredPTTFloors = `-- name: ListExpiredPTTFloors :many
+SELECT trip_id, room_name, floor_holder_id
+FROM ptt_channels
+WHERE closed_at IS NULL AND floor_holder_id IS NOT NULL AND floor_expires_at < $1
+LIMIT 100
+`
+
+type ListExpiredPTTFloorsRow struct {
+	TripID        uuid.UUID
+	RoomName      string
+	FloorHolderID uuid.NullUUID
+}
+
+func (q *Queries) ListExpiredPTTFloors(ctx context.Context, floorExpiresAt pgtype.Timestamptz) ([]ListExpiredPTTFloorsRow, error) {
+	rows, err := q.db.Query(ctx, listExpiredPTTFloors, floorExpiresAt)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListExpiredPTTFloorsRow{}
+	for rows.Next() {
+		var i ListExpiredPTTFloorsRow
+		if err := rows.Scan(&i.TripID, &i.RoomName, &i.FloorHolderID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const markPTTClosed = `-- name: MarkPTTClosed :execrows
+UPDATE ptt_channels SET closed_at = $2, floor_holder_id = NULL, floor_expires_at = NULL
+WHERE trip_id = $1 AND closed_at IS NULL
 `
 
 type MarkPTTClosedParams struct {
@@ -83,9 +151,12 @@ type MarkPTTClosedParams struct {
 	ClosedAt pgtype.Timestamptz
 }
 
-func (q *Queries) MarkPTTClosed(ctx context.Context, arg MarkPTTClosedParams) error {
-	_, err := q.db.Exec(ctx, markPTTClosed, arg.TripID, arg.ClosedAt)
-	return err
+func (q *Queries) MarkPTTClosed(ctx context.Context, arg MarkPTTClosedParams) (int64, error) {
+	result, err := q.db.Exec(ctx, markPTTClosed, arg.TripID, arg.ClosedAt)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const openPTTChannel = `-- name: OpenPTTChannel :exec

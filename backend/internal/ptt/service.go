@@ -18,16 +18,17 @@ import (
 const (
 	// FloorTTL caps one turn; a client that dies mid-turn frees the channel by itself (FR-017).
 	FloorTTL = 60 * time.Second
-	// openTokenTTL bounds tokens while the trip is active and closes_at is still unknown;
-	// clients ask again when they reconnect.
-	openTokenTTL = 4 * time.Hour
+	// TokenTTL bounds a room token. LiveKit renews the credentials of connected clients, so it
+	// only limits joining: the apps ask for a new one when they reconnect.
+	TokenTTL = 10 * time.Minute
 )
 
 var (
-	ErrNotFound = errors.New("trip not found")
-	ErrNotOpen  = errors.New("ptt channel not open yet")
-	ErrClosed   = errors.New("ptt channel closed")
-	ErrBusy     = errors.New("floor taken by the other party")
+	ErrNotFound    = errors.New("trip not found")
+	ErrNotOpen     = errors.New("ptt channel not open yet")
+	ErrClosed      = errors.New("ptt channel closed")
+	ErrBusy        = errors.New("floor taken by the other party")
+	ErrUnavailable = errors.New("voice server unavailable")
 )
 
 // Credentials is the body of POST /v1/trips/{tripId}/ptt/token.
@@ -40,6 +41,9 @@ type Credentials struct {
 
 // Service implements the PTT use cases. The trips module opens the channel row and schedules
 // its closing in the same transaction as the trip transition.
+//
+// LiveKit must run with room auto-creation off (infra/livekit.yaml): rooms exist only while
+// this service keeps them, so a token issued before the channel closed cannot reopen it.
 type Service struct {
 	Store     *store.Store
 	LiveKit   LiveKit
@@ -66,22 +70,29 @@ func (s *Service) logger() *slog.Logger {
 
 func ts(t time.Time) pgtype.Timestamptz { return pgtype.Timestamptz{Time: t, Valid: true} }
 
-func (s *Service) checkParticipant(ctx context.Context, userID, tripID uuid.UUID) error {
-	ok, err := s.Store.IsTripParticipant(ctx, store.IsTripParticipantParams{ID: tripID, PassengerID: userID})
+func holder(id uuid.UUID) uuid.NullUUID { return uuid.NullUUID{UUID: id, Valid: true} }
+
+// other returns the party of the trip that is not userID, or ErrNotFound when userID takes no
+// part in it (the trip's existence is not revealed).
+func (s *Service) other(ctx context.Context, userID, tripID uuid.UUID) (uuid.UUID, error) {
+	p, err := s.Store.GetTripParties(ctx, tripID)
+	if store.IsNotFound(err) {
+		return uuid.Nil, ErrNotFound
+	}
 	if err != nil {
-		return err
+		return uuid.Nil, err
 	}
-	if !ok {
-		return ErrNotFound // no revela que el viaje existe
+	switch userID {
+	case p.PassengerID:
+		return p.DriverID, nil
+	case p.DriverID:
+		return p.PassengerID, nil
 	}
-	return nil
+	return uuid.Nil, ErrNotFound
 }
 
-// channel returns the open channel of a trip the user takes part in.
-func (s *Service) channel(ctx context.Context, userID, tripID uuid.UUID, now time.Time) (store.PttChannel, error) {
-	if err := s.checkParticipant(ctx, userID, tripID); err != nil {
-		return store.PttChannel{}, err
-	}
+// channel returns the open channel of tripID.
+func (s *Service) channel(ctx context.Context, tripID uuid.UUID, now time.Time) (store.PttChannel, error) {
 	ch, err := s.Store.GetPTTChannel(ctx, tripID)
 	if store.IsNotFound(err) {
 		return store.PttChannel{}, ErrNotOpen
@@ -95,28 +106,30 @@ func (s *Service) channel(ctx context.Context, userID, tripID uuid.UUID, now tim
 	return ch, nil
 }
 
-// Token issues room credentials valid until the channel closes (FR-016, FR-020).
+// Token issues room credentials, never valid past the channel closing (FR-016, FR-020).
 func (s *Service) Token(ctx context.Context, userID, tripID uuid.UUID) (Credentials, error) {
 	now := s.now()
-	ch, err := s.channel(ctx, userID, tripID, now)
+	if _, err := s.other(ctx, userID, tripID); err != nil {
+		return Credentials{}, err
+	}
+	ch, err := s.channel(ctx, tripID, now)
 	if err != nil {
 		return Credentials{}, err
 	}
-	ttl := openTokenTTL
+	ttl := TokenTTL
 	var closesAt *time.Time
 	if ch.ClosesAt.Valid {
-		ttl = ch.ClosesAt.Time.Sub(now)
+		ttl = min(ttl, ch.ClosesAt.Time.Sub(now))
 		closesAt = &ch.ClosesAt.Time
 	}
 	name, err := s.Store.GetUserDisplayName(ctx, userID)
 	if err != nil {
 		return Credentials{}, err
 	}
-	// La sala se crea al entrar el primero; si falla, LiveKit la crea igualmente al unirse.
-	if s.Rooms != nil {
-		if err := s.Rooms.CreateRoom(ctx, ch.RoomName); err != nil {
-			s.logger().WarnContext(ctx, "create livekit room", "room", ch.RoomName, "err", err)
-		}
+	// Sin creación automática en LiveKit, el token no sirve si la sala no existe.
+	if err := s.Rooms.CreateRoom(ctx, ch.RoomName); err != nil {
+		s.logger().ErrorContext(ctx, "create livekit room", "room", ch.RoomName, "err", err)
+		return Credentials{}, ErrUnavailable
 	}
 	token, err := s.LiveKit.ParticipantToken(userID.String(), name, ch.RoomName, now, ttl)
 	if err != nil {
@@ -125,18 +138,24 @@ func (s *Service) Token(ctx context.Context, userID, tripID uuid.UUID) (Credenti
 	return Credentials{URL: s.PublicURL, Token: token, Room: ch.RoomName, ClosesAt: closesAt}, nil
 }
 
-// TakeFloor grants the exclusive turn for FloorTTL; the holder may renew it (FR-017).
+// TakeFloor grants the exclusive turn for FloorTTL and lets the caller publish audio in the
+// room; the other party loses that right. The holder may renew it (FR-017).
 func (s *Service) TakeFloor(ctx context.Context, userID, tripID uuid.UUID) (time.Time, error) {
 	now := s.now()
-	if _, err := s.channel(ctx, userID, tripID, now); err != nil {
+	other, err := s.other(ctx, userID, tripID)
+	if err != nil {
+		return time.Time{}, err
+	}
+	ch, err := s.channel(ctx, tripID, now)
+	if err != nil {
 		return time.Time{}, err
 	}
 	expires, err := s.Store.TakePTTFloor(ctx, store.TakePTTFloorParams{
-		UserID: uuid.NullUUID{UUID: userID, Valid: true}, ExpiresAt: ts(now.Add(FloorTTL)), TripID: tripID, Now: ts(now),
+		UserID: holder(userID), ExpiresAt: ts(now.Add(FloorTTL)), TripID: tripID, Now: ts(now),
 	})
 	if store.IsNotFound(err) {
 		// Entre la lectura y el UPDATE el canal pudo cerrarse.
-		if _, err := s.channel(ctx, userID, tripID, now); err != nil {
+		if _, err := s.channel(ctx, tripID, now); err != nil {
 			return time.Time{}, err
 		}
 		return time.Time{}, ErrBusy
@@ -144,43 +163,89 @@ func (s *Service) TakeFloor(ctx context.Context, userID, tripID uuid.UUID) (time
 	if err != nil {
 		return time.Time{}, err
 	}
+	// Un turno anterior de la otra parte pudo caducar sin que el barrido lo retirara aún.
+	if err := s.Rooms.SetCanPublish(ctx, ch.RoomName, other.String(), false); err != nil {
+		s.logger().WarnContext(ctx, "revoke livekit publish", "room", ch.RoomName, "err", err)
+	}
+	if err := s.Rooms.SetCanPublish(ctx, ch.RoomName, userID.String(), true); err != nil {
+		s.logger().ErrorContext(ctx, "grant livekit publish", "room", ch.RoomName, "err", err)
+		if err := s.Store.ReleasePTTFloor(ctx, store.ReleasePTTFloorParams{TripID: tripID, FloorHolderID: holder(userID)}); err != nil {
+			return time.Time{}, err
+		}
+		return time.Time{}, ErrUnavailable
+	}
 	return expires.Time, nil
 }
 
-// ReleaseFloor frees the turn if the user holds it; releasing a turn you do not hold is a no-op.
+// ReleaseFloor frees the turn if the user holds it and takes away their right to publish.
+// Releasing a turn you do not hold changes nothing.
 func (s *Service) ReleaseFloor(ctx context.Context, userID, tripID uuid.UUID) error {
-	if err := s.checkParticipant(ctx, userID, tripID); err != nil {
+	if _, err := s.other(ctx, userID, tripID); err != nil {
 		return err
 	}
-	return s.Store.ReleasePTTFloor(ctx, store.ReleasePTTFloorParams{TripID: tripID, FloorHolderID: uuid.NullUUID{UUID: userID, Valid: true}})
+	if err := s.Store.ReleasePTTFloor(ctx, store.ReleasePTTFloorParams{TripID: tripID, FloorHolderID: holder(userID)}); err != nil {
+		return err
+	}
+	ch, err := s.Store.GetPTTChannel(ctx, tripID)
+	if store.IsNotFound(err) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if err := s.Rooms.SetCanPublish(ctx, ch.RoomName, userID.String(), false); err != nil {
+		s.logger().WarnContext(ctx, "revoke livekit publish", "room", ch.RoomName, "err", err)
+	}
+	return nil
 }
 
-// CloseDue closes every channel whose closes_at has passed: marks it, deletes the LiveKit room
-// and tells both parties (RN-KYQ-014). Same sweeper pattern as trips (research R10).
-func (s *Service) CloseDue(ctx context.Context) (int, error) {
+// ExpireFloors frees turns past their FloorTTL and revokes their holders' publishing, so an app
+// that stopped calling DELETE cannot keep talking.
+func (s *Service) ExpireFloors(ctx context.Context) (int, error) {
 	now := s.now()
-	var due []store.ListDuePTTChannelsRow
-	err := s.Store.WithTx(ctx, func(q *store.Queries) error {
-		var err error
-		if due, err = q.ListDuePTTChannels(ctx, ts(now)); err != nil {
-			return err
-		}
-		for _, ch := range due {
-			if err := q.MarkPTTClosed(ctx, store.MarkPTTClosedParams{TripID: ch.TripID, ClosedAt: ts(now)}); err != nil {
-				return err
-			}
-		}
-		return nil
-	})
+	expired, err := s.Store.ListExpiredPTTFloors(ctx, ts(now))
 	if err != nil {
 		return 0, err
 	}
-	for _, ch := range due {
-		if s.Rooms != nil {
-			if err := s.Rooms.DeleteRoom(ctx, ch.RoomName); err != nil {
-				s.logger().WarnContext(ctx, "delete livekit room", "room", ch.RoomName, "err", err)
-			}
+	count := 0
+	for _, f := range expired {
+		// Primero se retira el permiso: si falla, el turno sigue vencido y se reintenta.
+		if err := s.Rooms.SetCanPublish(ctx, f.RoomName, f.FloorHolderID.UUID.String(), false); err != nil {
+			s.logger().WarnContext(ctx, "revoke expired floor", "room", f.RoomName, "err", err)
+			continue
 		}
+		n, err := s.Store.ClearExpiredPTTFloor(ctx, store.ClearExpiredPTTFloorParams{TripID: f.TripID, HolderID: f.FloorHolderID, Now: ts(now)})
+		if err != nil {
+			return count, err
+		}
+		count += int(n)
+	}
+	return count, nil
+}
+
+// CloseDue closes every channel whose closes_at has passed: deletes the LiveKit room, marks the
+// channel closed and tells both parties (RN-KYQ-014). A failed deletion leaves the channel due,
+// so the next sweep retries it. Same sweeper pattern as trips (research R10).
+func (s *Service) CloseDue(ctx context.Context) (int, error) {
+	now := s.now()
+	due, err := s.Store.ListDuePTTChannels(ctx, ts(now))
+	if err != nil {
+		return 0, err
+	}
+	count := 0
+	for _, ch := range due {
+		if err := s.Rooms.DeleteRoom(ctx, ch.RoomName); err != nil {
+			s.logger().WarnContext(ctx, "delete livekit room", "room", ch.RoomName, "err", err)
+			continue
+		}
+		n, err := s.Store.MarkPTTClosed(ctx, store.MarkPTTClosedParams{TripID: ch.TripID, ClosedAt: ts(now)})
+		if err != nil {
+			return count, err
+		}
+		if n == 0 {
+			continue // otra instancia lo cerró
+		}
+		count++
 		if s.Publisher == nil {
 			continue
 		}
@@ -191,10 +256,10 @@ func (s *Service) CloseDue(ctx context.Context) (int, error) {
 			}
 		}
 	}
-	return len(due), nil
+	return count, nil
 }
 
-// RunSweeper closes due channels every interval until ctx ends.
+// RunSweeper expires turns and closes due channels every interval until ctx ends.
 func (s *Service) RunSweeper(ctx context.Context, interval time.Duration) {
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
@@ -203,6 +268,9 @@ func (s *Service) RunSweeper(ctx context.Context, interval time.Duration) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
+			if _, err := s.ExpireFloors(ctx); err != nil {
+				s.logger().ErrorContext(ctx, "expire ptt floors", "err", err)
+			}
 			if n, err := s.CloseDue(ctx); err != nil {
 				s.logger().ErrorContext(ctx, "close due ptt channels", "err", err)
 			} else if n > 0 {

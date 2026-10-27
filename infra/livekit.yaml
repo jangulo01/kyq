@@ -1,0 +1,4 @@
+# Solo el backend crea salas (POST /ptt/token). Sin creación automática, un token emitido antes
+# de cerrar el canal no puede volver a abrir la sala (RN-KYQ-014).
+room:
+  auto_create: false

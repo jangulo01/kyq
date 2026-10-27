@@ -2,6 +2,7 @@ package ptt_test
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"sync"
@@ -22,7 +23,7 @@ import (
 	"github.com/kyq/backend/internal/trips"
 )
 
-func TestParticipantTokenOnlyAllowsMicrophoneInItsRoom(t *testing.T) {
+func TestParticipantTokenListensButCannotPublish(t *testing.T) {
 	lk := ptt.LiveKit{APIKey: "devkey", APISecret: "secret"}
 	now := time.Now().Truncate(time.Second)
 	raw, err := lk.ParticipantToken("user-1", "Ana", "trip-1", now, 15*time.Minute)
@@ -37,8 +38,22 @@ func TestParticipantTokenOnlyAllowsMicrophoneInItsRoom(t *testing.T) {
 	video := claims["video"].(map[string]any)
 	assert.Equal(t, "trip-1", video["room"])
 	assert.Equal(t, true, video["roomJoin"])
+	assert.Equal(t, false, video["canPublish"], "publicar audio lo concede el turno (FR-017)")
+	assert.Equal(t, true, video["canSubscribe"])
+	assert.Equal(t, true, video["canPublishData"], "mensajes floor.taken / floor.released")
 	assert.Equal(t, []any{"microphone"}, video["canPublishSources"], "solo audio de micrófono (FR-016)")
 	assert.Nil(t, video["roomCreate"], "un participante no administra salas")
+}
+
+func tokenExpiry(t *testing.T, raw string) int64 {
+	t.Helper()
+	claims := jwt.MapClaims{}
+	_, err := jwt.ParseWithClaims(raw, claims, func(*jwt.Token) (any, error) { return []byte("secret"), nil },
+		jwt.WithoutClaimsValidation())
+	require.NoError(t, err)
+	exp, err := claims.GetExpirationTime()
+	require.NoError(t, err)
+	return exp.Unix()
 }
 
 func TestAPIURLFrom(t *testing.T) {
@@ -55,6 +70,24 @@ func (fixedRoute) Route(context.Context, float64, float64, float64, float64) (fa
 type fakeRooms struct {
 	mu               sync.Mutex
 	created, deleted []string
+	canPublish       map[string]bool // último permiso por identidad
+	failDelete       bool
+}
+
+func (r *fakeRooms) SetCanPublish(_ context.Context, _, identity string, canPublish bool) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.canPublish == nil {
+		r.canPublish = map[string]bool{}
+	}
+	r.canPublish[identity] = canPublish
+	return nil
+}
+
+func (r *fakeRooms) publishes(id uuid.UUID) bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.canPublish[id.String()]
 }
 
 func (r *fakeRooms) CreateRoom(_ context.Context, name string) error {
@@ -67,6 +100,9 @@ func (r *fakeRooms) CreateRoom(_ context.Context, name string) error {
 func (r *fakeRooms) DeleteRoom(_ context.Context, name string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.failDelete {
+		return errors.New("livekit caído")
+	}
 	r.deleted = append(r.deleted, name)
 	return nil
 }
@@ -164,8 +200,11 @@ func TestIntegrationChannelLifecycle(t *testing.T) {
 	expires, err := f.ptt.TakeFloor(ctx, f.passenger, tripID)
 	require.NoError(t, err)
 	assert.True(t, f.clock.Add(ptt.FloorTTL).Equal(expires), "turno de 60 s")
+	assert.True(t, f.rooms.publishes(f.passenger), "LiveKit deja publicar a quien tiene el turno")
+	assert.False(t, f.rooms.publishes(f.driver))
 	_, err = f.ptt.TakeFloor(ctx, f.driver, tripID)
 	assert.ErrorIs(t, err, ptt.ErrBusy)
+	assert.False(t, f.rooms.publishes(f.driver), "sin turno no hay permiso")
 	_, err = f.ptt.TakeFloor(ctx, f.passenger, tripID)
 	assert.NoError(t, err, "quien tiene el turno puede renovarlo")
 
@@ -173,10 +212,16 @@ func TestIntegrationChannelLifecycle(t *testing.T) {
 	_, err = f.ptt.TakeFloor(ctx, f.driver, tripID)
 	assert.ErrorIs(t, err, ptt.ErrBusy)
 	require.NoError(t, f.ptt.ReleaseFloor(ctx, f.passenger, tripID))
+	assert.False(t, f.rooms.publishes(f.passenger), "soltar retira el permiso")
 	_, err = f.ptt.TakeFloor(ctx, f.driver, tripID)
 	require.NoError(t, err)
 
+	// Un turno caducado se retira aunque la app no llame a DELETE.
 	f.advance(ptt.FloorTTL + time.Second)
+	expiredCount, err := f.ptt.ExpireFloors(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, 1, expiredCount)
+	assert.False(t, f.rooms.publishes(f.driver))
 	_, err = f.ptt.TakeFloor(ctx, f.passenger, tripID)
 	assert.NoError(t, err, "un turno caducado queda libre")
 
@@ -189,13 +234,24 @@ func TestIntegrationChannelLifecycle(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, creds.ClosesAt)
 	assert.Equal(t, completedAt.Add(trips.PTTCloseDelay), creds.ClosesAt.UTC())
+	assert.Equal(t, f.clock.Add(ptt.TokenTTL).Unix(), tokenExpiry(t, creds.Token), "tokens cortos")
 
-	f.advance(trips.PTTCloseDelay - time.Second)
+	f.advance(trips.PTTCloseDelay - 2*time.Minute)
+	creds, err = f.ptt.Token(ctx, f.driver, tripID)
+	require.NoError(t, err)
+	assert.Equal(t, creds.ClosesAt.Unix(), tokenExpiry(t, creds.Token), "nunca más allá del cierre")
+
+	f.advance(2*time.Minute - time.Second)
 	n, err := f.ptt.CloseDue(ctx)
 	require.NoError(t, err)
 	assert.Zero(t, n)
 
 	f.advance(time.Second)
+	f.rooms.failDelete = true
+	n, err = f.ptt.CloseDue(ctx)
+	require.NoError(t, err)
+	assert.Zero(t, n, "si LiveKit no borra la sala el canal sigue pendiente")
+	f.rooms.failDelete = false
 	n, err = f.ptt.CloseDue(ctx)
 	require.NoError(t, err)
 	assert.Equal(t, 1, n)

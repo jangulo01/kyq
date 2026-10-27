@@ -47,7 +47,6 @@ class FakeVoiceRoom implements VoiceRoom {
   final sent = <Map<String, Object?>>[];
   final micChanges = <bool>[];
   bool connected = false;
-  bool? publishedMicrophone;
   int connects = 0;
 
   bool get micEnabled => micChanges.isNotEmpty && micChanges.last;
@@ -62,10 +61,9 @@ class FakeVoiceRoom implements VoiceRoom {
   String? get localIdentity => identity;
 
   @override
-  Future<void> connect(String url, String token, {required bool publishMicrophone}) async {
+  Future<void> connect(String url, String token) async {
     connects++;
     connected = true;
-    publishedMicrophone = publishMicrophone;
   }
 
   @override

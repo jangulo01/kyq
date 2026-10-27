@@ -169,7 +169,7 @@ class PttController extends Cubit<PttState> {
       _scheduleClose(creds.closesAt);
       if (_channelClosed) return;
       if (creds.closesAt != null) _emit(state.copyWith(closesAt: creds.closesAt));
-      await _room.connect(creds.url, creds.token, publishMicrophone: await _mic.isGranted());
+      await _room.connect(creds.url, creds.token);
       if (state.status == PttStatus.connecting) _emit(state.copyWith(status: PttStatus.idle));
     } on PttChannelClosed {
       await closeChannel();

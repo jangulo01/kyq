@@ -18,10 +18,9 @@ void main() {
     expect(ptt.controller.state.status, PttStatus.idle);
   }
 
-  test('al empezar conecta con el micrófono publicado y silenciado', () async {
+  test('al empezar conecta sin micrófono: publicar lo concede el turno', () async {
     await started();
     expect(ptt.room.connects, 1);
-    expect(ptt.room.publishedMicrophone, isTrue);
     expect(ptt.room.micEnabled, isFalse);
     expect(ptt.focus.log, ['prepare']);
   });
@@ -147,7 +146,6 @@ void main() {
   test('sin permiso de micrófono lo pide y, denegado, lo indica', () async {
     ptt = FakePtt(mic: FakeMicPermission(granted: false, onRequest: MicAccess.permanentlyDenied));
     await started();
-    expect(ptt.room.publishedMicrophone, isFalse);
 
     await ptt.controller.press();
     expect(ptt.mic.requests, 1);

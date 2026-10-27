@@ -29,8 +29,21 @@ FROM ptt_channels c
 JOIN trips t ON t.id = c.trip_id
 WHERE c.closed_at IS NULL AND c.closes_at <= $1
 ORDER BY c.closes_at
-LIMIT 100
-FOR UPDATE OF c SKIP LOCKED;
+LIMIT 100;
 
--- name: MarkPTTClosed :exec
-UPDATE ptt_channels SET closed_at = $2, floor_holder_id = NULL, floor_expires_at = NULL WHERE trip_id = $1;
+-- name: MarkPTTClosed :execrows
+UPDATE ptt_channels SET closed_at = $2, floor_holder_id = NULL, floor_expires_at = NULL
+WHERE trip_id = $1 AND closed_at IS NULL;
+
+-- name: GetTripParties :one
+SELECT passenger_id, driver_id FROM trips WHERE id = $1;
+
+-- name: ListExpiredPTTFloors :many
+SELECT trip_id, room_name, floor_holder_id
+FROM ptt_channels
+WHERE closed_at IS NULL AND floor_holder_id IS NOT NULL AND floor_expires_at < $1
+LIMIT 100;
+
+-- name: ClearExpiredPTTFloor :execrows
+UPDATE ptt_channels SET floor_holder_id = NULL, floor_expires_at = NULL
+WHERE trip_id = sqlc.arg(trip_id) AND floor_holder_id = sqlc.arg(holder_id) AND floor_expires_at < sqlc.arg(now);

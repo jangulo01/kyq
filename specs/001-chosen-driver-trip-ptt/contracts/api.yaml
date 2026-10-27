@@ -331,7 +331,11 @@ paths:
       parameters: [ { $ref: '#/components/parameters/TripId' } ]
       responses:
         '200':
-          description: OK
+          description: |
+            El token permite escuchar y enviar mensajes de datos, no publicar audio: el backend
+            concede publicar micrófono solo a quien tiene el turno. Caduca a los 10 min o al
+            cierre del canal (lo que llegue antes); LiveKit renueva la sesión conectada y las
+            apps piden otro token al reconectar.
           content:
             application/json:
               schema:
@@ -343,10 +347,11 @@ paths:
                   closes_at:
                     type: [string, 'null']
                     format: date-time
-                    description: Null mientras el viaje sigue activo; el token caduca a las 4 h y se pide otro.
+                    description: Null mientras el viaje sigue activo.
         '404': { $ref: '#/components/responses/Error' }
         '409': { description: 'El canal aún no está abierto (viaje sin aceptar), `ptt_not_open`' }
         '410': { description: Canal cerrado }
+        '503': { description: 'Servidor de voz no disponible, `ptt_unavailable`' }
   /v1/trips/{tripId}/ptt/floor:
     post:
       summary: Pide el turno de palabra (FR-017)
@@ -363,6 +368,7 @@ paths:
         '404': { $ref: '#/components/responses/Error' }
         '409': { description: 'Canal ocupado por la otra parte (`ptt_busy`) o aún sin abrir (`ptt_not_open`)' }
         '410': { description: Canal cerrado }
+        '503': { description: 'No se pudo dar permiso de micrófono en la sala, `ptt_unavailable`' }
     delete:
       summary: Libera el turno (sin efecto si el llamante no lo tiene)
       parameters: [ { $ref: '#/components/parameters/TripId' } ]

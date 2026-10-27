@@ -39,10 +39,11 @@ abstract interface class VoiceRoom {
   /// Identidad propia en la sala (el id de usuario que pone el backend en el token).
   String? get localIdentity;
 
-  /// Conecta. Con [publishMicrophone] publica el micrófono ya silenciado, así pulsar solo
-  /// tiene que activarlo (SC-005).
-  Future<void> connect(String url, String token, {required bool publishMicrophone});
+  /// Conecta para escuchar y enviar mensajes de datos. El token no deja publicar audio.
+  Future<void> connect(String url, String token);
 
+  /// Activar publica el micrófono; solo funciona con el turno concedido, porque entonces el
+  /// backend da permiso de publicar en la sala (FR-017).
   Future<void> setMicrophoneEnabled(bool enabled);
 
   Future<void> sendData(Map<String, Object?> message);

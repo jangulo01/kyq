@@ -78,6 +78,8 @@ func writeError(w http.ResponseWriter, r *http.Request, err error) {
 		httpx.WriteError(w, http.StatusConflict, "ptt_not_open", "el canal se abre cuando el conductor acepta")
 	case errors.Is(err, ErrBusy):
 		httpx.WriteError(w, http.StatusConflict, "ptt_busy", "la otra persona está hablando")
+	case errors.Is(err, ErrUnavailable):
+		httpx.WriteError(w, http.StatusServiceUnavailable, "ptt_unavailable", "el servidor de voz no responde, inténtalo de nuevo")
 	case errors.Is(err, ErrClosed):
 		httpx.WriteError(w, http.StatusGone, "ptt_closed", "el canal de voz de este viaje ya se cerró")
 	default:
