@@ -5,19 +5,19 @@ se rellena al recorrer los escenarios en la VM y en los teléfonos.
 
 ## Entorno
 
-- Fecha:
-- Commit desplegado (`git rev-parse --short HEAD`):
-- VM (host, `KYQ_PUBLIC_HOST`):
-- Teléfonos (modelo, Android, con o sin Google Play Services):
-- Bold (`KYQ_BOLD_ENV`):
+- Fecha: 2026-10-28
+- Commit desplegado (`git rev-parse --short HEAD`): rama `integracion` (PR #2) + CORS del panel
+- VM (host, `KYQ_PUBLIC_HOST`): 192.168.1.66
+- Teléfonos (modelo, Android, con o sin Google Play Services): Redmi Note 13 Pro+ (apps conductor y pasajero en el mismo teléfono)
+- Bold (`KYQ_BOLD_ENV`): sandbox (pago con Bold aplazado al final, por decisión del usuario)
 
 ## Escenarios
 
 | # | Paso | Resultado esperado | Ref. | Resultado | Notas |
 |---|---|---|---|---|---|
-| 1 | Completar un viaje (tarifa acordada 18 000 COP) | Ambos ven el resumen con "Total $ 18.000", 100 % al conductor, comisión 0 y el pago "Pendiente" con efectivo y Bold | FR-001, FR-002 | Pendiente | |
-| 2 | Pasajero: "Pagué en efectivo" | Pasajero ve "Esperando confirmación"; el conductor ve el reporte en vivo | FR-004, US1-2 | Pendiente | |
-| 3 | Conductor: "Recibí el efectivo" | Ambos ven "Pagado en efectivo" con la hora | FR-005, US1-3 | Pendiente | |
+| 1 | Completar un viaje (tarifa acordada 18 000 COP) | Ambos ven el resumen con "Total $ 18.000", 100 % al conductor, comisión 0 y el pago "Pendiente" con efectivo y Bold | FR-001, FR-002 | Pasa | Tarifa de 7 000 COP: "Recibes el 100 %", "Comisión Kyq: $ 0"; el pasajero ve Bold y efectivo |
+| 2 | Pasajero: "Pagué en efectivo" | Pasajero ve "Esperando confirmación"; el conductor ve el reporte en vivo | FR-004, US1-2 | Pasa | Pasajero: "Efectivo reportado: falta la confirmación del conductor"; el conductor ve el reporte |
+| 3 | Conductor: "Recibí el efectivo" | Ambos ven "Pagado en efectivo" con la hora | FR-005, US1-3 | Pasa | Servidor: `paid`, `cash`, 100 % conductor; el conductor ve "Pagado en efectivo" |
 | 4 | Otro viaje: pasajero reporta efectivo y el conductor toca "No recibí el efectivo" | "En disputa" en ambas apps; aparece en Panel → Pagos de viajes → Incidencias | FR-005, FR-017 | Pendiente | |
 | 5 | Panel: resolver la disputa como "pagado en efectivo" con nota | Pagado; la nota y el administrador quedan en el pago | FR-017 | Pendiente | |
 | 6 | Otro viaje: pasajero "Pagar con Bold" y paga con tarjeta de pruebas aprobada | Checkout con 18 000 COP; al volver, "Pagado con Bold" < 1 min; el conductor recibe aviso; su saldo por girar sube 18 000 | FR-003, FR-009, FR-011, SC-002 | Pendiente | |

@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 	"runtime/debug"
+	"strings"
 	"time"
 
 	"github.com/kyq/backend/internal/httpx"
@@ -80,6 +81,37 @@ func Recover(logger *slog.Logger) func(http.Handler) http.Handler {
 					httpx.WriteError(w, http.StatusInternalServerError, "internal", "error interno")
 				}
 			}()
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+// CORS permite que el panel web, servido desde otro origen, llame a la API. Solo responde a los
+// orígenes de allowed (lista exacta); vacío desactiva CORS, que es lo seguro por defecto.
+func CORS(allowed []string) func(http.Handler) http.Handler {
+	ok := map[string]bool{}
+	for _, o := range allowed {
+		if o = strings.TrimSpace(o); o != "" {
+			ok[o] = true
+		}
+	}
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			origin := r.Header.Get("Origin")
+			if origin == "" || !ok[origin] {
+				next.ServeHTTP(w, r)
+				return
+			}
+			h := w.Header()
+			h.Set("Access-Control-Allow-Origin", origin)
+			h.Add("Vary", "Origin")
+			if r.Method == http.MethodOptions && r.Header.Get("Access-Control-Request-Method") != "" {
+				h.Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE")
+				h.Set("Access-Control-Allow-Headers", "Authorization, Content-Type")
+				h.Set("Access-Control-Max-Age", "600")
+				w.WriteHeader(http.StatusNoContent)
+				return
+			}
 			next.ServeHTTP(w, r)
 		})
 	}
