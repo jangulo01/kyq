@@ -9,6 +9,9 @@ import 'package:kyq_realtime/kyq_realtime.dart';
 import 'package:kyq_ui/kyq_ui.dart';
 
 import '../background/location_reporter.dart';
+import '../cooperative/cooperative_channel_page.dart';
+import '../cooperative/cooperative_cubit.dart';
+import '../cooperative/cooperative_page.dart';
 import '../notices/notices_cubit.dart';
 import '../notices/notices_page.dart';
 import '../offers/offer_cubit.dart';
@@ -136,6 +139,29 @@ class _KyqDriverAppState extends State<KyqDriverApp> {
           GoRoute(path: 'qr', builder: (context, state) => const MyQrPage()),
           GoRoute(path: 'clients', builder: (context, state) => const ClientsPage()),
           GoRoute(path: 'notices', builder: (context, state) => const NoticesPage()),
+          GoRoute(
+            path: 'cooperative',
+            builder: (context, state) => BlocProvider(
+              create: (_) => CooperativeCubit(widget.api, _events.stream)..load(),
+              child: const CooperativePage(),
+            ),
+            routes: [
+              GoRoute(
+                path: 'channel',
+                builder: (context, state) => BlocProvider(
+                  create: (_) => widget.services.cooperativePtt(widget.api),
+                  child: Builder(
+                    builder: (context) => CooperativeChannelPage(
+                      controller: context.read<PttController>(),
+                      members: state.extra is List<CooperativeMember>
+                          ? state.extra! as List<CooperativeMember>
+                          : const [],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
           GoRoute(
             path: 'subscription',
             builder: (context, state) => BlocProvider(

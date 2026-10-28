@@ -1695,7 +1695,8 @@ as List<DriverDocument>,
 /// @nodoc
 mixin _$ChosenDriver {
 
- String get driverId; String get displayName; String get vehicleDescription; DriverPresence get presence; DateTime? get busyUntilEstimate;
+ String get driverId; String get displayName; String get vehicleDescription; DriverPresence get presence; DateTime? get busyUntilEstimate;/// 006: cooperativa activa del conductor, si tiene (selector de despacho).
+ CooperativeRef? get cooperative;
 /// Create a copy of ChosenDriver
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -1708,16 +1709,16 @@ $ChosenDriverCopyWith<ChosenDriver> get copyWith => _$ChosenDriverCopyWithImpl<C
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is ChosenDriver&&(identical(other.driverId, driverId) || other.driverId == driverId)&&(identical(other.displayName, displayName) || other.displayName == displayName)&&(identical(other.vehicleDescription, vehicleDescription) || other.vehicleDescription == vehicleDescription)&&(identical(other.presence, presence) || other.presence == presence)&&(identical(other.busyUntilEstimate, busyUntilEstimate) || other.busyUntilEstimate == busyUntilEstimate));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is ChosenDriver&&(identical(other.driverId, driverId) || other.driverId == driverId)&&(identical(other.displayName, displayName) || other.displayName == displayName)&&(identical(other.vehicleDescription, vehicleDescription) || other.vehicleDescription == vehicleDescription)&&(identical(other.presence, presence) || other.presence == presence)&&(identical(other.busyUntilEstimate, busyUntilEstimate) || other.busyUntilEstimate == busyUntilEstimate)&&(identical(other.cooperative, cooperative) || other.cooperative == cooperative));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,driverId,displayName,vehicleDescription,presence,busyUntilEstimate);
+int get hashCode => Object.hash(runtimeType,driverId,displayName,vehicleDescription,presence,busyUntilEstimate,cooperative);
 
 @override
 String toString() {
-  return 'ChosenDriver(driverId: $driverId, displayName: $displayName, vehicleDescription: $vehicleDescription, presence: $presence, busyUntilEstimate: $busyUntilEstimate)';
+  return 'ChosenDriver(driverId: $driverId, displayName: $displayName, vehicleDescription: $vehicleDescription, presence: $presence, busyUntilEstimate: $busyUntilEstimate, cooperative: $cooperative)';
 }
 
 
@@ -1728,11 +1729,11 @@ abstract mixin class $ChosenDriverCopyWith<$Res>  {
   factory $ChosenDriverCopyWith(ChosenDriver value, $Res Function(ChosenDriver) _then) = _$ChosenDriverCopyWithImpl;
 @useResult
 $Res call({
- String driverId, String displayName, String vehicleDescription, DriverPresence presence, DateTime? busyUntilEstimate
+ String driverId, String displayName, String vehicleDescription, DriverPresence presence, DateTime? busyUntilEstimate, CooperativeRef? cooperative
 });
 
 
-
+$CooperativeRefCopyWith<$Res>? get cooperative;
 
 }
 /// @nodoc
@@ -1745,17 +1746,30 @@ class _$ChosenDriverCopyWithImpl<$Res>
 
 /// Create a copy of ChosenDriver
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? driverId = null,Object? displayName = null,Object? vehicleDescription = null,Object? presence = null,Object? busyUntilEstimate = freezed,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? driverId = null,Object? displayName = null,Object? vehicleDescription = null,Object? presence = null,Object? busyUntilEstimate = freezed,Object? cooperative = freezed,}) {
   return _then(_self.copyWith(
 driverId: null == driverId ? _self.driverId : driverId // ignore: cast_nullable_to_non_nullable
 as String,displayName: null == displayName ? _self.displayName : displayName // ignore: cast_nullable_to_non_nullable
 as String,vehicleDescription: null == vehicleDescription ? _self.vehicleDescription : vehicleDescription // ignore: cast_nullable_to_non_nullable
 as String,presence: null == presence ? _self.presence : presence // ignore: cast_nullable_to_non_nullable
 as DriverPresence,busyUntilEstimate: freezed == busyUntilEstimate ? _self.busyUntilEstimate : busyUntilEstimate // ignore: cast_nullable_to_non_nullable
-as DateTime?,
+as DateTime?,cooperative: freezed == cooperative ? _self.cooperative : cooperative // ignore: cast_nullable_to_non_nullable
+as CooperativeRef?,
   ));
 }
+/// Create a copy of ChosenDriver
+/// with the given fields replaced by the non-null parameter values.
+@override
+@pragma('vm:prefer-inline')
+$CooperativeRefCopyWith<$Res>? get cooperative {
+    if (_self.cooperative == null) {
+    return null;
+  }
 
+  return $CooperativeRefCopyWith<$Res>(_self.cooperative!, (value) {
+    return _then(_self.copyWith(cooperative: value));
+  });
+}
 }
 
 
@@ -1837,10 +1851,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String driverId,  String displayName,  String vehicleDescription,  DriverPresence presence,  DateTime? busyUntilEstimate)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String driverId,  String displayName,  String vehicleDescription,  DriverPresence presence,  DateTime? busyUntilEstimate,  CooperativeRef? cooperative)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _ChosenDriver() when $default != null:
-return $default(_that.driverId,_that.displayName,_that.vehicleDescription,_that.presence,_that.busyUntilEstimate);case _:
+return $default(_that.driverId,_that.displayName,_that.vehicleDescription,_that.presence,_that.busyUntilEstimate,_that.cooperative);case _:
   return orElse();
 
 }
@@ -1858,10 +1872,10 @@ return $default(_that.driverId,_that.displayName,_that.vehicleDescription,_that.
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String driverId,  String displayName,  String vehicleDescription,  DriverPresence presence,  DateTime? busyUntilEstimate)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String driverId,  String displayName,  String vehicleDescription,  DriverPresence presence,  DateTime? busyUntilEstimate,  CooperativeRef? cooperative)  $default,) {final _that = this;
 switch (_that) {
 case _ChosenDriver():
-return $default(_that.driverId,_that.displayName,_that.vehicleDescription,_that.presence,_that.busyUntilEstimate);case _:
+return $default(_that.driverId,_that.displayName,_that.vehicleDescription,_that.presence,_that.busyUntilEstimate,_that.cooperative);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -1878,10 +1892,10 @@ return $default(_that.driverId,_that.displayName,_that.vehicleDescription,_that.
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String driverId,  String displayName,  String vehicleDescription,  DriverPresence presence,  DateTime? busyUntilEstimate)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String driverId,  String displayName,  String vehicleDescription,  DriverPresence presence,  DateTime? busyUntilEstimate,  CooperativeRef? cooperative)?  $default,) {final _that = this;
 switch (_that) {
 case _ChosenDriver() when $default != null:
-return $default(_that.driverId,_that.displayName,_that.vehicleDescription,_that.presence,_that.busyUntilEstimate);case _:
+return $default(_that.driverId,_that.displayName,_that.vehicleDescription,_that.presence,_that.busyUntilEstimate,_that.cooperative);case _:
   return null;
 
 }
@@ -1893,7 +1907,7 @@ return $default(_that.driverId,_that.displayName,_that.vehicleDescription,_that.
 @JsonSerializable()
 
 class _ChosenDriver implements ChosenDriver {
-  const _ChosenDriver({required this.driverId, required this.displayName, required this.vehicleDescription, required this.presence, this.busyUntilEstimate});
+  const _ChosenDriver({required this.driverId, required this.displayName, required this.vehicleDescription, required this.presence, this.busyUntilEstimate, this.cooperative});
   factory _ChosenDriver.fromJson(Map<String, dynamic> json) => _$ChosenDriverFromJson(json);
 
 @override final  String driverId;
@@ -1901,6 +1915,8 @@ class _ChosenDriver implements ChosenDriver {
 @override final  String vehicleDescription;
 @override final  DriverPresence presence;
 @override final  DateTime? busyUntilEstimate;
+/// 006: cooperativa activa del conductor, si tiene (selector de despacho).
+@override final  CooperativeRef? cooperative;
 
 /// Create a copy of ChosenDriver
 /// with the given fields replaced by the non-null parameter values.
@@ -1915,16 +1931,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ChosenDriver&&(identical(other.driverId, driverId) || other.driverId == driverId)&&(identical(other.displayName, displayName) || other.displayName == displayName)&&(identical(other.vehicleDescription, vehicleDescription) || other.vehicleDescription == vehicleDescription)&&(identical(other.presence, presence) || other.presence == presence)&&(identical(other.busyUntilEstimate, busyUntilEstimate) || other.busyUntilEstimate == busyUntilEstimate));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ChosenDriver&&(identical(other.driverId, driverId) || other.driverId == driverId)&&(identical(other.displayName, displayName) || other.displayName == displayName)&&(identical(other.vehicleDescription, vehicleDescription) || other.vehicleDescription == vehicleDescription)&&(identical(other.presence, presence) || other.presence == presence)&&(identical(other.busyUntilEstimate, busyUntilEstimate) || other.busyUntilEstimate == busyUntilEstimate)&&(identical(other.cooperative, cooperative) || other.cooperative == cooperative));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,driverId,displayName,vehicleDescription,presence,busyUntilEstimate);
+int get hashCode => Object.hash(runtimeType,driverId,displayName,vehicleDescription,presence,busyUntilEstimate,cooperative);
 
 @override
 String toString() {
-  return 'ChosenDriver(driverId: $driverId, displayName: $displayName, vehicleDescription: $vehicleDescription, presence: $presence, busyUntilEstimate: $busyUntilEstimate)';
+  return 'ChosenDriver(driverId: $driverId, displayName: $displayName, vehicleDescription: $vehicleDescription, presence: $presence, busyUntilEstimate: $busyUntilEstimate, cooperative: $cooperative)';
 }
 
 
@@ -1935,11 +1951,11 @@ abstract mixin class _$ChosenDriverCopyWith<$Res> implements $ChosenDriverCopyWi
   factory _$ChosenDriverCopyWith(_ChosenDriver value, $Res Function(_ChosenDriver) _then) = __$ChosenDriverCopyWithImpl;
 @override @useResult
 $Res call({
- String driverId, String displayName, String vehicleDescription, DriverPresence presence, DateTime? busyUntilEstimate
+ String driverId, String displayName, String vehicleDescription, DriverPresence presence, DateTime? busyUntilEstimate, CooperativeRef? cooperative
 });
 
 
-
+@override $CooperativeRefCopyWith<$Res>? get cooperative;
 
 }
 /// @nodoc
@@ -1952,18 +1968,31 @@ class __$ChosenDriverCopyWithImpl<$Res>
 
 /// Create a copy of ChosenDriver
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? driverId = null,Object? displayName = null,Object? vehicleDescription = null,Object? presence = null,Object? busyUntilEstimate = freezed,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? driverId = null,Object? displayName = null,Object? vehicleDescription = null,Object? presence = null,Object? busyUntilEstimate = freezed,Object? cooperative = freezed,}) {
   return _then(_ChosenDriver(
 driverId: null == driverId ? _self.driverId : driverId // ignore: cast_nullable_to_non_nullable
 as String,displayName: null == displayName ? _self.displayName : displayName // ignore: cast_nullable_to_non_nullable
 as String,vehicleDescription: null == vehicleDescription ? _self.vehicleDescription : vehicleDescription // ignore: cast_nullable_to_non_nullable
 as String,presence: null == presence ? _self.presence : presence // ignore: cast_nullable_to_non_nullable
 as DriverPresence,busyUntilEstimate: freezed == busyUntilEstimate ? _self.busyUntilEstimate : busyUntilEstimate // ignore: cast_nullable_to_non_nullable
-as DateTime?,
+as DateTime?,cooperative: freezed == cooperative ? _self.cooperative : cooperative // ignore: cast_nullable_to_non_nullable
+as CooperativeRef?,
   ));
 }
 
+/// Create a copy of ChosenDriver
+/// with the given fields replaced by the non-null parameter values.
+@override
+@pragma('vm:prefer-inline')
+$CooperativeRefCopyWith<$Res>? get cooperative {
+    if (_self.cooperative == null) {
+    return null;
+  }
 
+  return $CooperativeRefCopyWith<$Res>(_self.cooperative!, (value) {
+    return _then(_self.copyWith(cooperative: value));
+  });
+}
 }
 
 
@@ -3064,7 +3093,8 @@ as DateTime,
 /// @nodoc
 mixin _$Trip {
 
- String get id; TripStatus get status; String get passengerId; String get driverId; GeoPoint get pickup; GeoPoint get dropoff; int get distanceM; int get durationS; String get currency; int get suggestedFareMinor; int? get agreedFareMinor; int? get driverPayoutMinor; int get platformCommissionMinor; FareProposal? get openProposal; DateTime? get offerExpiresAt; DateTime? get negotiationExpiresAt; String? get cancelReason;
+ String get id; TripStatus get status; String get passengerId; String get driverId; GeoPoint get pickup; GeoPoint get dropoff; int get distanceM; int get durationS; String get currency; int get suggestedFareMinor; int? get agreedFareMinor; int? get driverPayoutMinor; int get platformCommissionMinor; FareProposal? get openProposal; DateTime? get offerExpiresAt; DateTime? get negotiationExpiresAt; String? get cancelReason; TripDispatch get dispatch; String? get requestedDriverId;/// Nombre del conductor actual; cambia si la solicitud pasa a un compañero.
+ String? get driverName; String? get cooperativeId; String? get cooperativeName; bool get allowDelegation; int get handoverCount; bool get canDelegate;
 /// Create a copy of Trip
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -3077,16 +3107,16 @@ $TripCopyWith<Trip> get copyWith => _$TripCopyWithImpl<Trip>(this as Trip, _$ide
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is Trip&&(identical(other.id, id) || other.id == id)&&(identical(other.status, status) || other.status == status)&&(identical(other.passengerId, passengerId) || other.passengerId == passengerId)&&(identical(other.driverId, driverId) || other.driverId == driverId)&&(identical(other.pickup, pickup) || other.pickup == pickup)&&(identical(other.dropoff, dropoff) || other.dropoff == dropoff)&&(identical(other.distanceM, distanceM) || other.distanceM == distanceM)&&(identical(other.durationS, durationS) || other.durationS == durationS)&&(identical(other.currency, currency) || other.currency == currency)&&(identical(other.suggestedFareMinor, suggestedFareMinor) || other.suggestedFareMinor == suggestedFareMinor)&&(identical(other.agreedFareMinor, agreedFareMinor) || other.agreedFareMinor == agreedFareMinor)&&(identical(other.driverPayoutMinor, driverPayoutMinor) || other.driverPayoutMinor == driverPayoutMinor)&&(identical(other.platformCommissionMinor, platformCommissionMinor) || other.platformCommissionMinor == platformCommissionMinor)&&(identical(other.openProposal, openProposal) || other.openProposal == openProposal)&&(identical(other.offerExpiresAt, offerExpiresAt) || other.offerExpiresAt == offerExpiresAt)&&(identical(other.negotiationExpiresAt, negotiationExpiresAt) || other.negotiationExpiresAt == negotiationExpiresAt)&&(identical(other.cancelReason, cancelReason) || other.cancelReason == cancelReason));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is Trip&&(identical(other.id, id) || other.id == id)&&(identical(other.status, status) || other.status == status)&&(identical(other.passengerId, passengerId) || other.passengerId == passengerId)&&(identical(other.driverId, driverId) || other.driverId == driverId)&&(identical(other.pickup, pickup) || other.pickup == pickup)&&(identical(other.dropoff, dropoff) || other.dropoff == dropoff)&&(identical(other.distanceM, distanceM) || other.distanceM == distanceM)&&(identical(other.durationS, durationS) || other.durationS == durationS)&&(identical(other.currency, currency) || other.currency == currency)&&(identical(other.suggestedFareMinor, suggestedFareMinor) || other.suggestedFareMinor == suggestedFareMinor)&&(identical(other.agreedFareMinor, agreedFareMinor) || other.agreedFareMinor == agreedFareMinor)&&(identical(other.driverPayoutMinor, driverPayoutMinor) || other.driverPayoutMinor == driverPayoutMinor)&&(identical(other.platformCommissionMinor, platformCommissionMinor) || other.platformCommissionMinor == platformCommissionMinor)&&(identical(other.openProposal, openProposal) || other.openProposal == openProposal)&&(identical(other.offerExpiresAt, offerExpiresAt) || other.offerExpiresAt == offerExpiresAt)&&(identical(other.negotiationExpiresAt, negotiationExpiresAt) || other.negotiationExpiresAt == negotiationExpiresAt)&&(identical(other.cancelReason, cancelReason) || other.cancelReason == cancelReason)&&(identical(other.dispatch, dispatch) || other.dispatch == dispatch)&&(identical(other.requestedDriverId, requestedDriverId) || other.requestedDriverId == requestedDriverId)&&(identical(other.driverName, driverName) || other.driverName == driverName)&&(identical(other.cooperativeId, cooperativeId) || other.cooperativeId == cooperativeId)&&(identical(other.cooperativeName, cooperativeName) || other.cooperativeName == cooperativeName)&&(identical(other.allowDelegation, allowDelegation) || other.allowDelegation == allowDelegation)&&(identical(other.handoverCount, handoverCount) || other.handoverCount == handoverCount)&&(identical(other.canDelegate, canDelegate) || other.canDelegate == canDelegate));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,status,passengerId,driverId,pickup,dropoff,distanceM,durationS,currency,suggestedFareMinor,agreedFareMinor,driverPayoutMinor,platformCommissionMinor,openProposal,offerExpiresAt,negotiationExpiresAt,cancelReason);
+int get hashCode => Object.hashAll([runtimeType,id,status,passengerId,driverId,pickup,dropoff,distanceM,durationS,currency,suggestedFareMinor,agreedFareMinor,driverPayoutMinor,platformCommissionMinor,openProposal,offerExpiresAt,negotiationExpiresAt,cancelReason,dispatch,requestedDriverId,driverName,cooperativeId,cooperativeName,allowDelegation,handoverCount,canDelegate]);
 
 @override
 String toString() {
-  return 'Trip(id: $id, status: $status, passengerId: $passengerId, driverId: $driverId, pickup: $pickup, dropoff: $dropoff, distanceM: $distanceM, durationS: $durationS, currency: $currency, suggestedFareMinor: $suggestedFareMinor, agreedFareMinor: $agreedFareMinor, driverPayoutMinor: $driverPayoutMinor, platformCommissionMinor: $platformCommissionMinor, openProposal: $openProposal, offerExpiresAt: $offerExpiresAt, negotiationExpiresAt: $negotiationExpiresAt, cancelReason: $cancelReason)';
+  return 'Trip(id: $id, status: $status, passengerId: $passengerId, driverId: $driverId, pickup: $pickup, dropoff: $dropoff, distanceM: $distanceM, durationS: $durationS, currency: $currency, suggestedFareMinor: $suggestedFareMinor, agreedFareMinor: $agreedFareMinor, driverPayoutMinor: $driverPayoutMinor, platformCommissionMinor: $platformCommissionMinor, openProposal: $openProposal, offerExpiresAt: $offerExpiresAt, negotiationExpiresAt: $negotiationExpiresAt, cancelReason: $cancelReason, dispatch: $dispatch, requestedDriverId: $requestedDriverId, driverName: $driverName, cooperativeId: $cooperativeId, cooperativeName: $cooperativeName, allowDelegation: $allowDelegation, handoverCount: $handoverCount, canDelegate: $canDelegate)';
 }
 
 
@@ -3097,7 +3127,7 @@ abstract mixin class $TripCopyWith<$Res>  {
   factory $TripCopyWith(Trip value, $Res Function(Trip) _then) = _$TripCopyWithImpl;
 @useResult
 $Res call({
- String id, TripStatus status, String passengerId, String driverId, GeoPoint pickup, GeoPoint dropoff, int distanceM, int durationS, String currency, int suggestedFareMinor, int? agreedFareMinor, int? driverPayoutMinor, int platformCommissionMinor, FareProposal? openProposal, DateTime? offerExpiresAt, DateTime? negotiationExpiresAt, String? cancelReason
+ String id, TripStatus status, String passengerId, String driverId, GeoPoint pickup, GeoPoint dropoff, int distanceM, int durationS, String currency, int suggestedFareMinor, int? agreedFareMinor, int? driverPayoutMinor, int platformCommissionMinor, FareProposal? openProposal, DateTime? offerExpiresAt, DateTime? negotiationExpiresAt, String? cancelReason, TripDispatch dispatch, String? requestedDriverId, String? driverName, String? cooperativeId, String? cooperativeName, bool allowDelegation, int handoverCount, bool canDelegate
 });
 
 
@@ -3114,7 +3144,7 @@ class _$TripCopyWithImpl<$Res>
 
 /// Create a copy of Trip
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? status = null,Object? passengerId = null,Object? driverId = null,Object? pickup = null,Object? dropoff = null,Object? distanceM = null,Object? durationS = null,Object? currency = null,Object? suggestedFareMinor = null,Object? agreedFareMinor = freezed,Object? driverPayoutMinor = freezed,Object? platformCommissionMinor = null,Object? openProposal = freezed,Object? offerExpiresAt = freezed,Object? negotiationExpiresAt = freezed,Object? cancelReason = freezed,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? status = null,Object? passengerId = null,Object? driverId = null,Object? pickup = null,Object? dropoff = null,Object? distanceM = null,Object? durationS = null,Object? currency = null,Object? suggestedFareMinor = null,Object? agreedFareMinor = freezed,Object? driverPayoutMinor = freezed,Object? platformCommissionMinor = null,Object? openProposal = freezed,Object? offerExpiresAt = freezed,Object? negotiationExpiresAt = freezed,Object? cancelReason = freezed,Object? dispatch = null,Object? requestedDriverId = freezed,Object? driverName = freezed,Object? cooperativeId = freezed,Object? cooperativeName = freezed,Object? allowDelegation = null,Object? handoverCount = null,Object? canDelegate = null,}) {
   return _then(_self.copyWith(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,status: null == status ? _self.status : status // ignore: cast_nullable_to_non_nullable
@@ -3133,7 +3163,15 @@ as int,openProposal: freezed == openProposal ? _self.openProposal : openProposal
 as FareProposal?,offerExpiresAt: freezed == offerExpiresAt ? _self.offerExpiresAt : offerExpiresAt // ignore: cast_nullable_to_non_nullable
 as DateTime?,negotiationExpiresAt: freezed == negotiationExpiresAt ? _self.negotiationExpiresAt : negotiationExpiresAt // ignore: cast_nullable_to_non_nullable
 as DateTime?,cancelReason: freezed == cancelReason ? _self.cancelReason : cancelReason // ignore: cast_nullable_to_non_nullable
-as String?,
+as String?,dispatch: null == dispatch ? _self.dispatch : dispatch // ignore: cast_nullable_to_non_nullable
+as TripDispatch,requestedDriverId: freezed == requestedDriverId ? _self.requestedDriverId : requestedDriverId // ignore: cast_nullable_to_non_nullable
+as String?,driverName: freezed == driverName ? _self.driverName : driverName // ignore: cast_nullable_to_non_nullable
+as String?,cooperativeId: freezed == cooperativeId ? _self.cooperativeId : cooperativeId // ignore: cast_nullable_to_non_nullable
+as String?,cooperativeName: freezed == cooperativeName ? _self.cooperativeName : cooperativeName // ignore: cast_nullable_to_non_nullable
+as String?,allowDelegation: null == allowDelegation ? _self.allowDelegation : allowDelegation // ignore: cast_nullable_to_non_nullable
+as bool,handoverCount: null == handoverCount ? _self.handoverCount : handoverCount // ignore: cast_nullable_to_non_nullable
+as int,canDelegate: null == canDelegate ? _self.canDelegate : canDelegate // ignore: cast_nullable_to_non_nullable
+as bool,
   ));
 }
 /// Create a copy of Trip
@@ -3248,10 +3286,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  TripStatus status,  String passengerId,  String driverId,  GeoPoint pickup,  GeoPoint dropoff,  int distanceM,  int durationS,  String currency,  int suggestedFareMinor,  int? agreedFareMinor,  int? driverPayoutMinor,  int platformCommissionMinor,  FareProposal? openProposal,  DateTime? offerExpiresAt,  DateTime? negotiationExpiresAt,  String? cancelReason)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  TripStatus status,  String passengerId,  String driverId,  GeoPoint pickup,  GeoPoint dropoff,  int distanceM,  int durationS,  String currency,  int suggestedFareMinor,  int? agreedFareMinor,  int? driverPayoutMinor,  int platformCommissionMinor,  FareProposal? openProposal,  DateTime? offerExpiresAt,  DateTime? negotiationExpiresAt,  String? cancelReason,  TripDispatch dispatch,  String? requestedDriverId,  String? driverName,  String? cooperativeId,  String? cooperativeName,  bool allowDelegation,  int handoverCount,  bool canDelegate)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _Trip() when $default != null:
-return $default(_that.id,_that.status,_that.passengerId,_that.driverId,_that.pickup,_that.dropoff,_that.distanceM,_that.durationS,_that.currency,_that.suggestedFareMinor,_that.agreedFareMinor,_that.driverPayoutMinor,_that.platformCommissionMinor,_that.openProposal,_that.offerExpiresAt,_that.negotiationExpiresAt,_that.cancelReason);case _:
+return $default(_that.id,_that.status,_that.passengerId,_that.driverId,_that.pickup,_that.dropoff,_that.distanceM,_that.durationS,_that.currency,_that.suggestedFareMinor,_that.agreedFareMinor,_that.driverPayoutMinor,_that.platformCommissionMinor,_that.openProposal,_that.offerExpiresAt,_that.negotiationExpiresAt,_that.cancelReason,_that.dispatch,_that.requestedDriverId,_that.driverName,_that.cooperativeId,_that.cooperativeName,_that.allowDelegation,_that.handoverCount,_that.canDelegate);case _:
   return orElse();
 
 }
@@ -3269,10 +3307,10 @@ return $default(_that.id,_that.status,_that.passengerId,_that.driverId,_that.pic
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  TripStatus status,  String passengerId,  String driverId,  GeoPoint pickup,  GeoPoint dropoff,  int distanceM,  int durationS,  String currency,  int suggestedFareMinor,  int? agreedFareMinor,  int? driverPayoutMinor,  int platformCommissionMinor,  FareProposal? openProposal,  DateTime? offerExpiresAt,  DateTime? negotiationExpiresAt,  String? cancelReason)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  TripStatus status,  String passengerId,  String driverId,  GeoPoint pickup,  GeoPoint dropoff,  int distanceM,  int durationS,  String currency,  int suggestedFareMinor,  int? agreedFareMinor,  int? driverPayoutMinor,  int platformCommissionMinor,  FareProposal? openProposal,  DateTime? offerExpiresAt,  DateTime? negotiationExpiresAt,  String? cancelReason,  TripDispatch dispatch,  String? requestedDriverId,  String? driverName,  String? cooperativeId,  String? cooperativeName,  bool allowDelegation,  int handoverCount,  bool canDelegate)  $default,) {final _that = this;
 switch (_that) {
 case _Trip():
-return $default(_that.id,_that.status,_that.passengerId,_that.driverId,_that.pickup,_that.dropoff,_that.distanceM,_that.durationS,_that.currency,_that.suggestedFareMinor,_that.agreedFareMinor,_that.driverPayoutMinor,_that.platformCommissionMinor,_that.openProposal,_that.offerExpiresAt,_that.negotiationExpiresAt,_that.cancelReason);case _:
+return $default(_that.id,_that.status,_that.passengerId,_that.driverId,_that.pickup,_that.dropoff,_that.distanceM,_that.durationS,_that.currency,_that.suggestedFareMinor,_that.agreedFareMinor,_that.driverPayoutMinor,_that.platformCommissionMinor,_that.openProposal,_that.offerExpiresAt,_that.negotiationExpiresAt,_that.cancelReason,_that.dispatch,_that.requestedDriverId,_that.driverName,_that.cooperativeId,_that.cooperativeName,_that.allowDelegation,_that.handoverCount,_that.canDelegate);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -3289,10 +3327,10 @@ return $default(_that.id,_that.status,_that.passengerId,_that.driverId,_that.pic
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  TripStatus status,  String passengerId,  String driverId,  GeoPoint pickup,  GeoPoint dropoff,  int distanceM,  int durationS,  String currency,  int suggestedFareMinor,  int? agreedFareMinor,  int? driverPayoutMinor,  int platformCommissionMinor,  FareProposal? openProposal,  DateTime? offerExpiresAt,  DateTime? negotiationExpiresAt,  String? cancelReason)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  TripStatus status,  String passengerId,  String driverId,  GeoPoint pickup,  GeoPoint dropoff,  int distanceM,  int durationS,  String currency,  int suggestedFareMinor,  int? agreedFareMinor,  int? driverPayoutMinor,  int platformCommissionMinor,  FareProposal? openProposal,  DateTime? offerExpiresAt,  DateTime? negotiationExpiresAt,  String? cancelReason,  TripDispatch dispatch,  String? requestedDriverId,  String? driverName,  String? cooperativeId,  String? cooperativeName,  bool allowDelegation,  int handoverCount,  bool canDelegate)?  $default,) {final _that = this;
 switch (_that) {
 case _Trip() when $default != null:
-return $default(_that.id,_that.status,_that.passengerId,_that.driverId,_that.pickup,_that.dropoff,_that.distanceM,_that.durationS,_that.currency,_that.suggestedFareMinor,_that.agreedFareMinor,_that.driverPayoutMinor,_that.platformCommissionMinor,_that.openProposal,_that.offerExpiresAt,_that.negotiationExpiresAt,_that.cancelReason);case _:
+return $default(_that.id,_that.status,_that.passengerId,_that.driverId,_that.pickup,_that.dropoff,_that.distanceM,_that.durationS,_that.currency,_that.suggestedFareMinor,_that.agreedFareMinor,_that.driverPayoutMinor,_that.platformCommissionMinor,_that.openProposal,_that.offerExpiresAt,_that.negotiationExpiresAt,_that.cancelReason,_that.dispatch,_that.requestedDriverId,_that.driverName,_that.cooperativeId,_that.cooperativeName,_that.allowDelegation,_that.handoverCount,_that.canDelegate);case _:
   return null;
 
 }
@@ -3304,7 +3342,7 @@ return $default(_that.id,_that.status,_that.passengerId,_that.driverId,_that.pic
 @JsonSerializable()
 
 class _Trip implements Trip {
-  const _Trip({required this.id, required this.status, required this.passengerId, required this.driverId, required this.pickup, required this.dropoff, required this.distanceM, required this.durationS, required this.currency, required this.suggestedFareMinor, this.agreedFareMinor, this.driverPayoutMinor, this.platformCommissionMinor = 0, this.openProposal, this.offerExpiresAt, this.negotiationExpiresAt, this.cancelReason});
+  const _Trip({required this.id, required this.status, required this.passengerId, required this.driverId, required this.pickup, required this.dropoff, required this.distanceM, required this.durationS, required this.currency, required this.suggestedFareMinor, this.agreedFareMinor, this.driverPayoutMinor, this.platformCommissionMinor = 0, this.openProposal, this.offerExpiresAt, this.negotiationExpiresAt, this.cancelReason, this.dispatch = TripDispatch.chosenDriver, this.requestedDriverId, this.driverName, this.cooperativeId, this.cooperativeName, this.allowDelegation = false, this.handoverCount = 0, this.canDelegate = false});
   factory _Trip.fromJson(Map<String, dynamic> json) => _$TripFromJson(json);
 
 @override final  String id;
@@ -3324,6 +3362,15 @@ class _Trip implements Trip {
 @override final  DateTime? offerExpiresAt;
 @override final  DateTime? negotiationExpiresAt;
 @override final  String? cancelReason;
+@override@JsonKey() final  TripDispatch dispatch;
+@override final  String? requestedDriverId;
+/// Nombre del conductor actual; cambia si la solicitud pasa a un compañero.
+@override final  String? driverName;
+@override final  String? cooperativeId;
+@override final  String? cooperativeName;
+@override@JsonKey() final  bool allowDelegation;
+@override@JsonKey() final  int handoverCount;
+@override@JsonKey() final  bool canDelegate;
 
 /// Create a copy of Trip
 /// with the given fields replaced by the non-null parameter values.
@@ -3338,16 +3385,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _Trip&&(identical(other.id, id) || other.id == id)&&(identical(other.status, status) || other.status == status)&&(identical(other.passengerId, passengerId) || other.passengerId == passengerId)&&(identical(other.driverId, driverId) || other.driverId == driverId)&&(identical(other.pickup, pickup) || other.pickup == pickup)&&(identical(other.dropoff, dropoff) || other.dropoff == dropoff)&&(identical(other.distanceM, distanceM) || other.distanceM == distanceM)&&(identical(other.durationS, durationS) || other.durationS == durationS)&&(identical(other.currency, currency) || other.currency == currency)&&(identical(other.suggestedFareMinor, suggestedFareMinor) || other.suggestedFareMinor == suggestedFareMinor)&&(identical(other.agreedFareMinor, agreedFareMinor) || other.agreedFareMinor == agreedFareMinor)&&(identical(other.driverPayoutMinor, driverPayoutMinor) || other.driverPayoutMinor == driverPayoutMinor)&&(identical(other.platformCommissionMinor, platformCommissionMinor) || other.platformCommissionMinor == platformCommissionMinor)&&(identical(other.openProposal, openProposal) || other.openProposal == openProposal)&&(identical(other.offerExpiresAt, offerExpiresAt) || other.offerExpiresAt == offerExpiresAt)&&(identical(other.negotiationExpiresAt, negotiationExpiresAt) || other.negotiationExpiresAt == negotiationExpiresAt)&&(identical(other.cancelReason, cancelReason) || other.cancelReason == cancelReason));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _Trip&&(identical(other.id, id) || other.id == id)&&(identical(other.status, status) || other.status == status)&&(identical(other.passengerId, passengerId) || other.passengerId == passengerId)&&(identical(other.driverId, driverId) || other.driverId == driverId)&&(identical(other.pickup, pickup) || other.pickup == pickup)&&(identical(other.dropoff, dropoff) || other.dropoff == dropoff)&&(identical(other.distanceM, distanceM) || other.distanceM == distanceM)&&(identical(other.durationS, durationS) || other.durationS == durationS)&&(identical(other.currency, currency) || other.currency == currency)&&(identical(other.suggestedFareMinor, suggestedFareMinor) || other.suggestedFareMinor == suggestedFareMinor)&&(identical(other.agreedFareMinor, agreedFareMinor) || other.agreedFareMinor == agreedFareMinor)&&(identical(other.driverPayoutMinor, driverPayoutMinor) || other.driverPayoutMinor == driverPayoutMinor)&&(identical(other.platformCommissionMinor, platformCommissionMinor) || other.platformCommissionMinor == platformCommissionMinor)&&(identical(other.openProposal, openProposal) || other.openProposal == openProposal)&&(identical(other.offerExpiresAt, offerExpiresAt) || other.offerExpiresAt == offerExpiresAt)&&(identical(other.negotiationExpiresAt, negotiationExpiresAt) || other.negotiationExpiresAt == negotiationExpiresAt)&&(identical(other.cancelReason, cancelReason) || other.cancelReason == cancelReason)&&(identical(other.dispatch, dispatch) || other.dispatch == dispatch)&&(identical(other.requestedDriverId, requestedDriverId) || other.requestedDriverId == requestedDriverId)&&(identical(other.driverName, driverName) || other.driverName == driverName)&&(identical(other.cooperativeId, cooperativeId) || other.cooperativeId == cooperativeId)&&(identical(other.cooperativeName, cooperativeName) || other.cooperativeName == cooperativeName)&&(identical(other.allowDelegation, allowDelegation) || other.allowDelegation == allowDelegation)&&(identical(other.handoverCount, handoverCount) || other.handoverCount == handoverCount)&&(identical(other.canDelegate, canDelegate) || other.canDelegate == canDelegate));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,status,passengerId,driverId,pickup,dropoff,distanceM,durationS,currency,suggestedFareMinor,agreedFareMinor,driverPayoutMinor,platformCommissionMinor,openProposal,offerExpiresAt,negotiationExpiresAt,cancelReason);
+int get hashCode => Object.hashAll([runtimeType,id,status,passengerId,driverId,pickup,dropoff,distanceM,durationS,currency,suggestedFareMinor,agreedFareMinor,driverPayoutMinor,platformCommissionMinor,openProposal,offerExpiresAt,negotiationExpiresAt,cancelReason,dispatch,requestedDriverId,driverName,cooperativeId,cooperativeName,allowDelegation,handoverCount,canDelegate]);
 
 @override
 String toString() {
-  return 'Trip(id: $id, status: $status, passengerId: $passengerId, driverId: $driverId, pickup: $pickup, dropoff: $dropoff, distanceM: $distanceM, durationS: $durationS, currency: $currency, suggestedFareMinor: $suggestedFareMinor, agreedFareMinor: $agreedFareMinor, driverPayoutMinor: $driverPayoutMinor, platformCommissionMinor: $platformCommissionMinor, openProposal: $openProposal, offerExpiresAt: $offerExpiresAt, negotiationExpiresAt: $negotiationExpiresAt, cancelReason: $cancelReason)';
+  return 'Trip(id: $id, status: $status, passengerId: $passengerId, driverId: $driverId, pickup: $pickup, dropoff: $dropoff, distanceM: $distanceM, durationS: $durationS, currency: $currency, suggestedFareMinor: $suggestedFareMinor, agreedFareMinor: $agreedFareMinor, driverPayoutMinor: $driverPayoutMinor, platformCommissionMinor: $platformCommissionMinor, openProposal: $openProposal, offerExpiresAt: $offerExpiresAt, negotiationExpiresAt: $negotiationExpiresAt, cancelReason: $cancelReason, dispatch: $dispatch, requestedDriverId: $requestedDriverId, driverName: $driverName, cooperativeId: $cooperativeId, cooperativeName: $cooperativeName, allowDelegation: $allowDelegation, handoverCount: $handoverCount, canDelegate: $canDelegate)';
 }
 
 
@@ -3358,7 +3405,7 @@ abstract mixin class _$TripCopyWith<$Res> implements $TripCopyWith<$Res> {
   factory _$TripCopyWith(_Trip value, $Res Function(_Trip) _then) = __$TripCopyWithImpl;
 @override @useResult
 $Res call({
- String id, TripStatus status, String passengerId, String driverId, GeoPoint pickup, GeoPoint dropoff, int distanceM, int durationS, String currency, int suggestedFareMinor, int? agreedFareMinor, int? driverPayoutMinor, int platformCommissionMinor, FareProposal? openProposal, DateTime? offerExpiresAt, DateTime? negotiationExpiresAt, String? cancelReason
+ String id, TripStatus status, String passengerId, String driverId, GeoPoint pickup, GeoPoint dropoff, int distanceM, int durationS, String currency, int suggestedFareMinor, int? agreedFareMinor, int? driverPayoutMinor, int platformCommissionMinor, FareProposal? openProposal, DateTime? offerExpiresAt, DateTime? negotiationExpiresAt, String? cancelReason, TripDispatch dispatch, String? requestedDriverId, String? driverName, String? cooperativeId, String? cooperativeName, bool allowDelegation, int handoverCount, bool canDelegate
 });
 
 
@@ -3375,7 +3422,7 @@ class __$TripCopyWithImpl<$Res>
 
 /// Create a copy of Trip
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? status = null,Object? passengerId = null,Object? driverId = null,Object? pickup = null,Object? dropoff = null,Object? distanceM = null,Object? durationS = null,Object? currency = null,Object? suggestedFareMinor = null,Object? agreedFareMinor = freezed,Object? driverPayoutMinor = freezed,Object? platformCommissionMinor = null,Object? openProposal = freezed,Object? offerExpiresAt = freezed,Object? negotiationExpiresAt = freezed,Object? cancelReason = freezed,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? status = null,Object? passengerId = null,Object? driverId = null,Object? pickup = null,Object? dropoff = null,Object? distanceM = null,Object? durationS = null,Object? currency = null,Object? suggestedFareMinor = null,Object? agreedFareMinor = freezed,Object? driverPayoutMinor = freezed,Object? platformCommissionMinor = null,Object? openProposal = freezed,Object? offerExpiresAt = freezed,Object? negotiationExpiresAt = freezed,Object? cancelReason = freezed,Object? dispatch = null,Object? requestedDriverId = freezed,Object? driverName = freezed,Object? cooperativeId = freezed,Object? cooperativeName = freezed,Object? allowDelegation = null,Object? handoverCount = null,Object? canDelegate = null,}) {
   return _then(_Trip(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,status: null == status ? _self.status : status // ignore: cast_nullable_to_non_nullable
@@ -3394,7 +3441,15 @@ as int,openProposal: freezed == openProposal ? _self.openProposal : openProposal
 as FareProposal?,offerExpiresAt: freezed == offerExpiresAt ? _self.offerExpiresAt : offerExpiresAt // ignore: cast_nullable_to_non_nullable
 as DateTime?,negotiationExpiresAt: freezed == negotiationExpiresAt ? _self.negotiationExpiresAt : negotiationExpiresAt // ignore: cast_nullable_to_non_nullable
 as DateTime?,cancelReason: freezed == cancelReason ? _self.cancelReason : cancelReason // ignore: cast_nullable_to_non_nullable
-as String?,
+as String?,dispatch: null == dispatch ? _self.dispatch : dispatch // ignore: cast_nullable_to_non_nullable
+as TripDispatch,requestedDriverId: freezed == requestedDriverId ? _self.requestedDriverId : requestedDriverId // ignore: cast_nullable_to_non_nullable
+as String?,driverName: freezed == driverName ? _self.driverName : driverName // ignore: cast_nullable_to_non_nullable
+as String?,cooperativeId: freezed == cooperativeId ? _self.cooperativeId : cooperativeId // ignore: cast_nullable_to_non_nullable
+as String?,cooperativeName: freezed == cooperativeName ? _self.cooperativeName : cooperativeName // ignore: cast_nullable_to_non_nullable
+as String?,allowDelegation: null == allowDelegation ? _self.allowDelegation : allowDelegation // ignore: cast_nullable_to_non_nullable
+as bool,handoverCount: null == handoverCount ? _self.handoverCount : handoverCount // ignore: cast_nullable_to_non_nullable
+as int,canDelegate: null == canDelegate ? _self.canDelegate : canDelegate // ignore: cast_nullable_to_non_nullable
+as bool,
   ));
 }
 

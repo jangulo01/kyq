@@ -107,7 +107,7 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    for (final path in ['/kyc', '/billing', '/costs', '/fares']) {
+    for (final path in ['/kyc', '/cooperatives', '/billing', '/costs', '/fares']) {
       expect(find.byKey(Key('nav$path')), findsOneWidget);
     }
     expect(find.text('Pagos'), findsOneWidget);

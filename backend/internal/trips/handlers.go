@@ -45,6 +45,7 @@ func (h *Handlers) Register(mux *http.ServeMux, authMW func(http.Handler) http.H
 
 	mux.Handle("POST /v1/trips/{tripId}/accept", authed(h.accept))
 	mux.Handle("POST /v1/trips/{tripId}/reject", simple((*Trip).Reject))
+	mux.Handle("POST /v1/trips/{tripId}/delegate", simple((*Trip).Delegate))
 	mux.Handle("POST /v1/trips/{tripId}/negotiation", simple((*Trip).RequestNegotiation))
 	mux.Handle("POST /v1/trips/{tripId}/negotiation/response", authed(h.negotiationResponse))
 	mux.Handle("POST /v1/trips/{tripId}/proposals", authed(h.propose))
@@ -84,6 +85,15 @@ type View struct {
 	OfferExpiresAt          *time.Time    `json:"offer_expires_at"`
 	NegotiationExpiresAt    *time.Time    `json:"negotiation_expires_at"`
 	CancelReason            *string       `json:"cancel_reason"`
+	// 006: despacho y delegación (RN-KYQ-008).
+	Dispatch          Dispatch   `json:"dispatch"`
+	RequestedDriverID uuid.UUID  `json:"requested_driver_id"`
+	DriverName        string     `json:"driver_name"`
+	CooperativeID     *uuid.UUID `json:"cooperative_id"`
+	CooperativeName   *string    `json:"cooperative_name"`
+	AllowDelegation   bool       `json:"allow_delegation"`
+	HandoverCount     int        `json:"handover_count"`
+	CanDelegate       bool       `json:"can_delegate"`
 }
 
 func viewOf(t *Trip) View {
@@ -92,6 +102,9 @@ func viewOf(t *Trip) View {
 		DistanceM: t.DistanceM, DurationS: t.DurationS, Currency: t.Currency, SuggestedFareMinor: t.SuggestedFare,
 		AgreedFareMinor: t.AgreedFare, DriverPayoutMinor: t.DriverPayout, PlatformCommissionMinor: 0,
 		OfferExpiresAt: t.RespondBy, NegotiationExpiresAt: t.NegotiationExpiresAt, CancelReason: t.CancelReason,
+		Dispatch: t.Dispatch, RequestedDriverID: t.RequestedDriverID, DriverName: t.DriverName,
+		CooperativeID: t.CooperativeID, CooperativeName: t.CooperativeName, AllowDelegation: t.AllowDelegation,
+		HandoverCount: t.Handovers, CanDelegate: t.CanDelegate(),
 	}
 	if p := t.Proposal; p != nil {
 		v.OpenProposal = &ProposalView{ID: p.ID, ProposedBy: p.ProposedBy, AmountMinor: p.Amount, Status: p.Status, ExpiresAt: p.ExpiresAt}
@@ -155,7 +168,9 @@ func (h *Handlers) quote(w http.ResponseWriter, r *http.Request) {
 func (h *Handlers) request(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		routeBody
-		DriverID uuid.UUID `json:"driver_id"`
+		DriverID        uuid.UUID `json:"driver_id"`
+		Dispatch        Dispatch  `json:"dispatch"`
+		AllowDelegation bool      `json:"allow_delegation"`
 	}
 	if !httpx.DecodeJSON(w, r, &body) {
 		return
@@ -164,8 +179,18 @@ func (h *Handlers) request(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteError(w, http.StatusBadRequest, "invalid_route", "indica conductor, origen y destino válidos")
 		return
 	}
+	switch body.Dispatch {
+	case "":
+		body.Dispatch = DispatchChosenDriver
+	case DispatchChosenDriver, DispatchCooperative:
+	default:
+		// La opción 3 (autónomo libre más cercano) no existe en 006.
+		httpx.WriteError(w, http.StatusBadRequest, "invalid_dispatch", "elige tu conductor o su cooperativa")
+		return
+	}
 	p, _ := auth.FromContext(r.Context())
-	trip, err := h.Service.Request(r.Context(), p.UserID, body.DriverID, *body.Pickup, *body.Dropoff)
+	trip, err := h.Service.RequestWith(r.Context(), p.UserID, body.DriverID, *body.Pickup, *body.Dropoff,
+		RequestOptions{Dispatch: body.Dispatch, AllowDelegation: body.AllowDelegation})
 	if err != nil {
 		writeError(w, r, err)
 		return
@@ -303,6 +328,9 @@ func writeError(w http.ResponseWriter, r *http.Request, err error) {
 		ErrPassengerHasTrip:  {http.StatusConflict, "passenger_has_active_trip", "ya tienes un viaje en curso"},
 		ErrCityNotConfigured: {http.StatusServiceUnavailable, "city_not_configured", "la ciudad aún no tiene tarifas"},
 		ErrNoRoute:           {http.StatusUnprocessableEntity, "no_route", "no encontramos una ruta por carretera"},
+		ErrNoCooperative:     {http.StatusConflict, "no_cooperative", "tu conductor no pertenece a una cooperativa activa"},
+		ErrNoDriverAvailable: {http.StatusConflict, "no_driver_available", "no hay conductores libres de la cooperativa cerca"},
+		ErrDelegationDenied:  {http.StatusConflict, "delegation_not_allowed", "este viaje no se puede pasar a la cooperativa"},
 	}
 	for target, m := range known {
 		if errors.Is(err, target) {

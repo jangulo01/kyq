@@ -31,6 +31,14 @@ type ChosenDriver struct {
 	VehicleDescription string     `json:"vehicle_description"`
 	Presence           string     `json:"presence"`
 	BusyUntilEstimate  *time.Time `json:"busy_until_estimate"`
+	// Cooperative is the driver's active cooperative, if any (006: selector de despacho).
+	Cooperative *CooperativeRef `json:"cooperative"`
+}
+
+// CooperativeRef is contracts/api.yaml#CooperativeRef.
+type CooperativeRef struct {
+	ID   uuid.UUID `json:"id"`
+	Name string    `json:"name"`
 }
 
 // Client is a passenger in the driver's portfolio.

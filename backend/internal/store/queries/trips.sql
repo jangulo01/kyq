@@ -21,12 +21,17 @@ INSERT INTO trips (
     id, passenger_id, driver_id, city_code, currency,
     pickup_lat, pickup_lng, dropoff_lat, dropoff_lng,
     route_distance_m, route_duration_s, suggested_fare_minor,
-    status, respond_by, created_at
+    status, respond_by, created_at,
+    dispatch, requested_driver_id, cooperative_id, allow_delegation, handover_count
 ) VALUES (
     $1, $2, $3, $4, $5,
     $6, $7, $8, $9,
     $10, $11, $12,
-    $13, $14, $15
+    $13, $14, $15,
+    -- Valores vacíos (llamadas anteriores a 006) quedan como despacho directo al conductor.
+    coalesce(nullif(sqlc.arg(dispatch)::text, ''), 'chosen_driver')::trip_dispatch,
+    coalesce(nullif(sqlc.arg(requested_driver_id)::uuid, '00000000-0000-0000-0000-000000000000'::uuid), $3),
+    sqlc.arg(cooperative_id), sqlc.arg(allow_delegation), sqlc.arg(handover_count)
 );
 
 -- name: GetTrip :one
@@ -47,7 +52,9 @@ SET status = $2,
     arrived_at = $9,
     started_at = $10,
     completed_at = $11,
-    cancelled_at = $12
+    cancelled_at = $12,
+    driver_id = $13,
+    handover_count = $14
 WHERE id = $1;
 
 -- name: GetOpenProposal :one
@@ -87,3 +94,12 @@ SELECT u.display_name, d.vehicle_plate, d.vehicle_description, d.presence, d.las
 FROM drivers d
 JOIN users u ON u.id = d.user_id
 WHERE d.user_id = $1;
+
+-- name: GetTripNames :one
+-- Nombre del conductor actual y de la cooperativa del viaje, para la vista (006).
+SELECT u.display_name AS driver_name, r.display_name AS requested_driver_name, c.name AS cooperative_name
+FROM trips t
+JOIN users u ON u.id = t.driver_id
+JOIN users r ON r.id = t.requested_driver_id
+LEFT JOIN cooperatives c ON c.id = t.cooperative_id
+WHERE t.id = $1;

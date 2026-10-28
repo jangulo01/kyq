@@ -46,6 +46,11 @@ const (
 	CancelOfferRejected   = "offer_rejected"
 	CancelFareRejected    = "fare_rejected"
 	CancelNegotiationFail = "negotiation_failed"
+	// CancelNoDriver: la delegación no encontró compañero libre o agotó los pasos (RN-KYQ-008).
+	CancelNoDriver = "no_driver_available"
+	// CancelDelegated es transitorio: el conductor pasó la oferta y, en la misma transacción, el
+	// viaje va a un compañero o queda en CancelNoDriver. Nunca se guarda.
+	CancelDelegated = "delegated"
 )
 
 // Plazos de respuesta (RN-KYQ-007, FR-010a, FR-010c).
@@ -61,6 +66,7 @@ var (
 	ErrExpired           = errors.New("response window expired")
 	ErrNoOpenProposal    = errors.New("no open proposal with that id")
 	ErrInvalidAmount     = errors.New("amount must be positive")
+	ErrDelegationDenied  = errors.New("trip may not be passed to the cooperative")
 )
 
 // Point is a WGS84 coordinate.
@@ -94,13 +100,14 @@ type Proposal struct {
 type Trip struct {
 	ID          uuid.UUID
 	PassengerID uuid.UUID
-	DriverID    uuid.UUID
-	CityCode    string
-	Currency    string
-	Pickup      Point
-	Dropoff     Point
-	DistanceM   int32
-	DurationS   int32
+	// DriverID is the driver holding the offer or the trip; it changes on every hand-over.
+	DriverID  uuid.UUID
+	CityCode  string
+	Currency  string
+	Pickup    Point
+	Dropoff   Point
+	DistanceM int32
+	DurationS int32
 
 	SuggestedFare int64
 	AgreedFare    *int64
@@ -121,6 +128,23 @@ type Trip struct {
 	CompletedAt *time.Time
 	CancelledAt *time.Time
 
+	// Despacho (006): conductor pedido, cooperativa fijada al pedir, consentimiento del pasajero y
+	// pasos a compañeros (RN-KYQ-008).
+	Dispatch          Dispatch
+	RequestedDriverID uuid.UUID
+	CooperativeID     *uuid.UUID
+	AllowDelegation   bool
+	Handovers         int
+	// PreviousDriverID is set by HandOver for the service: it frees that driver and closes his
+	// offer. Not persisted.
+	PreviousDriverID *uuid.UUID
+	// HandoverReason is why the previous offer ended (offer_rejected, offer_expired, delegated).
+	HandoverReason string
+	// DriverName and CooperativeName are read-only names for the view.
+	DriverName          string
+	RequestedDriverName string
+	CooperativeName     *string
+
 	// Proposal is the open proposal, if any.
 	Proposal *Proposal
 	// ClosedProposals are proposals closed by the last operation; the repository persists them.
@@ -135,6 +159,7 @@ func NewTrip(id, passengerID, driverID uuid.UUID, city, currency string, pickup,
 		ID: id, PassengerID: passengerID, DriverID: driverID, CityCode: city, Currency: currency,
 		Pickup: pickup, Dropoff: dropoff, DistanceM: distanceM, DurationS: durationS,
 		SuggestedFare: suggestedFare, Status: StatusRequested, RespondBy: &deadline, CreatedAt: now,
+		Dispatch: DispatchChosenDriver, RequestedDriverID: driverID,
 	}
 }
 
@@ -382,6 +407,68 @@ func (t *Trip) Expire(now time.Time) bool {
 		return false
 	}
 	return true
+}
+
+// CanDelegate reports whether the current offer may still pass to a coworker: the passenger
+// consented, the trip has a cooperative and the hand-over limit is not reached (FR-013, FR-017).
+func (t *Trip) CanDelegate() bool {
+	return t.Status == StatusRequested && t.AllowDelegation && t.CooperativeID != nil && t.Handovers < MaxHandovers
+}
+
+// Delegate is the driver passing the offer to his cooperative within his 25 s (FR-013). The
+// service then hands it over or gives up in the same transaction.
+func (t *Trip) Delegate(party Party, now time.Time) error {
+	if err := t.require(party, Driver, StatusRequested); err != nil {
+		return err
+	}
+	if err := t.withinDeadline(now); err != nil {
+		return err
+	}
+	if !t.CanDelegate() {
+		return ErrDelegationDenied
+	}
+	t.cancel(CancelDelegated, now)
+	return nil
+}
+
+// AwaitsHandOver reports an offer that just ended without a driver in a trip that allows
+// delegation: the service must hand it over (HandOver) or give up (GiveUp).
+func (t *Trip) AwaitsHandOver(before Status) bool {
+	if before != StatusRequested || t.Status != StatusCancelled || t.CancelReason == nil {
+		return false
+	}
+	switch *t.CancelReason {
+	case CancelOfferRejected, CancelOfferExpired, CancelDelegated:
+		return t.AllowDelegation && t.CooperativeID != nil
+	}
+	return false
+}
+
+// HasHandoversLeft reports whether another coworker may receive the offer.
+func (t *Trip) HasHandoversLeft() bool { return t.Handovers < MaxHandovers }
+
+// HandOver gives the offer to the next coworker with a new 25 s window (FR-012, FR-016).
+func (t *Trip) HandOver(next uuid.UUID, now time.Time) error {
+	if !t.AwaitsHandOver(StatusRequested) || !t.HasHandoversLeft() {
+		return ErrInvalidTransition
+	}
+	prev := t.DriverID
+	t.PreviousDriverID = &prev
+	t.HandoverReason = *t.CancelReason
+	t.DriverID = next
+	t.Handovers++
+	t.Status = StatusRequested
+	t.CancelReason = nil
+	t.CancelledAt = nil
+	t.RespondBy = ptr(now.Add(OfferWindow))
+	return nil
+}
+
+// GiveUp closes a delegated request without coworkers left (FR-017).
+func (t *Trip) GiveUp() {
+	if t.Status == StatusCancelled {
+		t.CancelReason = ptr(CancelNoDriver)
+	}
 }
 
 // PartyOf returns the caller's role, or false when the user is not part of the trip.

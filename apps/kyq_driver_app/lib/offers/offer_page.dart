@@ -62,6 +62,16 @@ class _OfferCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                if (offer.delegated) ...[
+                  Text(
+                    offer.requestedDriverName == null
+                        ? 'Solicitud de tu cooperativa'
+                        : 'Solicitud de tu cooperativa: cliente de ${offer.requestedDriverName}',
+                    key: const Key('offer.delegated'),
+                    style: theme.textTheme.labelLarge?.copyWith(color: theme.colorScheme.primary),
+                  ),
+                  const SizedBox(height: 4),
+                ],
                 Text(offer.passengerName, style: theme.textTheme.headlineSmall),
                 const SizedBox(height: 12),
                 _Row(icon: Icons.trip_origin, label: 'Recogida', value: formatPoint(offer.pickup)),
@@ -100,6 +110,15 @@ class _OfferCard extends StatelessWidget {
           onPressed: busy ? null : cubit.requestNegotiation,
           child: const Text('Proponer negociar'),
         ),
+        if (offer.canDelegate) ...[
+          const SizedBox(height: 8),
+          OutlinedButton.icon(
+            key: const Key('offer.delegate'),
+            onPressed: busy ? null : cubit.delegate,
+            icon: const Icon(Icons.groups),
+            label: Text(offer.cooperativeName == null ? 'Pasar a mi cooperativa' : 'Pasar a ${offer.cooperativeName}'),
+          ),
+        ],
         const SizedBox(height: 8),
         TextButton(
           key: const Key('offer.reject'),

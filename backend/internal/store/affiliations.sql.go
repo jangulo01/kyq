@@ -106,10 +106,13 @@ func (q *Queries) IsAffiliated(ctx context.Context, arg IsAffiliatedParams) (boo
 }
 
 const listChosenDrivers = `-- name: ListChosenDrivers :many
-SELECT d.user_id AS driver_id, u.display_name, d.vehicle_description, d.presence, d.busy_until_estimate
+SELECT d.user_id AS driver_id, u.display_name, d.vehicle_description, d.presence, d.busy_until_estimate,
+       c.id AS cooperative_id, c.name AS cooperative_name
 FROM affiliations a
 JOIN drivers d ON d.user_id = a.driver_id
 JOIN users u ON u.id = d.user_id
+LEFT JOIN cooperative_memberships m ON m.driver_id = d.user_id AND m.status = 'active'
+LEFT JOIN cooperatives c ON c.id = m.cooperative_id AND c.status = 'active'
 WHERE a.passenger_id = $1 AND a.removed_at IS NULL
 ORDER BY u.display_name, d.user_id
 `
@@ -120,8 +123,11 @@ type ListChosenDriversRow struct {
 	VehicleDescription string
 	Presence           DriverPresence
 	BusyUntilEstimate  pgtype.Timestamptz
+	CooperativeID      uuid.NullUUID
+	CooperativeName    pgtype.Text
 }
 
+// 006: con la cooperativa activa del conductor, si tiene (selector de despacho).
 func (q *Queries) ListChosenDrivers(ctx context.Context, passengerID uuid.UUID) ([]ListChosenDriversRow, error) {
 	rows, err := q.db.Query(ctx, listChosenDrivers, passengerID)
 	if err != nil {
@@ -137,6 +143,8 @@ func (q *Queries) ListChosenDrivers(ctx context.Context, passengerID uuid.UUID) 
 			&i.VehicleDescription,
 			&i.Presence,
 			&i.BusyUntilEstimate,
+			&i.CooperativeID,
+			&i.CooperativeName,
 		); err != nil {
 			return nil, err
 		}

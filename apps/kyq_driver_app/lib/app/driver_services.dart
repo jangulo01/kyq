@@ -1,3 +1,4 @@
+import 'package:kyq_api/kyq_api.dart';
 import 'package:kyq_ptt/kyq_ptt.dart';
 
 import '../background/foreground_service.dart';
@@ -19,6 +20,7 @@ class DriverServices {
     required this.ptt,
     required this.photos,
     required this.checkout,
+    this.cooperativePtt = PttController.cooperative,
   });
 
   factory DriverServices.platform(DriverEventSource events) => DriverServices(
@@ -45,4 +47,7 @@ class DriverServices {
 
   /// Checkout de Bold (T032).
   final CheckoutLauncher checkout;
+
+  /// Walkie-talkie de grupo de la cooperativa (006, COOP_GROUP).
+  final PttController Function(KyqApiClient api) cooperativePtt;
 }

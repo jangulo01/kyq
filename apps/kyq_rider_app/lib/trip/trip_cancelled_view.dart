@@ -41,5 +41,6 @@ String cancelReasonMessage(String? reason, String driverName) => switch (reason)
   'negotiation_failed' => 'No llegaron a un acuerdo sobre la tarifa.',
   'driver' => '$driverName canceló el viaje.',
   'passenger' => 'Cancelaste el viaje.',
+  'no_driver_available' => 'No había compañeros libres de la cooperativa cerca. Inténtalo en unos minutos.',
   _ => 'El viaje se canceló.',
 };

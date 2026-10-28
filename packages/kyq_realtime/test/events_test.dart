@@ -109,4 +109,77 @@ void main() {
   test('tipos nuevos no rompen la app', () {
     expect(RealtimeEvent.fromEnvelope(envelope('futuro.evento', {'x': 1})), isA<UnknownEvent>());
   });
+
+  test('006: trip.offer derivada, trip.delegated y cooperative.membership', () {
+    final offer =
+        RealtimeEvent.fromEnvelope(
+              envelope('trip.offer', {
+                'trip_id': 't1',
+                'passenger_name': 'Ana',
+                'pickup': {'lat': 4.6, 'lng': -74.08},
+                'dropoff': {'lat': 4.65, 'lng': -74.05},
+                'distance_m': 5200,
+                'duration_s': 900,
+                'suggested_fare_minor': 1470000,
+                'currency': 'COP',
+                'expires_at': '2026-10-27T12:00:25Z',
+                'delegated': true,
+                'can_delegate': true,
+                'cooperative_name': 'Cooperativa Andina',
+                'requested_driver_name': 'Carlos',
+              }),
+            )
+            as TripOffered;
+    expect(offer.delegated, isTrue);
+    expect(offer.canDelegate, isTrue);
+    expect(offer.cooperativeName, 'Cooperativa Andina');
+    expect(offer.requestedDriverName, 'Carlos');
+
+    final delegated =
+        RealtimeEvent.fromEnvelope(
+              envelope('trip.delegated', {
+                'trip_id': 't1',
+                'cooperative_id': 'c1',
+                'cooperative_name': 'Cooperativa Andina',
+                'reason': 'offer_rejected',
+                'expires_at': '2026-10-27T12:00:50Z',
+              }),
+            )
+            as TripDelegated;
+    expect(delegated.reason, 'offer_rejected');
+    expect(delegated.expiresAt, DateTime.utc(2026, 10, 27, 12, 0, 50));
+
+    final membership =
+        RealtimeEvent.fromEnvelope(
+              envelope('cooperative.membership', {
+                'membership_id': 'm1',
+                'cooperative_id': 'c1',
+                'status': 'active',
+                'role': 'coordinator',
+              }),
+            )
+            as CooperativeMembershipChanged;
+    expect(membership.status, 'active');
+    expect(membership.role, 'coordinator');
+  });
+
+  test('006: trip.offer de 001 sin campos nuevos', () {
+    final offer =
+        RealtimeEvent.fromEnvelope(
+              envelope('trip.offer', {
+                'trip_id': 't1',
+                'passenger_name': 'Ana',
+                'pickup': {'lat': 4.6, 'lng': -74.08},
+                'dropoff': {'lat': 4.65, 'lng': -74.05},
+                'distance_m': 5200,
+                'duration_s': 900,
+                'suggested_fare_minor': 1470000,
+                'currency': 'COP',
+                'expires_at': '2026-10-27T12:00:25Z',
+              }),
+            )
+            as TripOffered;
+    expect(offer.delegated, isFalse);
+    expect(offer.canDelegate, isFalse);
+  });
 }

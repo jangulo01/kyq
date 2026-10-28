@@ -27,6 +27,11 @@ class TripPage extends StatelessWidget {
       listener: (context, state) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(state.error!))),
       builder: (context, state) {
         final trip = state.trip;
+        // 006: si la solicitud pasó a un compañero, se muestra su nombre y no el del elegido.
+        final driverName = switch (trip?.driverName) {
+          final name? when name.isNotEmpty => name,
+          _ => this.driverName,
+        };
         final title = switch (trip?.status) {
           TripStatus.completed => 'Resumen del viaje',
           TripStatus.cancelled => 'Viaje cancelado',

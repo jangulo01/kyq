@@ -13,6 +13,10 @@ class Offer {
     required this.suggestedFareMinor,
     required this.currency,
     required this.expiresAt,
+    this.delegated = false,
+    this.canDelegate = false,
+    this.cooperativeName,
+    this.requestedDriverName,
   });
 
   factory Offer.fromEvent(TripOffered e) => Offer(
@@ -25,6 +29,10 @@ class Offer {
     suggestedFareMinor: e.suggestedFareMinor,
     currency: e.currency,
     expiresAt: e.expiresAt,
+    delegated: e.delegated,
+    canDelegate: e.canDelegate,
+    cooperativeName: e.cooperativeName,
+    requestedDriverName: e.requestedDriverName,
   );
 
   final String tripId;
@@ -36,6 +44,14 @@ class Offer {
   final int suggestedFareMinor;
   final String currency;
   final DateTime expiresAt;
+
+  /// 006: la solicitud llega derivada desde el Conductor Elegido [requestedDriverName].
+  final bool delegated;
+
+  /// 006: con consentimiento del pasajero, el conductor puede pasarla a su cooperativa.
+  final bool canDelegate;
+  final String? cooperativeName;
+  final String? requestedDriverName;
 }
 
 /// "4,2 km · 12 min".

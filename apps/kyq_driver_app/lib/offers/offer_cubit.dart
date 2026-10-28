@@ -115,6 +115,9 @@ class OfferCubit extends Cubit<OfferState> {
 
   Future<void> reject() => _respond((id) => _api.rejectTrip(id), notice: 'Rechazaste el viaje.');
 
+  /// Pasa la solicitud a un compañero libre de la cooperativa (RN-KYQ-008, FR-013).
+  Future<void> delegate() => _respond((id) => _api.delegateTrip(id), notice: 'Pasaste la solicitud a tu cooperativa.');
+
   /// Sin [notice] el viaje pasa a la pantalla del viaje; con [notice] la oferta se cierra.
   Future<void> _respond(Future<Trip> Function(String tripId) action, {String? notice}) async {
     final s = state;
@@ -130,6 +133,11 @@ class OfferCubit extends Cubit<OfferState> {
           _close('La oferta venció.');
         case 'invalid_transition' || 'not_found':
           _close('Este viaje ya no está disponible.');
+        case 'delegation_not_allowed':
+          final current = state;
+          if (current is OfferShown) {
+            emit(current.copyWith(busy: false, error: 'Esta solicitud no se puede pasar a la cooperativa.'));
+          }
         default:
           final current = state;
           if (current is OfferShown) emit(current.copyWith(busy: false, error: tripErrorMessage(e)));
@@ -149,5 +157,6 @@ class OfferCubit extends Cubit<OfferState> {
 String offerClosedMessage(String reason) => switch (reason) {
   'offer_expired' => 'La oferta venció.',
   'passenger' => 'El pasajero canceló la solicitud.',
+  'delegated' => 'Pasaste la solicitud a tu cooperativa.',
   _ => cancelReasonMessage(reason),
 };

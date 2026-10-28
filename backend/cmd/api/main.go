@@ -16,6 +16,7 @@ import (
 	"github.com/kyq/backend/internal/auth"
 	"github.com/kyq/backend/internal/billing"
 	"github.com/kyq/backend/internal/config"
+	"github.com/kyq/backend/internal/cooperatives"
 	"github.com/kyq/backend/internal/drivers"
 	"github.com/kyq/backend/internal/fares"
 	"github.com/kyq/backend/internal/httpapi"
@@ -85,9 +86,10 @@ func run(logger *slog.Logger) error {
 	}
 	livekit := ptt.LiveKit{APIURL: apiURL, APIKey: cfg.LiveKitAPIKey, APISecret: cfg.LiveKitAPISecret}
 	pttService := &ptt.Service{
-		Store: st, LiveKit: livekit, Rooms: livekit, PublicURL: cfg.LiveKitURL, Publisher: publisher, Usage: usage, Logger: logger,
+		Store: st, LiveKit: livekit, Rooms: livekit, Groups: livekit, PublicURL: cfg.LiveKitURL, Publisher: publisher, Usage: usage, Logger: logger,
 	}
 	go pttService.RunSweeper(ctx, time.Second)
+	coopService := &cooperatives.Service{Store: st, Publisher: publisher, Group: pttService, Usage: usage, Logger: logger}
 
 	objects, err := storage.NewS3(storage.S3Options{
 		Endpoint: cfg.S3Endpoint, PublicEndpoint: cfg.S3PublicEndpoint, AccessKey: cfg.S3AccessKey,
@@ -133,17 +135,19 @@ func run(logger *slog.Logger) error {
 			Tokens:     realtime.Tokens{Secret: cfg.CentrifugoTokenSecret},
 			Authorizer: realtime.Authorizer{Affiliations: affils, Trips: trips.ParticipantChecker{Q: st.Queries}},
 		},
-		Admin:    &admin.Handlers{Store: st},
-		Affils:   &affiliations.Handlers{Service: affils},
-		Drivers:  &drivers.Handlers{Store: st},
-		Presence: &drivers.Presence{Store: st, Routes: routes, Publisher: publisher, Usage: usage, Logger: logger},
-		Trips:    &trips.Handlers{Service: tripService},
-		PTT:      &ptt.Handlers{Service: pttService},
-		Usage:    &telemetry.Handlers{Store: st},
-		KYC:      &kyc.Handlers{Service: kycService},
-		Billing:  &billing.Handlers{Service: billingService, WebhookEnabled: cfg.BoldEnabled()},
-		Notices:  &notify.Handlers{Service: notices},
-		Costs:    &telemetry.CostHandlers{Store: st, CityCode: cfg.CityCode},
+		Admin:        &admin.Handlers{Store: st},
+		Affils:       &affiliations.Handlers{Service: affils},
+		Drivers:      &drivers.Handlers{Store: st},
+		Presence:     &drivers.Presence{Store: st, Routes: routes, Publisher: publisher, Usage: usage, Logger: logger},
+		Trips:        &trips.Handlers{Service: tripService},
+		PTT:          &ptt.Handlers{Service: pttService},
+		Usage:        &telemetry.Handlers{Store: st},
+		KYC:          &kyc.Handlers{Service: kycService},
+		Billing:      &billing.Handlers{Service: billingService, WebhookEnabled: cfg.BoldEnabled()},
+		Notices:      &notify.Handlers{Service: notices},
+		Costs:        &telemetry.CostHandlers{Store: st, CityCode: cfg.CityCode},
+		Cooperatives: &cooperatives.Handlers{Service: coopService},
+		GroupPTT:     &ptt.GroupHandlers{Service: pttService},
 		LiveKitWebhook: &telemetry.LiveKitWebhook{
 			APIKey: cfg.LiveKitAPIKey, APISecret: cfg.LiveKitAPISecret, Store: st, Usage: usage,
 		},

@@ -149,6 +149,9 @@ _ChosenDriver _$ChosenDriverFromJson(Map<String, dynamic> json) => _ChosenDriver
   vehicleDescription: json['vehicle_description'] as String,
   presence: $enumDecode(_$DriverPresenceEnumMap, json['presence']),
   busyUntilEstimate: json['busy_until_estimate'] == null ? null : DateTime.parse(json['busy_until_estimate'] as String),
+  cooperative: json['cooperative'] == null
+      ? null
+      : CooperativeRef.fromJson(json['cooperative'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$ChosenDriverToJson(_ChosenDriver instance) => <String, dynamic>{
@@ -157,6 +160,7 @@ Map<String, dynamic> _$ChosenDriverToJson(_ChosenDriver instance) => <String, dy
   'vehicle_description': instance.vehicleDescription,
   'presence': _$DriverPresenceEnumMap[instance.presence]!,
   'busy_until_estimate': instance.busyUntilEstimate?.toIso8601String(),
+  'cooperative': instance.cooperative?.toJson(),
 };
 
 _FareTableInput _$FareTableInputFromJson(Map<String, dynamic> json) => _FareTableInput(
@@ -251,6 +255,14 @@ _Trip _$TripFromJson(Map<String, dynamic> json) => _Trip(
       ? null
       : DateTime.parse(json['negotiation_expires_at'] as String),
   cancelReason: json['cancel_reason'] as String?,
+  dispatch: $enumDecodeNullable(_$TripDispatchEnumMap, json['dispatch']) ?? TripDispatch.chosenDriver,
+  requestedDriverId: json['requested_driver_id'] as String?,
+  driverName: json['driver_name'] as String?,
+  cooperativeId: json['cooperative_id'] as String?,
+  cooperativeName: json['cooperative_name'] as String?,
+  allowDelegation: json['allow_delegation'] as bool? ?? false,
+  handoverCount: (json['handover_count'] as num?)?.toInt() ?? 0,
+  canDelegate: json['can_delegate'] as bool? ?? false,
 );
 
 Map<String, dynamic> _$TripToJson(_Trip instance) => <String, dynamic>{
@@ -271,6 +283,14 @@ Map<String, dynamic> _$TripToJson(_Trip instance) => <String, dynamic>{
   'offer_expires_at': instance.offerExpiresAt?.toIso8601String(),
   'negotiation_expires_at': instance.negotiationExpiresAt?.toIso8601String(),
   'cancel_reason': instance.cancelReason,
+  'dispatch': _$TripDispatchEnumMap[instance.dispatch]!,
+  'requested_driver_id': instance.requestedDriverId,
+  'driver_name': instance.driverName,
+  'cooperative_id': instance.cooperativeId,
+  'cooperative_name': instance.cooperativeName,
+  'allow_delegation': instance.allowDelegation,
+  'handover_count': instance.handoverCount,
+  'can_delegate': instance.canDelegate,
 };
 
 const _$TripStatusEnumMap = {
@@ -284,6 +304,8 @@ const _$TripStatusEnumMap = {
   TripStatus.completed: 'COMPLETED',
   TripStatus.cancelled: 'CANCELLED',
 };
+
+const _$TripDispatchEnumMap = {TripDispatch.chosenDriver: 'chosen_driver', TripDispatch.cooperative: 'cooperative'};
 
 _PttCredentials _$PttCredentialsFromJson(Map<String, dynamic> json) => _PttCredentials(
   url: json['url'] as String,

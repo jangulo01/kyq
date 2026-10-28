@@ -7,6 +7,9 @@ import 'package:kyq_ui/kyq_ui.dart';
 import '../billing/billing_cubits.dart';
 import '../billing/driver_payments_page.dart';
 import '../billing/subscriptions_page.dart';
+import '../cooperatives/cooperative_detail_page.dart';
+import '../cooperatives/cooperatives_cubits.dart';
+import '../cooperatives/cooperatives_page.dart';
 import '../costs/cost_rates_page.dart';
 import '../costs/costs_cubits.dart';
 import '../costs/costs_page.dart';
@@ -63,6 +66,20 @@ class _KyqAdminAppState extends State<KyqAdminApp> {
                 builder: (context, state) => BlocProvider(
                   create: (_) => KycDriverCubit(widget.api, state.pathParameters['id']!)..load(),
                   child: const KycDriverPage(),
+                ),
+              ),
+            ],
+          ),
+          GoRoute(
+            path: 'cooperatives',
+            builder: (context, state) =>
+                BlocProvider(create: (_) => CooperativesCubit(widget.api)..load(), child: const CooperativesPage()),
+            routes: [
+              GoRoute(
+                path: ':id',
+                builder: (context, state) => BlocProvider(
+                  create: (_) => CooperativeDetailCubit(widget.api, state.pathParameters['id']!)..load(),
+                  child: const CooperativeDetailPage(),
                 ),
               ),
             ],
