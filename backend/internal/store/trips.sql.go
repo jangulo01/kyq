@@ -33,7 +33,7 @@ func (q *Queries) CountCompletedTripsForPair(ctx context.Context, arg CountCompl
 }
 
 const getActiveTripForDriver = `-- name: GetActiveTripForDriver :one
-SELECT id, passenger_id, driver_id, city_code, currency, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, route_distance_m, route_duration_s, suggested_fare_minor, agreed_fare_minor, driver_payout_minor, platform_commission_minor, status, cancel_reason, respond_by, negotiation_expires_at, created_at, accepted_at, arrived_at, started_at, completed_at, cancelled_at, dispatch, requested_driver_id, cooperative_id, allow_delegation, handover_count, list_fare_minor, preferential_discount_pct FROM trips
+SELECT id, passenger_id, driver_id, city_code, currency, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, route_distance_m, route_duration_s, suggested_fare_minor, agreed_fare_minor, driver_payout_minor, platform_commission_minor, status, cancel_reason, respond_by, negotiation_expires_at, created_at, accepted_at, arrived_at, started_at, completed_at, cancelled_at, dispatch, requested_driver_id, cooperative_id, allow_delegation, handover_count, list_fare_minor, preferential_discount_pct, near_pickup_since FROM trips
 WHERE driver_id = $1 AND status NOT IN ('COMPLETED', 'CANCELLED')
 `
 
@@ -73,12 +73,13 @@ func (q *Queries) GetActiveTripForDriver(ctx context.Context, driverID uuid.UUID
 		&i.HandoverCount,
 		&i.ListFareMinor,
 		&i.PreferentialDiscountPct,
+		&i.NearPickupSince,
 	)
 	return i, err
 }
 
 const getActiveTripForPassenger = `-- name: GetActiveTripForPassenger :one
-SELECT id, passenger_id, driver_id, city_code, currency, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, route_distance_m, route_duration_s, suggested_fare_minor, agreed_fare_minor, driver_payout_minor, platform_commission_minor, status, cancel_reason, respond_by, negotiation_expires_at, created_at, accepted_at, arrived_at, started_at, completed_at, cancelled_at, dispatch, requested_driver_id, cooperative_id, allow_delegation, handover_count, list_fare_minor, preferential_discount_pct FROM trips
+SELECT id, passenger_id, driver_id, city_code, currency, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, route_distance_m, route_duration_s, suggested_fare_minor, agreed_fare_minor, driver_payout_minor, platform_commission_minor, status, cancel_reason, respond_by, negotiation_expires_at, created_at, accepted_at, arrived_at, started_at, completed_at, cancelled_at, dispatch, requested_driver_id, cooperative_id, allow_delegation, handover_count, list_fare_minor, preferential_discount_pct, near_pickup_since FROM trips
 WHERE passenger_id = $1 AND status NOT IN ('COMPLETED', 'CANCELLED')
 `
 
@@ -118,6 +119,7 @@ func (q *Queries) GetActiveTripForPassenger(ctx context.Context, passengerID uui
 		&i.HandoverCount,
 		&i.ListFareMinor,
 		&i.PreferentialDiscountPct,
+		&i.NearPickupSince,
 	)
 	return i, err
 }
@@ -243,7 +245,7 @@ func (q *Queries) GetOpenProposal(ctx context.Context, tripID uuid.UUID) (FarePr
 }
 
 const getTrip = `-- name: GetTrip :one
-SELECT id, passenger_id, driver_id, city_code, currency, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, route_distance_m, route_duration_s, suggested_fare_minor, agreed_fare_minor, driver_payout_minor, platform_commission_minor, status, cancel_reason, respond_by, negotiation_expires_at, created_at, accepted_at, arrived_at, started_at, completed_at, cancelled_at, dispatch, requested_driver_id, cooperative_id, allow_delegation, handover_count, list_fare_minor, preferential_discount_pct FROM trips WHERE id = $1
+SELECT id, passenger_id, driver_id, city_code, currency, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, route_distance_m, route_duration_s, suggested_fare_minor, agreed_fare_minor, driver_payout_minor, platform_commission_minor, status, cancel_reason, respond_by, negotiation_expires_at, created_at, accepted_at, arrived_at, started_at, completed_at, cancelled_at, dispatch, requested_driver_id, cooperative_id, allow_delegation, handover_count, list_fare_minor, preferential_discount_pct, near_pickup_since FROM trips WHERE id = $1
 `
 
 func (q *Queries) GetTrip(ctx context.Context, id uuid.UUID) (Trip, error) {
@@ -282,12 +284,13 @@ func (q *Queries) GetTrip(ctx context.Context, id uuid.UUID) (Trip, error) {
 		&i.HandoverCount,
 		&i.ListFareMinor,
 		&i.PreferentialDiscountPct,
+		&i.NearPickupSince,
 	)
 	return i, err
 }
 
 const getTripForUpdate = `-- name: GetTripForUpdate :one
-SELECT id, passenger_id, driver_id, city_code, currency, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, route_distance_m, route_duration_s, suggested_fare_minor, agreed_fare_minor, driver_payout_minor, platform_commission_minor, status, cancel_reason, respond_by, negotiation_expires_at, created_at, accepted_at, arrived_at, started_at, completed_at, cancelled_at, dispatch, requested_driver_id, cooperative_id, allow_delegation, handover_count, list_fare_minor, preferential_discount_pct FROM trips WHERE id = $1 FOR UPDATE
+SELECT id, passenger_id, driver_id, city_code, currency, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, route_distance_m, route_duration_s, suggested_fare_minor, agreed_fare_minor, driver_payout_minor, platform_commission_minor, status, cancel_reason, respond_by, negotiation_expires_at, created_at, accepted_at, arrived_at, started_at, completed_at, cancelled_at, dispatch, requested_driver_id, cooperative_id, allow_delegation, handover_count, list_fare_minor, preferential_discount_pct, near_pickup_since FROM trips WHERE id = $1 FOR UPDATE
 `
 
 func (q *Queries) GetTripForUpdate(ctx context.Context, id uuid.UUID) (Trip, error) {
@@ -326,6 +329,7 @@ func (q *Queries) GetTripForUpdate(ctx context.Context, id uuid.UUID) (Trip, err
 		&i.HandoverCount,
 		&i.ListFareMinor,
 		&i.PreferentialDiscountPct,
+		&i.NearPickupSince,
 	)
 	return i, err
 }

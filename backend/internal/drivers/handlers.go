@@ -26,6 +26,9 @@ func (h *Handlers) Register(mux *http.ServeMux, authMW func(http.Handler) http.H
 	// 008: bolsa zonal, tarifa preferencial y enlace de afiliación.
 	mux.Handle("GET /v1/driver/dispatch-settings", driver(h.dispatchSettings))
 	mux.Handle("PUT /v1/driver/dispatch-settings", driver(h.putDispatchSettings))
+	// 010: ficha del cliente con su nota privada.
+	mux.Handle("GET /v1/driver/clients/{passengerId}", driver(h.clientCard))
+	mux.Handle("PUT /v1/driver/clients/{passengerId}/note", driver(h.putNote))
 }
 
 func (h *Handlers) now() time.Time {

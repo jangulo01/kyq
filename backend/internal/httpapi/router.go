@@ -18,8 +18,10 @@ import (
 	"github.com/kyq/backend/internal/kyc"
 	"github.com/kyq/backend/internal/megaphone"
 	"github.com/kyq/backend/internal/notify"
+	"github.com/kyq/backend/internal/places"
 	"github.com/kyq/backend/internal/ptt"
 	"github.com/kyq/backend/internal/realtime"
+	"github.com/kyq/backend/internal/reservations"
 	"github.com/kyq/backend/internal/safety"
 	"github.com/kyq/backend/internal/support"
 	"github.com/kyq/backend/internal/telemetry"
@@ -62,6 +64,9 @@ type Deps struct {
 	Megaphone *megaphone.Handlers
 	// 009: dominios espejo; la lista firmada GET /v1/domains es pública.
 	Domains *domains.Handlers
+	// 010: agenda de reservas y buscador de direcciones.
+	Reservations *reservations.Handlers
+	Places       *places.Handlers
 	// LiveKitWebhook is public: LiveKit authenticates it with its own signature.
 	LiveKitWebhook *telemetry.LiveKitWebhook
 }
@@ -151,6 +156,12 @@ func NewRouter(d Deps) http.Handler {
 		}
 		if d.Domains != nil {
 			d.Domains.Register(mux, requireAuth)
+		}
+		if d.Reservations != nil {
+			d.Reservations.Register(mux, requireAuth)
+		}
+		if d.Places != nil {
+			d.Places.Register(mux, requireAuth)
 		}
 	}
 

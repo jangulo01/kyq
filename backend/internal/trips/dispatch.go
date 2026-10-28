@@ -51,6 +51,10 @@ var (
 type RequestOptions struct {
 	Dispatch        Dispatch
 	AllowDelegation bool
+	// 010: tarifa reservada en la agenda (con la preferencial de cuando se reservó).
+	ReservedFare int64
+	// 010: la solicitud cumple una reserva (etiqueta de la oferta).
+	Reservation bool
 }
 
 // findCandidate returns the nearest free driver that has not had the offer yet and locks his
@@ -287,10 +291,20 @@ func loadOfferContext(ctx context.Context, q *store.Queries, t *Trip) error {
 	if err != nil {
 		return err
 	}
-	t.Offer = OfferContext{Origin: origin, LoyalClient: loyal, TripsTogether: int(together)}
+	t.Offer = OfferContext{Origin: origin, LoyalClient: loyal, TripsTogether: int(together), Reservation: t.Offer.Reservation}
 	if dist.HasLocation {
 		m := int(dist.DistanceM + 0.5)
 		t.Offer.PickupDistance = &m
+	}
+	// 010: la nota del conductor sobre su cliente acompaña la oferta (solo al conductor).
+	if loyal {
+		note, err := q.GetClientNote(ctx, store.GetClientNoteParams{DriverID: t.DriverID, PassengerID: t.PassengerID})
+		switch {
+		case err == nil:
+			t.Offer.ClientNote = &note.Body
+		case !store.IsNotFound(err):
+			return err
+		}
 	}
 	return nil
 }

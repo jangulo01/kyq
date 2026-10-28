@@ -46,6 +46,8 @@ recuperar eventos tras reconectar.
 | `support.case` | `user:{userId}`, `user:{counterpartId}` y `admin:support` | `case_id`, `status` | 009 FR-009 |
 | `megaphone.started` | `user:{driverId}` | `broadcast_id`, `url`, `token` (solo escucha), `ends_at` | 009 FR-013–FR-015 |
 | `megaphone.ended` | `user:{driverId}` | `broadcast_id` | 009 FR-013 |
+| `reservation.updated` | `user:{passengerId}` y `user:{driverId}` | `reservation_id`, `status` | 010 FR-002, FR-005 |
+| `reservation.notice` | `user:{passengerId}` | `reservation_id`, `status`, `message` | 010 FR-003–FR-005 |
 
 006 añade a `trip.offer`: `delegated` (bool), `can_delegate` (bool), `cooperative_name`
 (string|null) y `requested_driver_name` (string|null, el Conductor Elegido cuando la oferta llega
@@ -64,6 +66,12 @@ lleva texto: la app vuelve a pedir el caso. La torre (`TowerDriver`) trae `activ
 abrir el detalle. El comunicado del megáfono es una sala LiveKit `mega-{broadcastId}` de un solo
 sentido: el administrador publica el micrófono y los conductores solo escuchan; dura como mucho
 60 s y no se graba.
+
+010 añade a `trip.offer`: `reservation` (bool, la oferta cumple una reserva de la agenda) y
+`client_note` (string|null, nota privada del conductor sobre el cliente; `trip.offer` solo va al
+canal del conductor, así que la nota nunca llega al pasajero). Los avisos de reserva del conductor
+llegan además como `notice.created` (`reservation_requested`, `reservation_reminder`,
+`reservation_expired`, `reservation_cancelled`).
 
 Los eventos SOS nunca van a `trip:{tripId}` ni al canal de la otra parte del viaje (003 FR-006).
 

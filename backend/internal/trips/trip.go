@@ -489,6 +489,10 @@ type OfferContext struct {
 	LoyalClient    bool
 	TripsTogether  int
 	PickupDistance *int
+	// 010: la oferta cumple una reserva de la agenda.
+	Reservation bool
+	// 010: nota privada del conductor sobre el cliente; solo va en su oferta (FR-008).
+	ClientNote *string
 }
 
 // PartyOf returns the caller's role, or false when the user is not part of the trip.

@@ -707,6 +707,53 @@ func (ns NullPttChannelType) Value() (driver.Value, error) {
 	return string(ns.PttChannelType), nil
 }
 
+type ReservationStatus string
+
+const (
+	ReservationStatusPending   ReservationStatus = "pending"
+	ReservationStatusConfirmed ReservationStatus = "confirmed"
+	ReservationStatusRejected  ReservationStatus = "rejected"
+	ReservationStatusCancelled ReservationStatus = "cancelled"
+	ReservationStatusExpired   ReservationStatus = "expired"
+	ReservationStatusFulfilled ReservationStatus = "fulfilled"
+	ReservationStatusMissed    ReservationStatus = "missed"
+)
+
+func (e *ReservationStatus) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ReservationStatus(s)
+	case string:
+		*e = ReservationStatus(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ReservationStatus: %T", src)
+	}
+	return nil
+}
+
+type NullReservationStatus struct {
+	ReservationStatus ReservationStatus
+	Valid             bool // Valid is true if ReservationStatus is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullReservationStatus) Scan(value interface{}) error {
+	if value == nil {
+		ns.ReservationStatus, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ReservationStatus.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullReservationStatus) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ReservationStatus), nil
+}
+
 type SosOutcome string
 
 const (
@@ -1209,6 +1256,13 @@ type Affiliation struct {
 	PreconsultsBlocked bool
 }
 
+type ClientNote struct {
+	DriverID    uuid.UUID
+	PassengerID uuid.UUID
+	Body        string
+	UpdatedAt   time.Time
+}
+
 type Cooperative struct {
 	ID        uuid.UUID
 	Name      string
@@ -1478,6 +1532,31 @@ type RefreshToken struct {
 	CreatedAt time.Time
 }
 
+type Reservation struct {
+	ID                      uuid.UUID
+	PassengerID             uuid.UUID
+	DriverID                uuid.UUID
+	PickupLat               float64
+	PickupLng               float64
+	DropoffLat              float64
+	DropoffLng              float64
+	PickupLabel             pgtype.Text
+	DropoffLabel            pgtype.Text
+	ScheduledAt             time.Time
+	DistanceM               int32
+	DurationS               int32
+	Currency                string
+	FareMinor               int64
+	ListFareMinor           int64
+	PreferentialDiscountPct int16
+	Status                  ReservationStatus
+	CancelledBy             uuid.NullUUID
+	RemindedAt              pgtype.Timestamptz
+	TripID                  uuid.NullUUID
+	CreatedAt               time.Time
+	UpdatedAt               time.Time
+}
+
 type SafetyPin struct {
 	UserID         uuid.UUID
 	PinHash        string
@@ -1614,6 +1693,7 @@ type Trip struct {
 	HandoverCount           int16
 	ListFareMinor           int64
 	PreferentialDiscountPct int16
+	NearPickupSince         pgtype.Timestamptz
 }
 
 type TripInspection struct {

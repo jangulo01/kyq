@@ -94,7 +94,15 @@ func (r *PgRepo) PublicName(ctx context.Context, token string) (uuid.UUID, strin
 
 func (r *PgRepo) Remove(ctx context.Context, p, d uuid.UUID) (bool, error) {
 	n, err := r.q.RemoveAffiliation(ctx, store.RemoveAffiliationParams{PassengerID: p, DriverID: d})
-	return n == 1, err
+	if err != nil || n != 1 {
+		return false, err
+	}
+	// 010: la nota del conductor se borra (FR-009) y las reservas abiertas se cancelan.
+	if err := r.q.DeleteClientNote(ctx, store.DeleteClientNoteParams{DriverID: d, PassengerID: p}); err != nil {
+		return true, err
+	}
+	_, err = r.q.CancelReservationsForPair(ctx, store.CancelReservationsForPairParams{PassengerID: p, DriverID: d, Now: time.Now()})
+	return true, err
 }
 
 func (r *PgRepo) ChosenDrivers(ctx context.Context, p uuid.UUID) ([]ChosenDriver, error) {
@@ -110,6 +118,9 @@ func (r *PgRepo) ChosenDrivers(ctx context.Context, p uuid.UUID) ([]ChosenDriver
 		}
 		if row.CooperativeID.Valid && row.CooperativeName.Valid {
 			out[i].Cooperative = &CooperativeRef{ID: row.CooperativeID.UUID, Name: row.CooperativeName.String}
+		}
+		if row.Presence == store.DriverPresenceFree && row.LastLat.Valid && row.LastLng.Valid && row.LastLocationAt.Valid {
+			out[i].Zone = ZoneOf(row.LastLat.Float64, row.LastLng.Float64, row.LastLocationAt.Time, time.Now())
 		}
 	}
 	return out, nil

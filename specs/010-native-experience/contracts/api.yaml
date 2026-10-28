@@ -1,0 +1,38 @@
+openapi: 3.1.0
+info:
+  title: Kyq API — 010 experiencia nativa (rutas nuevas y cambiadas)
+  version: 0.6.0
+  description: |
+    Vista de las rutas nuevas y cambiadas de 010. Las definiciones viven en el contrato principal
+    `specs/001-chosen-driver-trip-ptt/contracts/api.yaml`, contra el que corren las pruebas de
+    contrato (`backend/internal/contracttest/native_test.go`); aquí solo se referencian.
+
+    Cambios en rutas existentes:
+    - `POST /v1/driver/location`: `accuracy_m` opcional; con un viaje aceptado, 10 s seguidos a
+      < 60 m de la recogida con precisión ≤ 50 m lo pasan a `ARRIVED` (FR-010).
+    - `GET /v1/affiliations`: `ChosenDriver.zone` (centro del hexágono de res. 8) solo si está
+      libre con ubicación reciente.
+    - `trip.offer` (realtime.md): `reservation` y `client_note` (solo al conductor).
+paths:
+  /v1/reservations:
+    $ref: '../../001-chosen-driver-trip-ptt/contracts/api.yaml#/paths/~1v1~1reservations'
+  /v1/reservations/{reservationId}/cancel:
+    $ref: '../../001-chosen-driver-trip-ptt/contracts/api.yaml#/paths/~1v1~1reservations~1{reservationId}~1cancel'
+  /v1/driver/reservations:
+    $ref: '../../001-chosen-driver-trip-ptt/contracts/api.yaml#/paths/~1v1~1driver~1reservations'
+  /v1/driver/reservations/{reservationId}/accept:
+    $ref: '../../001-chosen-driver-trip-ptt/contracts/api.yaml#/paths/~1v1~1driver~1reservations~1{reservationId}~1accept'
+  /v1/driver/reservations/{reservationId}/reject:
+    $ref: '../../001-chosen-driver-trip-ptt/contracts/api.yaml#/paths/~1v1~1driver~1reservations~1{reservationId}~1reject'
+  /v1/driver/reservations/{reservationId}/cancel:
+    $ref: '../../001-chosen-driver-trip-ptt/contracts/api.yaml#/paths/~1v1~1driver~1reservations~1{reservationId}~1cancel'
+  /v1/driver/clients/{passengerId}:
+    $ref: '../../001-chosen-driver-trip-ptt/contracts/api.yaml#/paths/~1v1~1driver~1clients~1{passengerId}'
+  /v1/driver/clients/{passengerId}/note:
+    $ref: '../../001-chosen-driver-trip-ptt/contracts/api.yaml#/paths/~1v1~1driver~1clients~1{passengerId}~1note'
+  /v1/places:
+    $ref: '../../001-chosen-driver-trip-ptt/contracts/api.yaml#/paths/~1v1~1places'
+  /v1/driver/location:
+    $ref: '../../001-chosen-driver-trip-ptt/contracts/api.yaml#/paths/~1v1~1driver~1location'
+  /v1/affiliations:
+    $ref: '../../001-chosen-driver-trip-ptt/contracts/api.yaml#/paths/~1v1~1affiliations'

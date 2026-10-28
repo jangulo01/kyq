@@ -28,8 +28,10 @@ import (
 	"github.com/kyq/backend/internal/megaphone"
 	"github.com/kyq/backend/internal/notify"
 	"github.com/kyq/backend/internal/observability"
+	"github.com/kyq/backend/internal/places"
 	"github.com/kyq/backend/internal/ptt"
 	"github.com/kyq/backend/internal/realtime"
+	"github.com/kyq/backend/internal/reservations"
 	"github.com/kyq/backend/internal/safety"
 	"github.com/kyq/backend/internal/storage"
 	"github.com/kyq/backend/internal/store"
@@ -192,6 +194,14 @@ func run(logger *slog.Logger) error {
 	// 009: megáfono por zonas; el barrido corta los comunicados a los 60 s.
 	megaphoneService := &megaphone.Service{Store: st, Voice: livekit, VoiceURL: cfg.LiveKitURL, Publisher: publisher, Logger: logger}
 	go megaphoneService.RunSweeper(ctx, time.Second)
+	// 010: agenda de reservas (barrido cada 10 s) y buscador de direcciones.
+	reservationService := &reservations.Service{Store: st, Trips: tripService, Notify: notices, Publisher: publisher, Logger: logger}
+	go reservationService.RunSweeper(ctx, 10*time.Second)
+	cityBox, err := places.ParseBBox(cfg.CityBBox)
+	if err != nil {
+		return err
+	}
+	placeService := &places.Service{URL: cfg.GeocoderURL, BBox: cityBox, HTTP: &http.Client{Timeout: places.Timeout}}
 	// 009: dominios espejo; sin clave de firma el panel los edita pero no se publica la lista.
 	domainService := &domains.Service{Store: st, Probe: domains.HTTPProbe(probeClient)}
 	if cfg.DomainsSigningKey != "" {
@@ -218,7 +228,7 @@ func run(logger *slog.Logger) error {
 		Admin:        &admin.Handlers{Store: st},
 		Affils:       &affiliations.Handlers{Service: affils},
 		Drivers:      &drivers.Handlers{Store: st, PublicBaseURL: cfg.PublicBaseURL},
-		Presence:     &drivers.Presence{Store: st, Routes: routes, Publisher: publisher, Usage: usage, Logger: logger},
+		Presence:     &drivers.Presence{Store: st, Routes: routes, Publisher: publisher, Usage: usage, Arrivals: tripService, Logger: logger},
 		Trips:        &trips.Handlers{Service: tripService},
 		PTT:          &ptt.Handlers{Service: pttService},
 		Usage:        &telemetry.Handlers{Store: st},
@@ -236,6 +246,8 @@ func run(logger *slog.Logger) error {
 		Support:      &support.Handlers{Service: supportService},
 		Megaphone:    &megaphone.Handlers{Service: megaphoneService},
 		Domains:      &domains.Handlers{Service: domainService},
+		Reservations: &reservations.Handlers{Service: reservationService},
+		Places:       &places.Handlers{Service: placeService},
 		LiveKitWebhook: &telemetry.LiveKitWebhook{
 			APIKey: cfg.LiveKitAPIKey, APISecret: cfg.LiveKitAPISecret, Store: st, Usage: usage,
 		},

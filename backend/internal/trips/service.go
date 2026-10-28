@@ -177,6 +177,11 @@ func (s *Service) RequestWith(ctx context.Context, passengerID, driverID uuid.UU
 		if err := priceOffer(ctx, q, trip); err != nil {
 			return err
 		}
+		// 010: una reserva conserva la tarifa con la que se reservó.
+		if opts.ReservedFare > 0 {
+			trip.SuggestedFare = opts.ReservedFare
+		}
+		trip.Offer.Reservation = opts.Reservation
 		if passengerName, err = q.GetUserDisplayName(ctx, passengerID); err != nil {
 			return err
 		}

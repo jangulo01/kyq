@@ -178,7 +178,9 @@ func (q *Queries) IsAffiliated(ctx context.Context, arg IsAffiliatedParams) (boo
 
 const listChosenDrivers = `-- name: ListChosenDrivers :many
 SELECT d.user_id AS driver_id, u.display_name, d.vehicle_description, d.presence, d.busy_until_estimate,
-       c.id AS cooperative_id, c.name AS cooperative_name
+       c.id AS cooperative_id, c.name AS cooperative_name,
+       -- 010: para la zona aproximada (pin dorado); nunca sale tal cual.
+       d.last_lat, d.last_lng, d.last_location_at
 FROM affiliations a
 JOIN drivers d ON d.user_id = a.driver_id
 JOIN users u ON u.id = d.user_id
@@ -196,6 +198,9 @@ type ListChosenDriversRow struct {
 	BusyUntilEstimate  pgtype.Timestamptz
 	CooperativeID      uuid.NullUUID
 	CooperativeName    pgtype.Text
+	LastLat            pgtype.Float8
+	LastLng            pgtype.Float8
+	LastLocationAt     pgtype.Timestamptz
 }
 
 // 006: con la cooperativa activa del conductor, si tiene (selector de despacho).
@@ -216,6 +221,9 @@ func (q *Queries) ListChosenDrivers(ctx context.Context, passengerID uuid.UUID) 
 			&i.BusyUntilEstimate,
 			&i.CooperativeID,
 			&i.CooperativeName,
+			&i.LastLat,
+			&i.LastLng,
+			&i.LastLocationAt,
 		); err != nil {
 			return nil, err
 		}

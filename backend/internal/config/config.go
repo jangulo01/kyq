@@ -37,6 +37,10 @@ type Config struct {
 	// 009: semilla Ed25519 en base64 para firmar la lista de dominios espejo; vacía, sin lista.
 	DomainsSigningKey string
 
+	// 010: geocodificador Photon para el buscador de direcciones; vacío, sin buscador.
+	GeocoderURL string
+	CityBBox    string // minLng,minLat,maxLng,maxLat; vacío, Bogotá
+
 	DevOTPCode             string
 	TwilioAccountSID       string
 	TwilioAuthToken        string
@@ -94,6 +98,8 @@ func Load() (Config, error) {
 		SentryOrg:              os.Getenv("KYQ_SENTRY_ORG"),
 		SentryProjects:         os.Getenv("KYQ_SENTRY_PROJECTS"),
 		DomainsSigningKey:      os.Getenv("KYQ_DOMAINS_SIGNING_KEY"),
+		GeocoderURL:            os.Getenv("KYQ_GEOCODER_URL"),
+		CityBBox:               os.Getenv("KYQ_CITY_BBOX"),
 		DevOTPCode:             os.Getenv("KYQ_DEV_OTP_CODE"),
 		TwilioAccountSID:       os.Getenv("KYQ_TWILIO_ACCOUNT_SID"),
 		TwilioAuthToken:        os.Getenv("KYQ_TWILIO_AUTH_TOKEN"),

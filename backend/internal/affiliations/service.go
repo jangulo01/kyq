@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
+	"github.com/kyq/backend/internal/hexgrid"
 )
 
 // Source is where an affiliation comes from (008, FR-016): the QR in the vehicle, the summary of
@@ -45,6 +47,36 @@ type ChosenDriver struct {
 	BusyUntilEstimate  *time.Time `json:"busy_until_estimate"`
 	// Cooperative is the driver's active cooperative, if any (006: selector de despacho).
 	Cooperative *CooperativeRef `json:"cooperative"`
+	// Zone is the approximate area of a free driver for the golden pin (010, FR-018): the center
+	// of his H3 hexagon of resolution 8, never his position.
+	Zone *Zone `json:"zone"`
+}
+
+// Zone is contracts: DriverZone.
+type Zone struct {
+	Cell string  `json:"cell"`
+	Lat  float64 `json:"lat"`
+	Lng  float64 `json:"lng"`
+}
+
+// Parámetros de la zona aproximada (010, research R6).
+const (
+	ZoneResolution = 8
+	ZoneFreshness  = 5 * time.Minute
+)
+
+// ZoneOf returns the approximate zone of a location recorded at, or nil when it is stale or
+// cannot be indexed.
+func ZoneOf(lat, lng float64, at, now time.Time) *Zone {
+	if now.Sub(at) > ZoneFreshness {
+		return nil
+	}
+	c, err := hexgrid.CellAt(hexgrid.Point{Lat: lat, Lng: lng}, ZoneResolution)
+	if err != nil {
+		return nil
+	}
+	center := c.Center()
+	return &Zone{Cell: c.String(), Lat: center.Lat, Lng: center.Lng}
 }
 
 // CooperativeRef is contracts/api.yaml#CooperativeRef.

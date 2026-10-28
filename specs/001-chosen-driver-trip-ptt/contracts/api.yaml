@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
-  title: Kyq API (MVP 001 + etapas 002–009)
-  version: 0.5.0
+  title: Kyq API (MVP 001 + etapas 002–010)
+  version: 0.6.0
   description: |
     API REST del MVP Conductor Elegido + Viaje + PTT. Todas las rutas salvo /v1/auth/* exigen
     `Authorization: Bearer <access_token>`. Errores con cuerpo `Error`.
@@ -2490,6 +2490,150 @@ paths:
         '404': { $ref: '#/components/responses/Error' }
         '409': { $ref: '#/components/responses/Error' }
 
+  # ---------- 010: experiencia nativa ----------
+
+  /v1/reservations:
+    get:
+      summary: Reservas del pasajero, futuras y de las últimas 24 horas (010 US1)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/Reservation' } }
+        '403': { $ref: '#/components/responses/Error' }
+    post:
+      summary: Reserva un viaje con un Conductor Elegido entre 30 minutos y 7 días (010 FR-001, FR-006)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [driver_id, pickup, dropoff, scheduled_at]
+              properties:
+                driver_id: { type: string, format: uuid }
+                pickup: { $ref: '#/components/schemas/Point' }
+                dropoff: { $ref: '#/components/schemas/Point' }
+                pickup_label: { type: string, maxLength: 200 }
+                dropoff_label: { type: string, maxLength: 200 }
+                scheduled_at: { type: string, format: date-time }
+      responses:
+        '201':
+          description: Pendiente de confirmar
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Reservation' }
+        '400': { description: '`invalid_time` o `invalid_reservation`', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '403': { description: '`not_affiliated`', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '409': { description: '`too_many_reservations` (máximo 3)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '422': { $ref: '#/components/responses/Error' }
+  /v1/reservations/{reservationId}/cancel:
+    post:
+      summary: El pasajero cancela antes de la hora, sin cargo (010 FR-005)
+      parameters: [ { $ref: '#/components/parameters/ReservationId' } ]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Reservation' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+  /v1/driver/reservations:
+    get:
+      summary: Agenda del conductor desde hace una hora, con aviso de solapes (010 FR-002)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/Reservation' } }
+        '403': { $ref: '#/components/responses/Error' }
+  /v1/driver/reservations/{reservationId}/accept:
+    post:
+      summary: El conductor confirma una reserva pendiente
+      parameters: [ { $ref: '#/components/parameters/ReservationId' } ]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Reservation' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+  /v1/driver/reservations/{reservationId}/reject:
+    post:
+      summary: El conductor rechaza una reserva pendiente
+      parameters: [ { $ref: '#/components/parameters/ReservationId' } ]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Reservation' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+  /v1/driver/reservations/{reservationId}/cancel:
+    post:
+      summary: El conductor cancela antes de la hora, sin cargo
+      parameters: [ { $ref: '#/components/parameters/ReservationId' } ]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Reservation' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+
+  /v1/driver/clients/{passengerId}:
+    get:
+      summary: Ficha de un cliente con viajes juntos, último viaje, origen, nota privada y próximas reservas (010 FR-007)
+      parameters: [ { $ref: '#/components/parameters/PassengerId' } ]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ClientCard' }
+        '404': { $ref: '#/components/responses/Error' }
+  /v1/driver/clients/{passengerId}/note:
+    put:
+      summary: Guarda o, vacía, borra la nota privada del conductor sobre su cliente (010 FR-008)
+      parameters: [ { $ref: '#/components/parameters/PassengerId' } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [body]
+              properties:
+                body: { type: string, maxLength: 500 }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ClientCard' }
+        '400': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+
+  /v1/places:
+    get:
+      summary: Direcciones y lugares de la ciudad desde 3 caracteres (010 FR-014)
+      parameters:
+        - { name: q, in: query, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: Hasta 8 sugerencias
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/Place' } }
+        '400': { $ref: '#/components/responses/Error' }
+        '503': { description: '`places_unavailable`: sin buscador; marcar en el mapa', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
 components:
   securitySchemes:
     bearer: { type: http, scheme: bearer, bearerFormat: JWT }
@@ -2510,6 +2654,7 @@ components:
     CaseId: { name: caseId, in: path, required: true, schema: { type: string, format: uuid } }
     BroadcastId: { name: broadcastId, in: path, required: true, schema: { type: string, format: uuid } }
     DomainId: { name: domainId, in: path, required: true, schema: { type: string, format: uuid } }
+    ReservationId: { name: reservationId, in: path, required: true, schema: { type: string, format: uuid } }
 
   requestBodies:
     MirrorDomainInput:
@@ -2642,6 +2787,7 @@ components:
             heading: { type: number }
             speed_mps: { type: number }
             recorded_at: { type: string, format: date-time }
+            accuracy_m: { type: number, description: '010: precisión del GPS en metros (llegada automática con ≤ 50 m)' }
     RouteRequest:
       type: object
       required: [pickup, dropoff]
@@ -2697,6 +2843,9 @@ components:
         cooperative:
           description: 006. Cooperativa activa del conductor, para el selector de despacho
           oneOf: [ { $ref: '#/components/schemas/CooperativeRef' }, { type: 'null' } ]
+        zone:
+          description: '010: zona aproximada (centro del hexágono H3 de res. 8) solo si está libre con ubicación reciente; nunca su posición'
+          oneOf: [ { $ref: '#/components/schemas/DriverZone' }, { type: 'null' } ]
     DriverMe:
       type: object
       properties:
@@ -3679,3 +3828,62 @@ components:
         signing_configured: { type: boolean }
         public_key: { type: [string, 'null'] }
         domains: { type: array, items: { $ref: '#/components/schemas/MirrorDomain' } }
+
+    # ---------- 010 ----------
+    DriverZone:
+      type: object
+      required: [cell, lat, lng]
+      properties:
+        cell: { type: string }
+        lat: { type: number }
+        lng: { type: number }
+    Reservation:
+      type: object
+      required: [id, passenger, driver, pickup, dropoff, scheduled_at, distance_m, duration_s, currency, fare_minor, list_fare_minor, status]
+      properties:
+        id: { type: string, format: uuid }
+        passenger: { $ref: '#/components/schemas/PersonRef' }
+        driver: { $ref: '#/components/schemas/PersonRef' }
+        pickup: { $ref: '#/components/schemas/Point' }
+        dropoff: { $ref: '#/components/schemas/Point' }
+        pickup_label: { type: [string, 'null'] }
+        dropoff_label: { type: [string, 'null'] }
+        scheduled_at: { type: string, format: date-time }
+        distance_m: { type: integer }
+        duration_s: { type: integer }
+        currency: { type: string }
+        fare_minor: { type: integer, description: 'Tarifa reservada' }
+        list_fare_minor: { type: integer }
+        preferential_discount_pct: { type: integer }
+        status: { type: string, enum: [pending, confirmed, rejected, cancelled, expired, fulfilled, missed] }
+        cancelled_by_me: { type: boolean }
+        trip_id: { type: [string, 'null'], format: uuid }
+        overlaps: { type: boolean, description: 'Agenda: otra reserva del conductor a menos de 30 minutos' }
+    ClientCard:
+      type: object
+      required: [passenger_id, display_name, affiliated_at, source, trips_together, upcoming_reservations]
+      properties:
+        passenger_id: { type: string, format: uuid }
+        display_name: { type: string }
+        affiliated_at: { type: string, format: date-time }
+        source: { $ref: '#/components/schemas/AffiliationSource' }
+        trips_together: { type: integer }
+        last_trip_at: { type: [string, 'null'], format: date-time }
+        note: { type: [string, 'null'], description: 'Privada del conductor; nunca llega al pasajero' }
+        upcoming_reservations:
+          type: array
+          items:
+            type: object
+            required: [id, scheduled_at, status]
+            properties:
+              id: { type: string, format: uuid }
+              scheduled_at: { type: string, format: date-time }
+              status: { type: string }
+    Place:
+      type: object
+      required: [label, detail, lat, lng]
+      properties:
+        label: { type: string }
+        detail: { type: string }
+        lat: { type: number }
+        lng: { type: number }

@@ -49,7 +49,9 @@ SELECT EXISTS (
 -- name: ListChosenDrivers :many
 -- 006: con la cooperativa activa del conductor, si tiene (selector de despacho).
 SELECT d.user_id AS driver_id, u.display_name, d.vehicle_description, d.presence, d.busy_until_estimate,
-       c.id AS cooperative_id, c.name AS cooperative_name
+       c.id AS cooperative_id, c.name AS cooperative_name,
+       -- 010: para la zona aproximada (pin dorado); nunca sale tal cual.
+       d.last_lat, d.last_lng, d.last_location_at
 FROM affiliations a
 JOIN drivers d ON d.user_id = a.driver_id
 JOIN users u ON u.id = d.user_id
