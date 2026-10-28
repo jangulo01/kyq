@@ -54,7 +54,10 @@ const listDriverUsage = `-- name: ListDriverUsage :many
 SELECT u.driver_id, COALESCE(us.display_name, '') AS display_name,
        SUM(u.voice_participant_seconds)::bigint AS voice_participant_seconds,
        SUM(u.realtime_events)::bigint AS realtime_events,
-       SUM(u.route_requests)::bigint AS route_requests
+       SUM(u.route_requests)::bigint AS route_requests,
+       SUM(u.radio_voice_seconds)::bigint AS radio_voice_seconds,
+       SUM(u.radio_messages)::bigint AS radio_messages,
+       SUM(u.radio_storage_bytes)::bigint AS radio_storage_bytes
 FROM driver_usage_daily u
 LEFT JOIN users us ON us.id = u.driver_id
 WHERE u.day BETWEEN $1 AND $2
@@ -73,6 +76,9 @@ type ListDriverUsageRow struct {
 	VoiceParticipantSeconds int64
 	RealtimeEvents          int64
 	RouteRequests           int64
+	RadioVoiceSeconds       int64
+	RadioMessages           int64
+	RadioStorageBytes       int64
 }
 
 func (q *Queries) ListDriverUsage(ctx context.Context, arg ListDriverUsageParams) ([]ListDriverUsageRow, error) {
@@ -90,6 +96,9 @@ func (q *Queries) ListDriverUsage(ctx context.Context, arg ListDriverUsageParams
 			&i.VoiceParticipantSeconds,
 			&i.RealtimeEvents,
 			&i.RouteRequests,
+			&i.RadioVoiceSeconds,
+			&i.RadioMessages,
+			&i.RadioStorageBytes,
 		); err != nil {
 			return nil, err
 		}

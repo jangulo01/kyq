@@ -581,3 +581,48 @@ LIMIT 1;
 -- name: ListRadioUsers :many
 -- Quienes usaron Radio: reciben `radio.settings` cuando el panel cambia la configuración.
 SELECT user_id FROM radio_presence;
+
+-- Reportes (FR-036, FR-037) ----------------------------------------------------------------------
+
+-- name: InsertRadioReport :execrows
+INSERT INTO radio_reports (id, message_id, reporter_id, reason, created_at)
+VALUES ($1, $2, $3, $4, $5)
+ON CONFLICT (message_id, reporter_id) DO NOTHING;
+
+-- name: MarkRadioMessageReported :exec
+UPDATE radio_messages SET reported = true WHERE id = $1;
+
+-- name: ListOpenRadioReports :many
+-- Cola del panel: sin teléfonos ni contenido, solo de qué se trata.
+SELECT r.id, r.reason, r.created_at, m.kind::text AS message_kind,
+       coalesce(c.name, coop.name, 'Conversación privada')::text AS conversation_title
+FROM radio_reports r
+JOIN radio_messages m ON m.id = r.message_id
+JOIN radio_conversations c ON c.id = m.conversation_id
+LEFT JOIN cooperatives coop ON coop.id = c.cooperative_id
+WHERE r.status = 'open'
+ORDER BY r.created_at
+LIMIT 200;
+
+-- name: GetRadioReport :one
+SELECT r.*, m.conversation_id, m.author_id, m.kind AS message_kind, m.status AS message_status, m.body, m.lat, m.lng,
+       m.object_key, m.duration_ms, m.created_at AS message_created_at, m.expires_at AS message_expires_at,
+       c.kind AS conversation_kind, c.room_name,
+       coalesce(c.name, coop.name, 'Conversación privada')::text AS conversation_title,
+       coalesce(u.display_name, 'Usuario eliminado')::text AS author_name
+FROM radio_reports r
+JOIN radio_messages m ON m.id = r.message_id
+JOIN radio_conversations c ON c.id = m.conversation_id
+LEFT JOIN cooperatives coop ON coop.id = c.cooperative_id
+LEFT JOIN users u ON u.id = m.author_id
+WHERE r.id = $1;
+
+-- name: InsertRadioReportAccess :exec
+INSERT INTO radio_report_access (report_id, admin_id, at) VALUES ($1, $2, $3);
+
+-- name: ResolveRadioReports :execrows
+-- Resolver un reporte cierra todos los abiertos del mismo mensaje.
+UPDATE radio_reports
+SET status = 'resolved', decision = sqlc.arg(decision), note = sqlc.narg(note), resolved_by = sqlc.arg(resolved_by),
+    resolved_at = sqlc.arg(resolved_at)
+WHERE message_id = sqlc.arg(message_id) AND status = 'open';

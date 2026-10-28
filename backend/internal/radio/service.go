@@ -131,6 +131,8 @@ type Service struct {
 	Logger        *slog.Logger
 	// Go runs background work (SMS) after answering; nil: a goroutine. Tests run it inline.
 	Go func(func())
+	// SuspendUser suspends an account from a resolved report (crm.Moderation de 007).
+	SuspendUser func(ctx context.Context, userID, actorID uuid.UUID, reason string) error
 	// BulkSMSInterval paces the SMS of a bulk upload (20 por segundo, R9); 0 uses that.
 	BulkSMSInterval time.Duration
 

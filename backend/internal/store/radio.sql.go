@@ -890,6 +890,81 @@ func (q *Queries) GetRadioReceipt(ctx context.Context, arg GetRadioReceiptParams
 	return i, err
 }
 
+const getRadioReport = `-- name: GetRadioReport :one
+SELECT r.id, r.message_id, r.reporter_id, r.reason, r.status, r.decision, r.note, r.resolved_by, r.resolved_at, r.created_at, m.conversation_id, m.author_id, m.kind AS message_kind, m.status AS message_status, m.body, m.lat, m.lng,
+       m.object_key, m.duration_ms, m.created_at AS message_created_at, m.expires_at AS message_expires_at,
+       c.kind AS conversation_kind, c.room_name,
+       coalesce(c.name, coop.name, 'Conversación privada')::text AS conversation_title,
+       coalesce(u.display_name, 'Usuario eliminado')::text AS author_name
+FROM radio_reports r
+JOIN radio_messages m ON m.id = r.message_id
+JOIN radio_conversations c ON c.id = m.conversation_id
+LEFT JOIN cooperatives coop ON coop.id = c.cooperative_id
+LEFT JOIN users u ON u.id = m.author_id
+WHERE r.id = $1
+`
+
+type GetRadioReportRow struct {
+	ID                uuid.UUID
+	MessageID         uuid.UUID
+	ReporterID        uuid.UUID
+	Reason            string
+	Status            string
+	Decision          pgtype.Text
+	Note              pgtype.Text
+	ResolvedBy        uuid.NullUUID
+	ResolvedAt        pgtype.Timestamptz
+	CreatedAt         time.Time
+	ConversationID    uuid.UUID
+	AuthorID          uuid.NullUUID
+	MessageKind       RadioMessageKind
+	MessageStatus     RadioMessageStatus
+	Body              pgtype.Text
+	Lat               pgtype.Float8
+	Lng               pgtype.Float8
+	ObjectKey         pgtype.Text
+	DurationMs        pgtype.Int4
+	MessageCreatedAt  time.Time
+	MessageExpiresAt  time.Time
+	ConversationKind  RadioConversationKind
+	RoomName          string
+	ConversationTitle string
+	AuthorName        string
+}
+
+func (q *Queries) GetRadioReport(ctx context.Context, id uuid.UUID) (GetRadioReportRow, error) {
+	row := q.db.QueryRow(ctx, getRadioReport, id)
+	var i GetRadioReportRow
+	err := row.Scan(
+		&i.ID,
+		&i.MessageID,
+		&i.ReporterID,
+		&i.Reason,
+		&i.Status,
+		&i.Decision,
+		&i.Note,
+		&i.ResolvedBy,
+		&i.ResolvedAt,
+		&i.CreatedAt,
+		&i.ConversationID,
+		&i.AuthorID,
+		&i.MessageKind,
+		&i.MessageStatus,
+		&i.Body,
+		&i.Lat,
+		&i.Lng,
+		&i.ObjectKey,
+		&i.DurationMs,
+		&i.MessageCreatedAt,
+		&i.MessageExpiresAt,
+		&i.ConversationKind,
+		&i.RoomName,
+		&i.ConversationTitle,
+		&i.AuthorName,
+	)
+	return i, err
+}
+
 const getRadioSettings = `-- name: GetRadioSettings :one
 
 
@@ -1255,6 +1330,51 @@ func (q *Queries) InsertRadioQuietHours(ctx context.Context, arg InsertRadioQuie
 	return err
 }
 
+const insertRadioReport = `-- name: InsertRadioReport :execrows
+
+INSERT INTO radio_reports (id, message_id, reporter_id, reason, created_at)
+VALUES ($1, $2, $3, $4, $5)
+ON CONFLICT (message_id, reporter_id) DO NOTHING
+`
+
+type InsertRadioReportParams struct {
+	ID         uuid.UUID
+	MessageID  uuid.UUID
+	ReporterID uuid.UUID
+	Reason     string
+	CreatedAt  time.Time
+}
+
+// Reportes (FR-036, FR-037) ----------------------------------------------------------------------
+func (q *Queries) InsertRadioReport(ctx context.Context, arg InsertRadioReportParams) (int64, error) {
+	result, err := q.db.Exec(ctx, insertRadioReport,
+		arg.ID,
+		arg.MessageID,
+		arg.ReporterID,
+		arg.Reason,
+		arg.CreatedAt,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const insertRadioReportAccess = `-- name: InsertRadioReportAccess :exec
+INSERT INTO radio_report_access (report_id, admin_id, at) VALUES ($1, $2, $3)
+`
+
+type InsertRadioReportAccessParams struct {
+	ReportID uuid.UUID
+	AdminID  uuid.UUID
+	At       time.Time
+}
+
+func (q *Queries) InsertRadioReportAccess(ctx context.Context, arg InsertRadioReportAccessParams) error {
+	_, err := q.db.Exec(ctx, insertRadioReportAccess, arg.ReportID, arg.AdminID, arg.At)
+	return err
+}
+
 const insertRadioSettingsAudit = `-- name: InsertRadioSettingsAudit :exec
 INSERT INTO radio_settings_audit (id, admin_id, before, after, at) VALUES ($1, $2, $3, $4, $5)
 `
@@ -1433,6 +1553,53 @@ func (q *Queries) ListExpiredRadioSaved(ctx context.Context, arg ListExpiredRadi
 	for rows.Next() {
 		var i ListExpiredRadioSavedRow
 		if err := rows.Scan(&i.MessageID, &i.UserID, &i.SavedKey); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listOpenRadioReports = `-- name: ListOpenRadioReports :many
+SELECT r.id, r.reason, r.created_at, m.kind::text AS message_kind,
+       coalesce(c.name, coop.name, 'Conversación privada')::text AS conversation_title
+FROM radio_reports r
+JOIN radio_messages m ON m.id = r.message_id
+JOIN radio_conversations c ON c.id = m.conversation_id
+LEFT JOIN cooperatives coop ON coop.id = c.cooperative_id
+WHERE r.status = 'open'
+ORDER BY r.created_at
+LIMIT 200
+`
+
+type ListOpenRadioReportsRow struct {
+	ID                uuid.UUID
+	Reason            string
+	CreatedAt         time.Time
+	MessageKind       string
+	ConversationTitle string
+}
+
+// Cola del panel: sin teléfonos ni contenido, solo de qué se trata.
+func (q *Queries) ListOpenRadioReports(ctx context.Context) ([]ListOpenRadioReportsRow, error) {
+	rows, err := q.db.Query(ctx, listOpenRadioReports)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListOpenRadioReportsRow{}
+	for rows.Next() {
+		var i ListOpenRadioReportsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Reason,
+			&i.CreatedAt,
+			&i.MessageKind,
+			&i.ConversationTitle,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -2251,6 +2418,15 @@ func (q *Queries) LockRadioInvite(ctx context.Context, id uuid.UUID) (RadioInvit
 	return i, err
 }
 
+const markRadioMessageReported = `-- name: MarkRadioMessageReported :exec
+UPDATE radio_messages SET reported = true WHERE id = $1
+`
+
+func (q *Queries) MarkRadioMessageReported(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.Exec(ctx, markRadioMessageReported, id)
+	return err
+}
+
 const purgeRadioMessage = `-- name: PurgeRadioMessage :exec
 UPDATE radio_messages SET status = 'deleted', body = NULL, lat = NULL, lng = NULL, object_key = NULL WHERE id = $1
 `
@@ -2281,6 +2457,36 @@ func (q *Queries) ReleaseRadioFloor(ctx context.Context, arg ReleaseRadioFloorPa
 		&i.LastAudioAt,
 	)
 	return i, err
+}
+
+const resolveRadioReports = `-- name: ResolveRadioReports :execrows
+UPDATE radio_reports
+SET status = 'resolved', decision = $1, note = $2, resolved_by = $3,
+    resolved_at = $4
+WHERE message_id = $5 AND status = 'open'
+`
+
+type ResolveRadioReportsParams struct {
+	Decision   pgtype.Text
+	Note       pgtype.Text
+	ResolvedBy uuid.NullUUID
+	ResolvedAt pgtype.Timestamptz
+	MessageID  uuid.UUID
+}
+
+// Resolver un reporte cierra todos los abiertos del mismo mensaje.
+func (q *Queries) ResolveRadioReports(ctx context.Context, arg ResolveRadioReportsParams) (int64, error) {
+	result, err := q.db.Exec(ctx, resolveRadioReports,
+		arg.Decision,
+		arg.Note,
+		arg.ResolvedBy,
+		arg.ResolvedAt,
+		arg.MessageID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const rotateRadioRoom = `-- name: RotateRadioRoom :execrows

@@ -51,7 +51,7 @@ func (q *Queries) ListCostRates(ctx context.Context) ([]ListCostRatesRow, error)
 }
 
 const listDailyUsage = `-- name: ListDailyUsage :many
-SELECT driver_id, day, voice_participant_seconds, realtime_events, route_requests
+SELECT driver_id, day, voice_participant_seconds, realtime_events, route_requests, radio_storage_bytes
 FROM driver_usage_daily
 WHERE day >= $1 AND day < $2
   AND driver_id <> '00000000-0000-0000-0000-000000000000'::uuid
@@ -71,6 +71,7 @@ type ListDailyUsageRow struct {
 	VoiceParticipantSeconds int64
 	RealtimeEvents          int64
 	RouteRequests           int64
+	RadioStorageBytes       int64
 }
 
 func (q *Queries) ListDailyUsage(ctx context.Context, arg ListDailyUsageParams) ([]ListDailyUsageRow, error) {
@@ -88,6 +89,7 @@ func (q *Queries) ListDailyUsage(ctx context.Context, arg ListDailyUsageParams) 
 			&i.VoiceParticipantSeconds,
 			&i.RealtimeEvents,
 			&i.RouteRequests,
+			&i.RadioStorageBytes,
 		); err != nil {
 			return nil, err
 		}

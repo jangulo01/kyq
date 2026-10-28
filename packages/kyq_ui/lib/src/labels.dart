@@ -45,6 +45,8 @@ String costConceptLabel(String concept) => switch (concept) {
   CostConcepts.realtimeEvent => 'Tiempo real',
   CostConcepts.routeRequest => 'Rutas del mapa',
   CostConcepts.fixedMonthly => 'Mapa base y mantenimiento',
+  CostConcepts.radioStorage => 'Mensajes guardados de Radio',
+  CostConcepts.smsInvite => 'SMS de invitación a Radio',
   _ => concept,
 };
 
@@ -53,6 +55,8 @@ String costUsageUnit(String concept) => switch (concept) {
   CostConcepts.voiceMinute => 'minutos',
   CostConcepts.realtimeEvent => 'eventos',
   CostConcepts.routeRequest => 'rutas',
+  CostConcepts.radioStorage => 'GB',
+  CostConcepts.smsInvite => 'SMS',
   _ => '',
 };
 

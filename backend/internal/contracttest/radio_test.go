@@ -166,6 +166,15 @@ func TestIntegration011RadioRoutesMatchContract(t *testing.T) {
 	c.call(http.MethodPut, "/v1/radio/clients/"+s.ana.String(), s.carlosTk, map[string]any{"muted": true}, http.StatusNoContent)
 	c.call(http.MethodPut, "/v1/radio/clients/"+s.jonathan.String(), s.carlosTk, map[string]any{"blocked": true}, http.StatusNotFound)
 
+	// Reportes y moderación (FR-036, FR-037).
+	c.call(http.MethodPost, "/v1/radio/messages/"+msgID+"/report", s.carlosTk, map[string]any{"reason": "ofensivo"}, http.StatusNoContent)
+	reports := c.callList(http.MethodGet, "/v1/admin/radio/reports", s.adminTk)
+	require.Len(t, reports, 1)
+	reportID := reports[0]["id"].(string)
+	c.call(http.MethodGet, "/v1/admin/radio/reports/"+reportID, s.adminTk, nil, http.StatusOK)
+	c.call(http.MethodPost, "/v1/admin/radio/reports/"+reportID+"/resolve", s.adminTk, map[string]any{"decision": "dismissed"}, http.StatusNoContent)
+	c.call(http.MethodPut, "/v1/admin/radio/channels/"+convID, s.adminTk, map[string]any{"suspended": true}, http.StatusConflict)
+
 	// Panel: configuración y carga masiva (FR-040, FR-033).
 	c.call(http.MethodGet, "/v1/admin/radio/settings", s.adminTk, nil, http.StatusOK)
 	c.call(http.MethodGet, "/v1/admin/radio/settings", s.carlosTk, nil, http.StatusForbidden)

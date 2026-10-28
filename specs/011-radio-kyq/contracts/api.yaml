@@ -93,3 +93,5 @@ paths:
     $ref: '../../001-chosen-driver-trip-ptt/contracts/api.yaml#/paths/~1v1~1admin~1radio~1reports~1{reportId}~1resolve'
   /r/{code}/baja:
     $ref: '../../001-chosen-driver-trip-ptt/contracts/api.yaml#/paths/~1r~1{code}~1baja'
+  /v1/admin/radio/channels/{conversationId}:
+    $ref: '../../001-chosen-driver-trip-ptt/contracts/api.yaml#/paths/~1v1~1admin~1radio~1channels~1{conversationId}'

@@ -12,6 +12,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/kyq/backend/internal/admin"
 	"github.com/kyq/backend/internal/affiliations"
 	"github.com/kyq/backend/internal/auth"
@@ -246,6 +248,7 @@ func run(logger *slog.Logger) error {
 	radioRooms := ptt.RadioRooms{LiveKit: livekit, S3: ptt.RadioS3{
 		Endpoint: cfg.S3Endpoint, Region: cfg.S3Region, AccessKey: cfg.S3AccessKey, SecretKey: cfg.S3SecretKey, Bucket: cfg.S3RadioBucket,
 	}}
+	moderation := &crm.Moderation{Store: st, Publisher: publisher, Logger: logger}
 	radioService := &radio.Service{
 		Store: st, LiveKit: livekit, Rooms: radioRooms, VoiceURL: cfg.LiveKitURL, Publisher: publisher,
 		Media: radio.S3Media{S3: radioMedia, SavedBucket: radioSaved}, Saved: radioSaved, SMS: sms,
@@ -253,6 +256,11 @@ func run(logger *slog.Logger) error {
 		PlayRiderURL: cfg.PlayRiderURL, Usage: usage, Logger: logger,
 		// 011: Emergencia desde Radio abre el SOS de 003 (con o sin viaje).
 		SOS: safetyService,
+		// Suspender al autor de un mensaje reportado usa la moderación de 007.
+		SuspendUser: func(ctx context.Context, userID, actorID uuid.UUID, reason string) error {
+			_, err := moderation.Suspend(ctx, userID, actorID, reason)
+			return err
+		},
 	}
 	go radioService.RunSweeper(ctx, time.Second)
 	// 011: al verificar el OTP se aplican las invitaciones de Radio enviadas a ese teléfono.
@@ -290,7 +298,7 @@ func run(logger *slog.Logger) error {
 		Notices:      &notify.Handlers{Service: notices},
 		Costs:        &telemetry.CostHandlers{Store: st, CityCode: cfg.CityCode},
 		Tower:        &control.Handlers{Store: st},
-		CRM:          &crm.Handlers{Store: st, Moderation: &crm.Moderation{Store: st, Publisher: publisher, Logger: logger}},
+		CRM:          &crm.Handlers{Store: st, Moderation: moderation},
 		Health:       &health.Handlers{Checker: checker, Sessions: sentrySessions},
 		Cooperatives: &cooperatives.Handlers{Service: coopService},
 		GroupPTT:     &ptt.GroupHandlers{Service: pttService},

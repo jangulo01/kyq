@@ -88,8 +88,8 @@
 
 ## Phase 12: US11 Moderación y coste (P3)
 
-- [ ] T044 [US11] `radio/reports.go`: reportar, cola, abrir con acceso registrado (`radio_report_access`), resolver (borrar mensaje, suspender canal, suspender usuario con `crm/moderation.go`); suspender o reactivar canal desde el panel; pruebas de integración (FR-036, FR-037)
-- [ ] T045 [US11] `telemetry`: kinds `RadioVoiceSeconds`, `RadioMessages`, `RadioStorageBytes`, `cost_concept` `radio_storage` y `sms_invite`; columnas en `/v1/admin/usage` y economía unitaria del panel; pruebas (FR-038)
+- [X] T044 [US11] `radio/reports.go`: reportar, cola, abrir con acceso registrado (`radio_report_access`), resolver (borrar mensaje, suspender canal, suspender usuario con `crm/moderation.go`); suspender o reactivar canal desde el panel; pruebas de integración (FR-036, FR-037)
+- [X] T045 [US11] `telemetry`: kinds `RadioVoiceSeconds`, `RadioMessages`, `RadioStorageBytes`, `cost_concept` `radio_storage` y `sms_invite`; columnas en `/v1/admin/usage` y economía unitaria del panel; pruebas (FR-038)
 - [ ] T046 [US11] Panel: cola de reportes de Radio dentro de la moderación de 007 (`apps/kyq_admin_web/lib/users/` o `lib/radio/reports_page.dart`) con reproductor del mensaje reportado; pruebas de widget
 - [ ] T047 [US11] Cuenta eliminada: autor anónimo y borrado inmediato de objetos de sus mensajes (habeas data); pruebas
 

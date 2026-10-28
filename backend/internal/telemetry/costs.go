@@ -24,10 +24,15 @@ const (
 	ConceptRealtimeEvent = "realtime_event"
 	ConceptRouteRequest  = "route_request"
 	ConceptFixedMonthly  = "fixed_monthly"
+	// 011: Radio Kyq. radio_storage es por GB guardado; sms_invite, por SMS de invitación.
+	ConceptRadioStorage = "radio_storage"
+	ConceptSMSInvite    = "sms_invite"
 )
 
 // Concepts in display order.
-var Concepts = []string{ConceptVoiceMinute, ConceptRealtimeEvent, ConceptRouteRequest, ConceptFixedMonthly}
+var Concepts = []string{
+	ConceptVoiceMinute, ConceptRealtimeEvent, ConceptRouteRequest, ConceptFixedMonthly, ConceptRadioStorage, ConceptSMSInvite,
+}
 
 // Rate is a unit cost in force from EffectiveFrom (a calendar day).
 type Rate struct {
@@ -43,6 +48,8 @@ type DayUsage struct {
 	VoiceSeconds int64
 	Events       int64
 	Routes       int64
+	// RadioStorageBytes guardados ese día en Radio (011).
+	RadioStorageBytes int64
 }
 
 // CostItem is the cost of one concept in a month.
@@ -93,7 +100,7 @@ func ComputeCosts(month time.Time, currency string, rates []Rate, days []DayUsag
 	if asOf.Before(last) {
 		last = time.Date(asOf.Year(), asOf.Month(), asOf.Day(), 0, 0, 0, 0, time.UTC)
 	}
-	var voiceMin, events, routes, voiceCost, eventCost, routeCost float64
+	var voiceMin, events, routes, voiceCost, eventCost, routeCost, radioGB, radioCost float64
 	for _, d := range days {
 		v := float64(d.VoiceSeconds) / 60
 		voiceMin += v
@@ -102,6 +109,9 @@ func ComputeCosts(month time.Time, currency string, rates []Rate, days []DayUsag
 		voiceCost += v * float64(rateAt(rates, ConceptVoiceMinute, currency, d.Day))
 		eventCost += float64(d.Events) * float64(rateAt(rates, ConceptRealtimeEvent, currency, d.Day))
 		routeCost += float64(d.Routes) * float64(rateAt(rates, ConceptRouteRequest, currency, d.Day))
+		gb := float64(d.RadioStorageBytes) / 1e9
+		radioGB += gb
+		radioCost += gb * float64(rateAt(rates, ConceptRadioStorage, currency, d.Day))
 	}
 	fixed := float64(rateAt(rates, ConceptFixedMonthly, currency, last))
 	items := []CostItem{
@@ -109,6 +119,9 @@ func ComputeCosts(month time.Time, currency string, rates []Rate, days []DayUsag
 		{Concept: ConceptRealtimeEvent, Usage: events, CostMinor: round2(eventCost / 1e6)},
 		{Concept: ConceptRouteRequest, Usage: routes, CostMinor: round2(routeCost / 1e6)},
 		{Concept: ConceptFixedMonthly, Usage: 1, CostMinor: round2(fixed / 1e6)},
+	}
+	if radioGB > 0 {
+		items = append(items, CostItem{Concept: ConceptRadioStorage, Usage: round2(radioGB), CostMinor: round2(radioCost / 1e6)})
 	}
 	var total float64
 	for _, it := range items {
@@ -206,7 +219,7 @@ func (h *CostHandlers) breakdowns(ctx context.Context, month time.Time, driverID
 	}
 	days := map[uuid.UUID][]DayUsage{}
 	for _, u := range usage {
-		days[u.DriverID] = append(days[u.DriverID], DayUsage{Day: u.Day, VoiceSeconds: u.VoiceParticipantSeconds, Events: u.RealtimeEvents, Routes: u.RouteRequests})
+		days[u.DriverID] = append(days[u.DriverID], DayUsage{Day: u.Day, VoiceSeconds: u.VoiceParticipantSeconds, Events: u.RealtimeEvents, Routes: u.RouteRequests, RadioStorageBytes: u.RadioStorageBytes})
 	}
 	paidBy := map[uuid.UUID]int64{}
 	for _, p := range paid {

@@ -10,7 +10,7 @@ FROM cost_rates
 ORDER BY concept, currency, effective_from;
 
 -- name: ListDailyUsage :many
-SELECT driver_id, day, voice_participant_seconds, realtime_events, route_requests
+SELECT driver_id, day, voice_participant_seconds, realtime_events, route_requests, radio_storage_bytes
 FROM driver_usage_daily
 WHERE day >= sqlc.arg(from_day) AND day < sqlc.arg(to_day)
   AND driver_id <> '00000000-0000-0000-0000-000000000000'::uuid

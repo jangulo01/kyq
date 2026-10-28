@@ -48,7 +48,11 @@ abstract final class CostConcepts {
   static const realtimeEvent = 'realtime_event';
   static const routeRequest = 'route_request';
   static const fixedMonthly = 'fixed_monthly';
-  static const all = [voiceMinute, realtimeEvent, routeRequest, fixedMonthly];
+
+  /// 011: GB guardados en Radio y SMS de invitación.
+  static const radioStorage = 'radio_storage';
+  static const smsInvite = 'sms_invite';
+  static const all = [voiceMinute, realtimeEvent, routeRequest, fixedMonthly, radioStorage, smsInvite];
 }
 
 /// Vehículo del conductor. Los conductores de 001 pueden tener solo la placa.

@@ -14,7 +14,10 @@ ON CONFLICT (driver_id, day) DO UPDATE SET
 SELECT u.driver_id, COALESCE(us.display_name, '') AS display_name,
        SUM(u.voice_participant_seconds)::bigint AS voice_participant_seconds,
        SUM(u.realtime_events)::bigint AS realtime_events,
-       SUM(u.route_requests)::bigint AS route_requests
+       SUM(u.route_requests)::bigint AS route_requests,
+       SUM(u.radio_voice_seconds)::bigint AS radio_voice_seconds,
+       SUM(u.radio_messages)::bigint AS radio_messages,
+       SUM(u.radio_storage_bytes)::bigint AS radio_storage_bytes
 FROM driver_usage_daily u
 LEFT JOIN users us ON us.id = u.driver_id
 WHERE u.day BETWEEN sqlc.arg(from_day) AND sqlc.arg(to_day)

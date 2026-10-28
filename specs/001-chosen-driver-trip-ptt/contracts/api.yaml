@@ -533,6 +533,9 @@ paths:
                     voice_minutes: { type: number, description: Minutos de participante en LiveKit de sus viajes (ambas partes) }
                     realtime_events: { type: integer }
                     route_requests: { type: integer }
+                    radio_voice_minutes: { type: number, description: '011: minutos hablados en Radio' }
+                    radio_messages: { type: integer, description: '011: mensajes de Radio guardados' }
+                    radio_storage_mb: { type: number, description: '011: MB guardados en Radio' }
         '400': { $ref: '#/components/responses/Error' }
         '403': { $ref: '#/components/responses/Error' }
 
@@ -3527,6 +3530,30 @@ paths:
           $ref: '#/components/responses/Error'
       tags:
       - radio
+  /v1/admin/radio/channels/{conversationId}:
+    put:
+      summary: Suspende o reactiva un canal de grupo (US11-2); suspendido nadie habla y la sala se cierra
+      parameters:
+      - $ref: '#/components/parameters/ConversationId'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - suspended
+              properties:
+                suspended:
+                  type: boolean
+      responses:
+        '204':
+          description: OK
+        4XX:
+          $ref: '#/components/responses/Error'
+        '503':
+          $ref: '#/components/responses/Error'
+      tags:
+      - radio
   /v1/admin/radio/reports:
     get:
       summary: Cola de reportes abiertos (FR-036)
@@ -4103,7 +4130,7 @@ components:
       type: object
       required: [concept, currency, unit_cost_micro, effective_from]
       properties:
-        concept: { type: string, enum: [voice_minute, realtime_event, route_request, fixed_monthly] }
+        concept: { type: string, enum: [voice_minute, realtime_event, route_request, fixed_monthly, radio_storage, sms_invite] }
         currency: { type: string }
         unit_cost_micro: { type: integer, minimum: 0, description: Millonésimas de unidad mínima }
         effective_from: { type: string, format: date }
@@ -4118,8 +4145,8 @@ components:
           items:
             type: object
             properties:
-              concept: { type: string, enum: [voice_minute, realtime_event, route_request, fixed_monthly] }
-              usage: { type: number, description: 'minutos, eventos o peticiones; 1 para el fijo' }
+              concept: { type: string, enum: [voice_minute, realtime_event, route_request, fixed_monthly, radio_storage, sms_invite] }
+              usage: { type: number, description: 'minutos, eventos o peticiones; 1 para el fijo; GB guardados de Radio' }
               cost_minor: { type: number }
         total_cost_minor: { type: number }
         margin_minor: { type: number }
@@ -4221,7 +4248,7 @@ components:
       type: object
       required: [concept, cost_minor]
       properties:
-        concept: { type: string, enum: [voice_minute, realtime_event, route_request, fixed_monthly] }
+        concept: { type: string, enum: [voice_minute, realtime_event, route_request, fixed_monthly, radio_storage, sms_invite] }
         cost_minor: { type: number }
     FinanceMonth:
       type: object

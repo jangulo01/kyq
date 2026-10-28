@@ -42,6 +42,7 @@ func (h *Handlers) Register(mux *http.ServeMux, authMW func(http.Handler) http.H
 	mux.Handle("POST /v1/radio/conversations/{conversationId}/emergency", user(h.emergency))
 	mux.Handle("POST /v1/radio/messages/{messageId}/photo-uploaded", user(h.photoUploaded))
 	mux.Handle("GET /v1/radio/messages/{messageId}/media", user(h.media))
+	mux.Handle("POST /v1/radio/messages/{messageId}/report", user(h.report))
 	mux.Handle("PUT /v1/radio/messages/{messageId}/receipt", user(h.receipt))
 	mux.Handle("POST /v1/radio/contacts/invites", driver(h.inviteContact))
 	mux.Handle("POST /v1/radio/channels", driver(h.createChannel))
@@ -51,6 +52,10 @@ func (h *Handlers) Register(mux *http.ServeMux, authMW func(http.Handler) http.H
 	mux.Handle("POST /v1/radio/channels/{conversationId}/leave", user(h.leave))
 	mux.Handle("POST /v1/radio/invites/{code}/accept", user(h.accept))
 	mux.Handle("GET /v1/admin/radio/settings", admin(h.adminSettings))
+	mux.Handle("GET /v1/admin/radio/reports", admin(h.reports))
+	mux.Handle("GET /v1/admin/radio/reports/{reportId}", admin(h.openReport))
+	mux.Handle("POST /v1/admin/radio/reports/{reportId}/resolve", admin(h.resolveReport))
+	mux.Handle("PUT /v1/admin/radio/channels/{conversationId}", admin(h.suspendChannel))
 	mux.Handle("PUT /v1/admin/radio/settings", admin(h.updateSettings))
 	mux.Handle("GET /v1/admin/radio/bulk-uploads", admin(h.bulkUploads))
 	mux.Handle("POST /v1/admin/radio/bulk-uploads", admin(h.uploadBulk))
@@ -326,6 +331,64 @@ func (h *Handlers) leave(w http.ResponseWriter, r *http.Request) {
 	respond(w, r, http.StatusNoContent, nil, h.Service.Leave(r.Context(), principal(r), id))
 }
 
+func (h *Handlers) report(w http.ResponseWriter, r *http.Request) {
+	id, ok := pathID(w, r, "messageId")
+	if !ok {
+		return
+	}
+	var in struct {
+		Reason string `json:"reason"`
+	}
+	if r.ContentLength != 0 && !httpx.DecodeJSON(w, r, &in) {
+		return
+	}
+	respond(w, r, http.StatusNoContent, nil, h.Service.ReportMessage(r.Context(), principal(r), id, in.Reason))
+}
+
+func (h *Handlers) reports(w http.ResponseWriter, r *http.Request) {
+	out, err := h.Service.Reports(r.Context())
+	respond(w, r, http.StatusOK, out, err)
+}
+
+func (h *Handlers) openReport(w http.ResponseWriter, r *http.Request) {
+	id, ok := pathID(w, r, "reportId")
+	if !ok {
+		return
+	}
+	out, err := h.Service.OpenReport(r.Context(), principal(r), id)
+	respond(w, r, http.StatusOK, out, err)
+}
+
+func (h *Handlers) resolveReport(w http.ResponseWriter, r *http.Request) {
+	id, ok := pathID(w, r, "reportId")
+	if !ok {
+		return
+	}
+	var in ResolveInput
+	if !httpx.DecodeJSON(w, r, &in) {
+		return
+	}
+	respond(w, r, http.StatusNoContent, nil, h.Service.ResolveReport(r.Context(), principal(r), id, in))
+}
+
+func (h *Handlers) suspendChannel(w http.ResponseWriter, r *http.Request) {
+	id, ok := pathID(w, r, "conversationId")
+	if !ok {
+		return
+	}
+	var in struct {
+		Suspended *bool `json:"suspended"`
+	}
+	if !httpx.DecodeJSON(w, r, &in) {
+		return
+	}
+	if in.Suspended == nil {
+		writeError(w, r, ErrInvalid)
+		return
+	}
+	respond(w, r, http.StatusNoContent, nil, h.Service.SetChannelSuspended(r.Context(), id, *in.Suspended))
+}
+
 func (h *Handlers) adminSettings(w http.ResponseWriter, r *http.Request) {
 	out, err := h.Service.AdminSettings(r.Context())
 	respond(w, r, http.StatusOK, out, err)
@@ -505,6 +568,7 @@ func writeError(w http.ResponseWriter, r *http.Request, err error) {
 		{ErrPassengersClosed, http.StatusForbidden, "passengers_not_allowed", "este canal no admite pasajeros"},
 		{ErrNoMedia, http.StatusNotFound, "no_media", "este mensaje no tiene audio ni foto"},
 		{ErrPhotoInvalid, http.StatusConflict, "photo_invalid", "la foto debe ser JPEG de máximo 2 MB; vuelve a enviarla"},
+		{ErrNotChannel, http.StatusConflict, "not_channel", "solo se suspenden canales de grupo"},
 		{ErrBulkTooLarge, http.StatusRequestEntityTooLarge, "bulk_too_large", "el archivo tiene más de 2 000 filas"},
 		{ErrBulkState, http.StatusConflict, "bulk_state", "esa carga ya se está enviando o no tiene filas por enviar"},
 		{ErrUnavailable, http.StatusServiceUnavailable, "voice_unavailable", "el servidor de voz no responde; inténtalo de nuevo"},

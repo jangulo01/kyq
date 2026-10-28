@@ -55,6 +55,13 @@ func TestRN004CostBreakdown(t *testing.T) {
 
 	none := ComputeCosts(day(1), "PEN", exampleRates, days, 0, day(31))
 	assert.Zero(t, none.TotalCostMinor, "sin tarifas en esa moneda no hay costo")
+
+	// 011: lo que el conductor guarda en Radio cuesta por GB.
+	radio := append([]Rate{{Concept: ConceptRadioStorage, Currency: "COP", UnitCostMicro: 200_000_000, EffectiveFrom: day(1)}}, exampleRates...)
+	withRadio := append(days, DayUsage{Day: day(10), RadioStorageBytes: 3e9})
+	b = ComputeCosts(day(1), "COP", radio, withRadio, 0, day(31))
+	assert.Equal(t, CostItem{Concept: ConceptRadioStorage, Usage: 3, CostMinor: 600}, b.Items[len(b.Items)-1])
+	assert.Equal(t, 807_000.0, b.TotalCostMinor)
 }
 
 // RN-KYQ-004, FR-025/FR-026: el conductor y el panel ven el mismo costo; el panel destaca el
