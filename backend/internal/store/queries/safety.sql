@@ -171,8 +171,9 @@ SELECT id FROM sos_alerts WHERE trip_id = $1 ORDER BY created_at;
 SELECT count(*)::int AS total, count(*) FILTER (WHERE outcome = 'false_alarm')::int AS false_alarms
 FROM sos_alerts WHERE raised_by = $1;
 
--- name: GetSOSAlertTrip :one
-SELECT trip_id FROM sos_alerts WHERE room_name = $1;
+-- name: GetSOSAlertRoom :one
+-- Viaje de la alerta (nulo si se levantó desde Radio sin viaje, 011) y quién la levantó.
+SELECT trip_id, raised_by FROM sos_alerts WHERE room_name = $1;
 
 -- name: InsertSOSNote :one
 INSERT INTO sos_notes (id, alert_id, operator_id, body, created_at)

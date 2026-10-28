@@ -55,7 +55,7 @@ WHERE trip_id = $1;
 -- name: GetOpenSosForTrip :one
 SELECT id, status::text AS status
 FROM sos_alerts
-WHERE trip_id = $1 AND status IN ('open', 'claimed')
+WHERE trip_id = sqlc.arg(trip_id)::uuid AND status IN ('open', 'claimed')
 ORDER BY created_at DESC
 LIMIT 1;
 

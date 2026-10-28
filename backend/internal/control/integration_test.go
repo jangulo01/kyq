@@ -122,7 +122,7 @@ func TestIntegrationTowerSnapshot(t *testing.T) {
 
 	// Detalle del viaje: sin teléfonos, con pasos, posición y SOS (FR-002), y auditado (FR-004).
 	_, err := st.InsertSOSAlert(ctx, store.InsertSOSAlertParams{
-		ID: uuid.New(), TripID: tripID, RaisedBy: passenger, RaisedRole: store.SosRolePassenger,
+		ID: uuid.New(), TripID: uuid.NullUUID{UUID: tripID, Valid: true}, RaisedBy: passenger, RaisedRole: store.SosRolePassenger,
 		RoomName: "sos-test", CreatedAt: at,
 	})
 	require.NoError(t, err)

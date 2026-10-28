@@ -91,7 +91,7 @@ func TestIntegrationVoiceMinutesFromLiveKitWebhook(t *testing.T) {
 	// 003: la voz de una sala SOS también cuenta en el conductor del viaje.
 	alertID := uuid.New()
 	_, err := st.InsertSOSAlert(ctx, store.InsertSOSAlertParams{
-		ID: alertID, TripID: tripID, RaisedBy: passenger, RaisedRole: store.SosRolePassenger,
+		ID: alertID, TripID: uuid.NullUUID{UUID: tripID, Valid: true}, RaisedBy: passenger, RaisedRole: store.SosRolePassenger,
 		RoomName: "sos-" + alertID.String(), CreatedAt: time.Now(),
 	})
 	require.NoError(t, err)

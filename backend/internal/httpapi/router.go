@@ -20,6 +20,7 @@ import (
 	"github.com/kyq/backend/internal/notify"
 	"github.com/kyq/backend/internal/places"
 	"github.com/kyq/backend/internal/ptt"
+	"github.com/kyq/backend/internal/radio"
 	"github.com/kyq/backend/internal/realtime"
 	"github.com/kyq/backend/internal/reservations"
 	"github.com/kyq/backend/internal/safety"
@@ -69,6 +70,8 @@ type Deps struct {
 	// 010: agenda de reservas y buscador de direcciones.
 	Reservations *reservations.Handlers
 	Places       *places.Handlers
+	// 011: Radio Kyq (incluye la página pública /r/{code} de las invitaciones).
+	Radio *radio.Handlers
 	// LiveKitWebhook is public: LiveKit authenticates it with its own signature.
 	LiveKitWebhook *telemetry.LiveKitWebhook
 }
@@ -164,6 +167,9 @@ func NewRouter(d Deps) http.Handler {
 		}
 		if d.Places != nil {
 			d.Places.Register(mux, requireAuth)
+		}
+		if d.Radio != nil {
+			d.Radio.Register(mux, requireAuth)
 		}
 	}
 

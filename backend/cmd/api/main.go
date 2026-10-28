@@ -31,6 +31,7 @@ import (
 	"github.com/kyq/backend/internal/observability"
 	"github.com/kyq/backend/internal/places"
 	"github.com/kyq/backend/internal/ptt"
+	"github.com/kyq/backend/internal/radio"
 	"github.com/kyq/backend/internal/realtime"
 	"github.com/kyq/backend/internal/reservations"
 	"github.com/kyq/backend/internal/safety"
@@ -212,6 +213,47 @@ func run(logger *slog.Logger) error {
 		}
 		domainService.Signer = signer
 	}
+	// 011 Radio Kyq: buckets de mensajes (90 días como máximo de retención) y guardados (366).
+	radioMedia, err := storage.NewS3(storage.S3Options{
+		Endpoint: cfg.S3Endpoint, PublicEndpoint: cfg.S3PublicEndpoint, AccessKey: cfg.S3AccessKey,
+		SecretKey: cfg.S3SecretKey, Bucket: cfg.S3RadioBucket, Region: cfg.S3Region,
+	})
+	if err != nil {
+		return err
+	}
+	radioSaved, err := storage.NewS3(storage.S3Options{
+		Endpoint: cfg.S3Endpoint, PublicEndpoint: cfg.S3PublicEndpoint, AccessKey: cfg.S3AccessKey,
+		SecretKey: cfg.S3SecretKey, Bucket: cfg.S3RadioSavedBucket, Region: cfg.S3Region,
+	})
+	if err != nil {
+		return err
+	}
+	radioCtx, cancelRadio := context.WithTimeout(ctx, 10*time.Second)
+	for _, b := range []struct {
+		bucket *storage.S3
+		days   int
+	}{{radioMedia, 90}, {radioSaved, 366}} {
+		if err := b.bucket.EnsureBucket(radioCtx); err != nil {
+			logger.Warn("bucket de Radio no disponible al arrancar", "bucket", b.bucket.Bucket(), "err", err)
+		} else if err := b.bucket.EnsureExpiry(radioCtx, b.days); err != nil {
+			logger.Warn("no se pudo fijar la expiración del bucket de Radio", "bucket", b.bucket.Bucket(), "err", err)
+		}
+	}
+	cancelRadio()
+	if !cfg.RadioRecording {
+		logger.Warn("KYQ_RADIO_RECORDING=false: Radio no guarda el audio de los mensajes")
+	}
+	radioRooms := ptt.RadioRooms{LiveKit: livekit, S3: ptt.RadioS3{
+		Endpoint: cfg.S3Endpoint, Region: cfg.S3Region, AccessKey: cfg.S3AccessKey, SecretKey: cfg.S3SecretKey, Bucket: cfg.S3RadioBucket,
+	}}
+	radioService := &radio.Service{
+		Store: st, LiveKit: livekit, Rooms: radioRooms, VoiceURL: cfg.LiveKitURL, Publisher: publisher,
+		Media: radio.S3Media{S3: radioMedia, SavedBucket: radioSaved}, Saved: radioSaved, SMS: sms,
+		Record: cfg.RadioRecording, PublicBaseURL: cfg.PublicBaseURL, PlayDriverURL: cfg.PlayDriverURL,
+		PlayRiderURL: cfg.PlayRiderURL, Usage: usage, Logger: logger,
+	}
+	go radioService.RunSweeper(ctx, time.Second)
+
 	billingService.References = append(billingService.References, tripPayService)
 	tripService.Payments = tripPayService
 	go tripService.RunSweeper(ctx, time.Second)
@@ -250,8 +292,9 @@ func run(logger *slog.Logger) error {
 		Domains:      &domains.Handlers{Service: domainService},
 		Reservations: &reservations.Handlers{Service: reservationService},
 		Places:       &places.Handlers{Service: placeService},
+		Radio:        &radio.Handlers{Service: radioService},
 		LiveKitWebhook: &telemetry.LiveKitWebhook{
-			APIKey: cfg.LiveKitAPIKey, APISecret: cfg.LiveKitAPISecret, Store: st, Usage: usage,
+			APIKey: cfg.LiveKitAPIKey, APISecret: cfg.LiveKitAPISecret, Store: st, Usage: usage, Radio: radioService,
 		},
 	})
 

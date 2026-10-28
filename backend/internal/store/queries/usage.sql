@@ -1,10 +1,14 @@
 -- name: AddDriverUsage :exec
-INSERT INTO driver_usage_daily (driver_id, day, voice_participant_seconds, realtime_events, route_requests)
-VALUES ($1, $2, $3, $4, $5)
+INSERT INTO driver_usage_daily (driver_id, day, voice_participant_seconds, realtime_events, route_requests,
+                                radio_voice_seconds, radio_messages, radio_storage_bytes)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 ON CONFLICT (driver_id, day) DO UPDATE SET
     voice_participant_seconds = driver_usage_daily.voice_participant_seconds + EXCLUDED.voice_participant_seconds,
     realtime_events = driver_usage_daily.realtime_events + EXCLUDED.realtime_events,
-    route_requests = driver_usage_daily.route_requests + EXCLUDED.route_requests;
+    route_requests = driver_usage_daily.route_requests + EXCLUDED.route_requests,
+    radio_voice_seconds = driver_usage_daily.radio_voice_seconds + EXCLUDED.radio_voice_seconds,
+    radio_messages = driver_usage_daily.radio_messages + EXCLUDED.radio_messages,
+    radio_storage_bytes = driver_usage_daily.radio_storage_bytes + EXCLUDED.radio_storage_bytes;
 
 -- name: ListDriverUsage :many
 SELECT u.driver_id, COALESCE(us.display_name, '') AS display_name,

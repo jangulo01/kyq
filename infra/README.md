@@ -161,6 +161,19 @@ consultar el pago al regresar.
   pasan al siguiente dominio activo sin cerrar la sesión. El tiempo real toma el dominio en uso al
   abrir la app. Cambiar la clave exige publicar nuevas versiones de las apps.
 
+## Radio Kyq (011)
+
+- **Buckets**: `kyq-radio` (mensajes de voz y fotos) y `kyq-radio-saved` (guardados). El job
+  `minio-init-radio` los crea; la API les pone al arrancar la regla de ciclo de vida de 90 y 366
+  días (`EnsureExpiry`). La retención real (7, 30 o 90 días) la aplica el barrido diario según
+  Panel → Configuración de Radio.
+- **Registro**: cada sala `radio-*` se crea con egress automático por pista (OGG/Opus) hacia
+  `kyq-radio`, con las mismas credenciales S3 de la API; el webhook de LiveKit
+  (`/v1/livekit/webhook`) marca cada mensaje como listo. `KYQ_RADIO_RECORDING=false` lo apaga.
+- **Enlaces de invitación**: `KYQ_PUBLIC_BASE_URL/r/{code}` abre `kyq://radio/{code}` o lleva a
+  la tienda (`KYQ_PLAY_DRIVER_URL`, `KYQ_PLAY_RIDER_URL`). Las cargas masivas envían SMS con el
+  mismo proveedor de 002/003 (`KYQ_TWILIO_SMS_FROM`).
+
 ## SOS y consola de emergencias (003)
 
 - **Grabación**: `egress` (LiveKit Egress, configuración en `egress.yaml`) recibe por Redis las

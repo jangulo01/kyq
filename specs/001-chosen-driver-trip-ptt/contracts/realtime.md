@@ -82,3 +82,27 @@ El canal de voz de grupo de la cooperativa (006, `COOP_GROUP`) usa los mismos me
 la sala de la cooperativa (empieza como `coop-{cooperativeId}` y pasa a `coop-{cooperativeId}-{sufijo}`
 cada vez que un miembro sale o es retirado), con un único turno para todo el grupo. Al rotar la sala, los demás se
 desconectan y vuelven a entrar con un token nuevo (los de grupo duran 1 minuto).
+
+## 011 Radio Kyq
+
+Todos los eventos de Radio van a `user:{id}` de cada participante (nunca traen teléfonos):
+
+| Evento | Datos | Cuándo |
+|---|---|---|
+| `radio.message` | `message` (`Message` del contrato) y `silent` (bool) | Un mensaje de voz quedó listo o llegó texto, foto o ubicación |
+| `radio.alert` | igual que `radio.message`; `silent` solo si el conductor silenció al cliente | Alerta de llamada: suena y vibra hasta 60 s o hasta abrirla (FR-022), también en Ocupado |
+| `radio.emergency` | igual que `radio.message`, `silent` siempre `false` | Emergencia desde Radio (FR-031): suena en Ocupado |
+| `radio.presence` | `user_id`, `status` (`available` \| `busy` \| `listen_only` \| `offline`) y, para el propio usuario, `quiet_hours` | Cambio de estado, radio encendida o apagada, latido perdido (90 s) u horario de silencio |
+| `radio.member` | `conversation_id`, `user_id`, `change` (`joined`, `requested`, `approve`, `reject`, `mute`, `unmute`, `remove`, `block`, `unblock`, `role`, `role_by_policy`, `removed_by_policy`, `room_rotated`, `conversation_deleted`) y `display_name` o `role` cuando aplica | Altas, solicitudes, moderación, cambio de política y rotación de sala |
+| `radio.invite` | `conversation_id`, `user_id`, `display_name`, `change` (`accepted`) | Alguien aceptó la invitación de contacto |
+| `radio.settings` | `trial_policy`, `passengers_in_channels`, `retention_days` | El panel cambió la configuración de Radio |
+
+`silent` es `true` cuando el mensaje no debe sonar para ese receptor: está Ocupado (FR-020), tiene
+"Escuchar" apagado (FR-024) o es un cliente que el conductor silenció (FR-003). La app lo deja como
+nuevo con un aviso silencioso.
+
+Cada conversación tiene su sala LiveKit `radio-{conversationId}-{sufijo}` (R1). El token solo deja
+escuchar y mandar datos; publicar llega con el turno (`POST …/ptt/floor`). El turno viaja como en
+001 con `{"type":"floor.taken","user_id":...,"message_id":...}` y `{"type":"floor.released"}`. Al
+expulsar, salir o bloquear, la sala rota y llega `radio.member` con `room_rotated`: la app pide un
+token nuevo.

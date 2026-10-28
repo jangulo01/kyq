@@ -65,15 +65,23 @@ type ListDailyUsageParams struct {
 	DriverID uuid.NullUUID
 }
 
-func (q *Queries) ListDailyUsage(ctx context.Context, arg ListDailyUsageParams) ([]DriverUsageDaily, error) {
+type ListDailyUsageRow struct {
+	DriverID                uuid.UUID
+	Day                     time.Time
+	VoiceParticipantSeconds int64
+	RealtimeEvents          int64
+	RouteRequests           int64
+}
+
+func (q *Queries) ListDailyUsage(ctx context.Context, arg ListDailyUsageParams) ([]ListDailyUsageRow, error) {
 	rows, err := q.db.Query(ctx, listDailyUsage, arg.FromDay, arg.ToDay, arg.DriverID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []DriverUsageDaily{}
+	items := []ListDailyUsageRow{}
 	for rows.Next() {
-		var i DriverUsageDaily
+		var i ListDailyUsageRow
 		if err := rows.Scan(
 			&i.DriverID,
 			&i.Day,

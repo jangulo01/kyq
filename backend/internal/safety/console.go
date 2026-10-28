@@ -53,8 +53,11 @@ func locationView(at time.Time, lat, lng float64, acc pgtype.Float4) LocationVie
 
 // AlertSummary is a row of the console queue or history (contracts: SosAlertSummary).
 type AlertSummary struct {
-	ID               uuid.UUID     `json:"id"`
-	TripID           uuid.UUID     `json:"trip_id"`
+	ID uuid.UUID `json:"id"`
+	// TripID es nulo en una alerta desde Radio sin viaje (011): la consola muestra
+	// "Sin viaje · desde Radio".
+	TripID           *uuid.UUID    `json:"trip_id"`
+	RaisedFrom       string        `json:"raised_from"`
 	RaisedRole       string        `json:"raised_role"`
 	RaisedByName     string        `json:"raised_by_name"`
 	Status           string        `json:"status"`
@@ -80,7 +83,7 @@ func timePtr(t pgtype.Timestamptz) *time.Time {
 
 func summary(a store.SosAlert, raisedByName string, claimedByName pgtype.Text) AlertSummary {
 	s := AlertSummary{
-		ID: a.ID, TripID: a.TripID, RaisedRole: string(a.RaisedRole), RaisedByName: raisedByName, Status: string(a.Status),
+		ID: a.ID, TripID: idPtr(a.TripID), RaisedFrom: string(a.RaisedFrom), RaisedRole: string(a.RaisedRole), RaisedByName: raisedByName, Status: string(a.Status),
 		CancelWithoutPIN: a.CancelWithoutPin, Escalated: a.EscalatedAt.Valid, HasRecording: a.RecordingKey.Valid,
 		CreatedAt: a.CreatedAt, ClaimedAt: timePtr(a.ClaimedAt), ClosedAt: timePtr(a.ClosedAt),
 	}
@@ -146,7 +149,7 @@ func (s *Service) ListOpen(ctx context.Context, operatorID uuid.UUID) ([]AlertSu
 	ids := make([]uuid.UUID, 0, len(rows))
 	for _, r := range rows {
 		out = append(out, summary(store.SosAlert{
-			ID: r.ID, TripID: r.TripID, RaisedBy: r.RaisedBy, RaisedRole: r.RaisedRole, Status: r.Status,
+			ID: r.ID, TripID: r.TripID, RaisedFrom: r.RaisedFrom, RaisedBy: r.RaisedBy, RaisedRole: r.RaisedRole, Status: r.Status,
 			CancelWithoutPin: r.CancelWithoutPin, ClaimedBy: r.ClaimedBy, Outcome: r.Outcome, RecordingKey: r.RecordingKey,
 			EscalatedAt: r.EscalatedAt, CreatedAt: r.CreatedAt, ClaimedAt: r.ClaimedAt, ClosedAt: r.ClosedAt,
 		}, r.RaisedByName, r.ClaimedByName))
@@ -177,7 +180,7 @@ func (s *Service) ListHistory(ctx context.Context, operatorID uuid.UUID, f Histo
 	out := make([]AlertSummary, 0, len(rows))
 	for _, r := range rows {
 		out = append(out, summary(store.SosAlert{
-			ID: r.ID, TripID: r.TripID, RaisedBy: r.RaisedBy, RaisedRole: r.RaisedRole, Status: r.Status,
+			ID: r.ID, TripID: r.TripID, RaisedFrom: r.RaisedFrom, RaisedBy: r.RaisedBy, RaisedRole: r.RaisedRole, Status: r.Status,
 			CancelWithoutPin: r.CancelWithoutPin, ClaimedBy: r.ClaimedBy, Outcome: r.Outcome, RecordingKey: r.RecordingKey,
 			EscalatedAt: r.EscalatedAt, CreatedAt: r.CreatedAt, ClaimedAt: r.ClaimedAt, ClosedAt: r.ClosedAt,
 		}, r.RaisedByName, r.ClaimedByName))
@@ -285,7 +288,7 @@ func (s *Service) Detail(ctx context.Context, operatorID, alertID uuid.UUID) (Al
 	}
 	d := AlertDetail{
 		AlertSummary: summary(store.SosAlert{
-			ID: r.ID, TripID: r.TripID, RaisedBy: r.RaisedBy, RaisedRole: r.RaisedRole, Status: r.Status,
+			ID: r.ID, TripID: r.TripID, RaisedFrom: r.RaisedFrom, RaisedBy: r.RaisedBy, RaisedRole: r.RaisedRole, Status: r.Status,
 			CancelWithoutPin: r.CancelWithoutPin, ClaimedBy: r.ClaimedBy, Outcome: r.Outcome, RecordingKey: r.RecordingKey,
 			EscalatedAt: r.EscalatedAt, CreatedAt: r.CreatedAt, ClaimedAt: r.ClaimedAt, ClosedAt: r.ClosedAt,
 		}, r.RaisedByName, r.ClaimedByName),

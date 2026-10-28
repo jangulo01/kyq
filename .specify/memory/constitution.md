@@ -1,5 +1,15 @@
 <!--
 Sync Impact Report
+- Versión: 1.0.0 → 1.1.0 (MINOR, 2026-10-28, etapa 011)
+- Cambio: principio V incorpora RN-KYQ-017 "Radio Kyq permanente con registro a demanda"; las
+  reglas de contrato pasan a ser RN-KYQ-001 a RN-KYQ-017
+- Plantillas: sin cambios (plan, spec y tasks ya citan el principio V de forma genérica)
+- Código afectado: módulo nuevo `backend/internal/radio` con su prueba de regla
+  `rules_test.go`; el canal del viaje (001 FR-021) y la consulta previa (005 FR-008) siguen sin
+  grabarse
+- TODO diferidos: ninguno
+
+Historial
 - Versión: plantilla sin rellenar → 1.0.0 (adopción inicial)
 - Principios definidos: I. Clean-room; II. Adoptar antes que construir; III. Flutter en todos los
   clientes; IV. Backend monolito modular en Go; V. Reglas de negocio como contrato;
@@ -58,8 +68,13 @@ Razón: menos piezas que operar con un equipo pequeño.
 
 ### V. Reglas de negocio como contrato
 
-- Las reglas RN-KYQ-001 a RN-KYQ-016 son contrato del producto. Cada regla MUST tener al menos
+- Las reglas RN-KYQ-001 a RN-KYQ-017 son contrato del producto. Cada regla MUST tener al menos
   una prueba automatizada que falle si la regla se incumple.
+- RN-KYQ-017 (Radio Kyq permanente con registro a demanda, 1.1.0): fuera del viaje, conductores
+  y sus clientes se hablan por Radio con voz en vivo y cada mensaje queda registrado para
+  reproducirlo a demanda durante la retención configurada, previo aviso y aceptación. El canal
+  del viaje y la consulta previa MUST NOT grabarse, y ninguna respuesta de Radio MUST incluir el
+  teléfono de otro usuario.
 - Cambiar una regla requiere actualizar la especificación, la prueba y esta trazabilidad en el
   mismo cambio.
 
@@ -111,4 +126,4 @@ Razón: la cuota mensual fija debe cubrir el coste real de cada conductor.
   o secciones; PATCH para aclaraciones.
 - Revisión de cumplimiento al cerrar cada funcionalidad y al menos una vez por trimestre.
 
-**Version**: 1.0.0 | **Ratified**: 2026-10-27 | **Last Amended**: 2026-10-27
+**Version**: 1.1.0 | **Ratified**: 2026-10-27 | **Last Amended**: 2026-10-28

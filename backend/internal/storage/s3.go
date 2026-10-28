@@ -161,3 +161,21 @@ func (s *S3) Stat(ctx context.Context, key string) (ObjectInfo, error) {
 func (s *S3) Remove(ctx context.Context, key string) error {
 	return s.api.RemoveObject(ctx, s.bucket, key, minio.RemoveObjectOptions{})
 }
+
+// Bucket is the bucket this client writes to.
+func (s *S3) Bucket() string { return s.bucket }
+
+// CopyTo copies key into dst (another bucket on the same server) as dstKey, server side. Radio
+// Kyq copies a saved message out of the retention of its bucket (011, FR-012).
+func (s *S3) CopyTo(ctx context.Context, dst *S3, key, dstKey string) error {
+	_, err := s.api.CopyObject(ctx,
+		minio.CopyDestOptions{Bucket: dst.bucket, Object: dstKey},
+		minio.CopySrcOptions{Bucket: s.bucket, Object: key})
+	if err != nil {
+		if minio.ToErrorResponse(err).StatusCode == http.StatusNotFound {
+			return ErrNotFound
+		}
+		return fmt.Errorf("copy object: %w", err)
+	}
+	return nil
+}

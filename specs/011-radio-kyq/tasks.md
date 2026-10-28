@@ -12,34 +12,34 @@
 
 ## Phase 1: Setup
 
-- [ ] T001 Enmienda de la constitución 1.0.0 → 1.1.0 en `.specify/memory/constitution.md`: RN-KYQ-017 "Radio Kyq permanente con registro a demanda" (Sync Impact Report y principio V: RN-KYQ-001 a 017); prueba de regla en `backend/internal/radio/rules_test.go` que falla si se graba el canal del viaje o la consulta previa, o si una respuesta de `/v1/radio/*` contiene un teléfono
-- [ ] T002 Contrato: fusionar rutas y esquemas de `specs/011-radio-kyq/contracts/api.yaml` en `specs/001-chosen-driver-trip-ptt/contracts/api.yaml`, dejar la vista de 011 con `$ref` (como 009), eventos `radio.*` en `specs/001-…/contracts/realtime.md`; `TestContract011ViewIsValid`
-- [ ] T003 Migración `backend/migrations/00016_radio.sql` según [data-model.md](data-model.md) (enums, tablas, cambios en `sos_alerts`, `cost_concept`, `driver_usage_daily`, fila inicial de `radio_settings`) con `Down`; consultas `backend/internal/store/queries/radio.sql`; `sqlc generate`
+- [X] T001 Enmienda de la constitución 1.0.0 → 1.1.0 en `.specify/memory/constitution.md`: RN-KYQ-017 "Radio Kyq permanente con registro a demanda" (Sync Impact Report y principio V: RN-KYQ-001 a 017); prueba de regla en `backend/internal/radio/rules_test.go` que falla si se graba el canal del viaje o la consulta previa, o si una respuesta de `/v1/radio/*` contiene un teléfono
+- [X] T002 Contrato: fusionar rutas y esquemas de `specs/011-radio-kyq/contracts/api.yaml` en `specs/001-chosen-driver-trip-ptt/contracts/api.yaml`, dejar la vista de 011 con `$ref` (como 009), eventos `radio.*` en `specs/001-…/contracts/realtime.md`; `TestContract011ViewIsValid`
+- [X] T003 Migración `backend/migrations/00016_radio.sql` según [data-model.md](data-model.md) (enums, tablas, cambios en `sos_alerts`, `cost_concept`, `driver_usage_daily`, fila inicial de `radio_settings`) con `Down`; consultas `backend/internal/store/queries/radio.sql`; `sqlc generate`
 - [ ] T004 Spike de registro (research R3): sala LiveKit con egress automático por pista a MinIO en la VM; medir con 20 mensajes/min que la primera sílaba queda grabada y el uso de CPU de Egress; anotar resultado en `research.md` R3. Si falla, aplicar plan B antes de seguir con T012
-- [ ] T005 [P] Buckets `kyq-radio` (vence 90 días) y `kyq-radio-saved` (366 días) en `infra/docker-compose.yml` (`minio-init`) y `EnsureBucket`/`EnsureExpiry` en `backend/cmd/api/main.go`; variables `KYQ_S3_RADIO_BUCKET`, `KYQ_S3_RADIO_SAVED_BUCKET`, `KYQ_PLAY_DRIVER_URL`, `KYQ_PLAY_RIDER_URL` en `infra/.env.example` e `infra/README.md`
+- [X] T005 [P] Buckets `kyq-radio` (vence 90 días) y `kyq-radio-saved` (366 días) en `infra/docker-compose.yml` (`minio-init`) y `EnsureBucket`/`EnsureExpiry` en `backend/cmd/api/main.go`; variables `KYQ_S3_RADIO_BUCKET`, `KYQ_S3_RADIO_SAVED_BUCKET`, `KYQ_PLAY_DRIVER_URL`, `KYQ_PLAY_RIDER_URL` en `infra/.env.example` e `infra/README.md`
 - [ ] T006 [P] Paquete `packages/kyq_radio` (pubspec, `melos.yaml`, análisis) con dependencias `kyq_api`, `kyq_ptt`, `kyq_realtime`, `kyq_ui`, `just_audio`, `flutter_image_compress`, `image_picker`
 
 ## Phase 2: Foundational (bloquea todas las historias)
 
-- [ ] T007 `backend/internal/radio/access.go`: `Settings` con caché de 30 s y `Access(user, now)` → `full|listen|none` (data-model §Acceso, FR-005); pruebas de unidad por política, prueba, gracia y suspensión
-- [ ] T008 Módulo `radio` montado en `httpapi.Deps` y `cmd/api/main.go` (servicio, handlers, `RunSweeper`); middleware de acceso (`403 radio_access_denied`, `403 radio_listen_only`) y filtro de participación (`404`)
+- [X] T007 `backend/internal/radio/access.go`: `Settings` con caché de 30 s y `Access(user, now)` → `full|listen|none` (data-model §Acceso, FR-005); pruebas de unidad por política, prueba, gracia y suspensión
+- [X] T008 Módulo `radio` montado en `httpapi.Deps` y `cmd/api/main.go` (servicio, handlers, `RunSweeper`); middleware de acceso (`403 radio_access_denied`, `403 radio_listen_only`) y filtro de participación (`404`)
 - [ ] T009 [P] `packages/kyq_api`: modelos freezed y métodos de Radio (todas las rutas del contrato); pruebas de serialización
 - [ ] T010 [P] `packages/kyq_realtime`: eventos `radio.message`, `radio.presence`, `radio.alert`, `radio.emergency`, `radio.member`, `radio.invite`, `radio.settings`; pruebas
 - [ ] T011 `packages/kyq_ptt`: `VoiceRoom` multi-sala solo recepción (conectar N salas, silenciar pista remota localmente, publicar al obtener turno y despublicar al soltar) sin romper 001/005/006; pruebas con doble de `VoiceRoom`
 
 ## Phase 3: US1 Hablar con un compañero (P1) 🎯 MVP
 
-- [ ] T012 [US1] `radio/conversations.go` + `invites.go` (contactos): `POST /v1/radio/contacts/invites` (QR/enlace o teléfono sin revelar si existe), `GET/POST /v1/radio/invites/{code}[/accept]`, borrar contacto; `GET /v1/radio/conversations`; pruebas de integración (FR-002, FR-004)
-- [ ] T013 [US1] `radio/floor.go`: sala `radio-{id}-{hex}` con egress automático (opciones nuevas en `ptt/livekit.go`), token de 1 min, `POST/DELETE …/ptt/floor` con turno fail-closed de 60 s y liberación por 3 s sin audio; crea `radio_message` en `recording`; pruebas de integración con doble de salas (FR-006, edge cases)
+- [X] T012 [US1] `radio/conversations.go` + `invites.go` (contactos): `POST /v1/radio/contacts/invites` (QR/enlace o teléfono sin revelar si existe), `GET/POST /v1/radio/invites/{code}[/accept]`, borrar contacto; `GET /v1/radio/conversations`; pruebas de integración (FR-002, FR-004)
+- [X] T013 [US1] `radio/floor.go`: sala `radio-{id}-{hex}` con egress automático (opciones nuevas en `ptt/livekit.go`), token de 1 min, `POST/DELETE …/ptt/floor` con turno fail-closed de 60 s y liberación por 3 s sin audio; crea `radio_message` en `recording`; pruebas de integración con doble de salas (FR-006, edge cases)
 - [ ] T014 [US1] `kyq_radio`: `RadioController` (lista, conversación seleccionada, turno, modo mantener/tocar), pantalla de lista y de conversación (cabecera con nombre, estado y duración, botón grande central, "Repetir último", salida de audio, acceso a Emergencia), tonos de `kyq_ptt`; pruebas de cubit y widget (FR-007, FR-009, FR-039)
 - [ ] T015 [US1] Agregar contacto en `kyq_radio`: mostrar QR (`qr_flutter`), escanear (`mobile_scanner`), compartir enlace, invitar por teléfono, aceptar; pruebas de widget
 - [ ] T016 [US1] Montar `/radio` en `apps/kyq_driver_app` (entrada en el inicio) e intent-filter `kyq://radio` en el `AndroidManifest.xml` de las dos apps con redirección de go_router; aviso y aceptación de registro (FR-013); pruebas
 
 ## Phase 4: US2 Historial y reproducción (P1) 🎯 MVP
 
-- [ ] T017 [US2] `radio/egress.go`: webhook `egress_ended` de LiveKit (`telemetry/livekit_webhook.go`) → `ready` con `object_key` y duración, descarte < 0,5 s, evento `radio.message`; prefijo `radio-` en `roomDriver`; pruebas de integración (FR-010)
-- [ ] T018 [US2] `radio/messages.go`: historial paginado, `GET …/media` (URL prefirmada de 10 min), `PUT …/receipt` (escuchado, guardado con copia a `kyq-radio-saved`, límite 200, `409 saved_limit`); pruebas (FR-011, FR-012)
-- [ ] T019 [US2] `radio/retention.go`: barrido diario que borra vencidos según `retention_days` vigente, respeta guardados, borra objetos; pruebas con reloj falso
+- [X] T017 [US2] `radio/egress.go`: webhook `egress_ended` de LiveKit (`telemetry/livekit_webhook.go`) → `ready` con `object_key` y duración, descarte < 0,5 s, evento `radio.message`; prefijo `radio-` en `roomDriver`; pruebas de integración (FR-010)
+- [X] T018 [US2] `radio/messages.go`: historial paginado, `GET …/media` (URL prefirmada de 10 min), `PUT …/receipt` (escuchado, guardado con copia a `kyq-radio-saved`, límite 200, `409 saved_limit`); pruebas (FR-011, FR-012)
+- [X] T019 [US2] `radio/retention.go`: barrido diario que borra vencidos según `retention_days` vigente, respeta guardados, borra objetos; pruebas con reloj falso
 - [ ] T020 [US2] `kyq_radio`: historial (nuevos/escuchados, contador), reproductor `just_audio` con 1x/1,5x/2x, "Reproducir nuevos" en cola, Guardar; pruebas de widget y de cola (FR-011)
 
 ## Phase 5: US4 Canales y cooperativa (P1)
