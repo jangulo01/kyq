@@ -85,6 +85,9 @@ abstract class Tokens with _$Tokens {
 
     /// 009: `support` en la sesión de un usuario suspendido: solo abre soporte.
     String? scope,
+
+    /// 011: conversaciones de Radio a las que llevaron invitaciones enviadas a este teléfono.
+    @Default([]) List<String> radioInvitesApplied,
   }) = _Tokens;
 
   factory Tokens.fromJson(Map<String, dynamic> json) => _$TokensFromJson(json);

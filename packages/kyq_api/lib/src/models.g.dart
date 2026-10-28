@@ -11,6 +11,7 @@ _Tokens _$TokensFromJson(Map<String, dynamic> json) => _Tokens(
   refreshToken: json['refresh_token'] as String,
   role: $enumDecode(_$UserRoleEnumMap, json['role']),
   scope: json['scope'] as String?,
+  radioInvitesApplied: (json['radio_invites_applied'] as List<dynamic>?)?.map((e) => e as String).toList() ?? const [],
 );
 
 Map<String, dynamic> _$TokensToJson(_Tokens instance) => <String, dynamic>{
@@ -18,6 +19,7 @@ Map<String, dynamic> _$TokensToJson(_Tokens instance) => <String, dynamic>{
   'refresh_token': instance.refreshToken,
   'role': _$UserRoleEnumMap[instance.role]!,
   'scope': instance.scope,
+  'radio_invites_applied': instance.radioInvitesApplied,
 };
 
 const _$UserRoleEnumMap = {UserRole.passenger: 'passenger', UserRole.driver: 'driver', UserRole.admin: 'admin'};

@@ -26,7 +26,9 @@ dependencies:
   kyq_ui:
     path: ../kyq_ui
   mobile_scanner: ^7.4.2
+  play_install_referrer: ^0.6.0
   qr_flutter: ^4.1.0
+  shared_preferences: ^2.5.6
   url_launcher: ^6.3.3
 
 dev_dependencies:

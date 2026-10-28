@@ -145,7 +145,11 @@ class _KyqDriverAppState extends State<KyqDriverApp> {
     newPlayer: widget.services.radioPlayer,
     location: PositionRadioLocation(widget.services.positions),
     onShareLink: shareWithPlatform,
+    referrer: widget.services.radioReferrer,
+    open: (location) => _router.push(location),
   );
+  // 011: conversaciones a las que llevaron invitaciones por teléfono al registrarse.
+  List<String> _radioApplied = const [];
   late final StreamSubscription<PresenceState> _presenceSub;
   late final AppLifecycleListener _lifecycle;
   late final StreamSubscription<AuthState> _authSub;
@@ -338,7 +342,10 @@ class _KyqDriverAppState extends State<KyqDriverApp> {
     super.initState();
     _authSub = widget.auth.stream.listen(_onAuth);
     _presenceSub = _presence.stream.listen((s) {
-      if (s.me case final me?) _radio.start(me.driverId);
+      if (s.me case final me?) {
+        _radio.start(me.driverId, applied: _radioApplied);
+        _radioApplied = const [];
+      }
     });
     _lifecycle = AppLifecycleListener(onStateChange: _onLifecycle);
     unawaited(_handsFreeSettings.load());
@@ -353,7 +360,8 @@ class _KyqDriverAppState extends State<KyqDriverApp> {
 
   void _onAuth(AuthState state) {
     switch (state) {
-      case AuthSignedIn():
+      case AuthSignedIn(:final radioInvitesApplied):
+        _radioApplied = radioInvitesApplied;
         if (_presence.state.me == null && !_presence.state.loading) unawaited(_presence.load());
         if (_onboarding.state.onboarding == null && !_onboarding.state.loading) unawaited(_onboarding.load());
         unawaited(_notices.load());

@@ -87,6 +87,7 @@ class KyqRiderApp extends StatefulWidget {
     this.radio = liveRadioCubit,
     this.radioPlayer = JustAudioMessagePlayer.new,
     this.radioApi,
+    this.radioReferrer = const PlayRadioReferrer(),
   });
 
   final KyqApiClient api;
@@ -121,6 +122,9 @@ class KyqRiderApp extends StatefulWidget {
 
   /// API de Radio; null usa [api]. Las pruebas pasan una en memoria.
   final RadioApi? radioApi;
+
+  /// Invitación con la que se instaló la app (Play Install Referrer, R9).
+  final RadioReferrer radioReferrer;
 
   @override
   State<KyqRiderApp> createState() => _KyqRiderAppState();
@@ -312,10 +316,10 @@ class _KyqRiderAppState extends State<KyqRiderApp> {
 
   Future<void> _onAuth(AuthState state) async {
     switch (state) {
-      case AuthSignedIn():
+      case AuthSignedIn(:final radioInvitesApplied):
         final session = await widget.api.currentSession();
         final id = session == null ? null : userIdFromAccessToken(session.accessToken);
-        if (id != null && mounted) _radio.start(id);
+        if (id != null && mounted) _radio.start(id, applied: radioInvitesApplied);
       case AuthSignedOut():
         await _radio.stop();
       default:

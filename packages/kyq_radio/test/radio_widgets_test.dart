@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kyq_api/kyq_api.dart';
 import 'package:kyq_radio/kyq_radio.dart';
@@ -119,6 +120,23 @@ void main() {
     await tester.pumpAndSettle();
     expect(api.calls, contains('accept ABCDEFGHIJ'));
     expect(find.byKey(const Key('radio.conversation.title')), findsOneWidget);
+    await h.done(tester);
+  });
+
+  testWidgets('sin Google Play: "¿Tienes un enlace de invitación?" toma el portapapeles (R9)', (tester) async {
+    final h = RadioHarness(FakeRadioApi(conversations: [fakeContact('c1')]));
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(SystemChannels.platform, (call) async {
+      if (call.method == 'Clipboard.getData') return {'text': 'Únete: https://kyq.test/r/ABCDEFGHIJ'};
+      return null;
+    });
+    addTearDown(() => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(SystemChannels.platform, null));
+    await h.pump(tester);
+    await tester.tap(find.byKey(const Key('radio.haveLink')));
+    await tester.pumpAndSettle();
+    expect(find.text('Únete: https://kyq.test/r/ABCDEFGHIJ'), findsOneWidget);
+    await tester.tap(find.text('Abrir'));
+    await tester.pumpAndSettle();
+    expect(find.text('Carlos quiere agregarte a su Radio'), findsOneWidget);
     await h.done(tester);
   });
 

@@ -253,6 +253,9 @@ func run(logger *slog.Logger) error {
 		PlayRiderURL: cfg.PlayRiderURL, Usage: usage, Logger: logger,
 	}
 	go radioService.RunSweeper(ctx, time.Second)
+	// 011: al verificar el OTP se aplican las invitaciones de Radio enviadas a ese teléfono.
+	authService := auth.NewService(auth.NewPgRepo(st), otp, tokens, nil)
+	authService.Invites = radioService
 	// 011: la cooperativa de 006 habla en su conversación de Radio (FR-018): los endpoints del
 	// canal de grupo usan la sala y el turno de Radio, y las bajas y suspensiones llegan a los dos.
 	pttService.Radio = radioService
@@ -266,7 +269,7 @@ func run(logger *slog.Logger) error {
 		Logger:      logger,
 		CORSOrigins: strings.Split(os.Getenv("KYQ_CORS_ORIGINS"), ","),
 		Tokens:      tokens,
-		Auth:        auth.NewHandlers(auth.NewService(auth.NewPgRepo(st), otp, tokens, nil)),
+		Auth:        auth.NewHandlers(authService),
 		Realtime: &realtime.Handlers{
 			Tokens: realtime.Tokens{Secret: cfg.CentrifugoTokenSecret},
 			Authorizer: realtime.Authorizer{

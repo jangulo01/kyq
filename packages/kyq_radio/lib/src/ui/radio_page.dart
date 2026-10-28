@@ -169,6 +169,15 @@ class _RadioPageState extends State<RadioPage> {
                           ),
                         ),
                       for (final c in s.conversations) _ConversationTile(conversation: c, holder: s.holders[c.id]),
+                      // R9: sin Google Play la invitación entra pegando el enlace.
+                      if (me != null && me.access != RadioAccess.none && !s.loading)
+                        ListTile(
+                          key: const Key('radio.haveLink'),
+                          leading: const Icon(Icons.link),
+                          title: const Text('¿Tienes un enlace de invitación?'),
+                          subtitle: const Text('Cópialo y tócalo aquí: lo tomamos del portapapeles.'),
+                          onTap: () => pasteRadioInviteLink(context),
+                        ),
                     ],
                   ),
                 ),

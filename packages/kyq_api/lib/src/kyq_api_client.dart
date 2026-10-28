@@ -141,7 +141,8 @@ class KyqApiClient implements SafetyApi, RadioApi {
       return support;
     }
     final tokens = Tokens.fromJson(res.data!);
-    await _tokens.write(tokens);
+    // Las invitaciones aplicadas son de este login: no se guardan con la sesión.
+    await _tokens.write(tokens.copyWith(radioInvitesApplied: const []));
     return tokens;
   }
 

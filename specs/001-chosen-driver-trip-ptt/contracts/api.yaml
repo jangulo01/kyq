@@ -3736,6 +3736,10 @@ components:
               refresh_token: { type: string }
               role: { type: string, enum: [passenger, driver, admin] }
               scope: { type: string, enum: [support], description: '009: solo en la sesión de un suspendido' }
+              radio_invites_applied:
+                type: array
+                items: { type: string, format: uuid }
+                description: '011: conversaciones de Radio a las que llevaron las invitaciones enviadas a este teléfono'
     RealtimeToken:
       description: Token de Centrifugo
       content:

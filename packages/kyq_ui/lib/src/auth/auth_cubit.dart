@@ -33,9 +33,13 @@ final class AuthCodeSent extends AuthState {
 }
 
 final class AuthSignedIn extends AuthState {
-  const AuthSignedIn(this.role);
+  const AuthSignedIn(this.role, {this.radioInvitesApplied = const []});
 
   final UserRole role;
+
+  /// 011: conversaciones de Radio a las que llevaron invitaciones por teléfono al registrarse;
+  /// solo justo después de verificar el código.
+  final List<String> radioInvitesApplied;
 }
 
 /// 009: cuenta suspendida; la sesión solo abre el centro de soporte (FR-011).
@@ -88,7 +92,11 @@ class AuthCubit extends Cubit<AuthState> {
         emit(AuthSignedOut(error: wrongRoleMessage));
         return;
       }
-      emit(tokens.supportOnly ? AuthSupportOnly(tokens.role) : AuthSignedIn(tokens.role));
+      emit(
+        tokens.supportOnly
+            ? AuthSupportOnly(tokens.role)
+            : AuthSignedIn(tokens.role, radioInvitesApplied: tokens.radioInvitesApplied),
+      );
     } on ApiException catch (e) {
       if (e.code == 'display_name_required') {
         emit(current.copyWith(needsName: true));

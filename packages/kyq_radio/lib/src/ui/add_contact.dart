@@ -74,7 +74,7 @@ Future<void> showRadioAddMenu(BuildContext context) async {
     case 'phone':
       await _invitePhone(context);
     case 'link':
-      await _pasteLink(context);
+      await pasteRadioInviteLink(context);
     case 'channel':
       await context.push(RadioRoutes.newChannel);
   }
@@ -117,7 +117,7 @@ Future<void> _invitePhone(BuildContext context) async {
 }
 
 /// Sin Google Play (Huawei) la invitación también entra pegando el enlace (R9).
-Future<void> _pasteLink(BuildContext context) async {
+Future<void> pasteRadioInviteLink(BuildContext context) async {
   final clip = await Clipboard.getData(Clipboard.kTextPlain);
   if (!context.mounted) return;
   final ctl = TextEditingController(text: radioInviteCode(clip?.text ?? '') == null ? '' : clip!.text);

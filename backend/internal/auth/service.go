@@ -91,6 +91,15 @@ type Tokens struct {
 	Role         string `json:"role"`
 	// Scope is ScopeSupport for the support-only session of a suspended user (009).
 	Scope string `json:"scope,omitempty"`
+	// RadioInvitesApplied: conversaciones de Radio a las que llevó una invitación enviada a este
+	// teléfono, aplicada al verificar el OTP (011, R9).
+	RadioInvitesApplied []uuid.UUID `json:"radio_invites_applied,omitempty"`
+}
+
+// InviteApplier accepts the Radio invitations sent to a phone when its owner verifies it (011).
+// Package radio implements it; a failure never blocks the login.
+type InviteApplier interface {
+	ApplyPhoneInvites(ctx context.Context, userID uuid.UUID, phone string) ([]uuid.UUID, error)
 }
 
 // SuspendedError is ErrAccountSuspended carrying the support-only session of the user (009,
@@ -112,6 +121,8 @@ type Service struct {
 	newPhoneCap   *rateLimiter
 	prefixes      []string
 	now           func() time.Time
+	// Invites aplica las invitaciones de Radio pendientes del teléfono; nil no hace nada.
+	Invites InviteApplier
 }
 
 // NewService builds the service. now may be nil.
@@ -225,7 +236,14 @@ func (s *Service) VerifyOTP(ctx context.Context, phone, code, displayName, role 
 	} else if user.Suspended {
 		return s.suspended(ctx, user)
 	}
-	return s.issue(ctx, user)
+	tokens, err := s.issue(ctx, user)
+	if err != nil || s.Invites == nil {
+		return tokens, err
+	}
+	if applied, err := s.Invites.ApplyPhoneInvites(ctx, user.ID, user.Phone); err == nil && len(applied) > 0 {
+		tokens.RadioInvitesApplied = applied
+	}
+	return tokens, nil
 }
 
 // Refresh rotates a refresh token. Reusing a rotated token revokes every session of the user.

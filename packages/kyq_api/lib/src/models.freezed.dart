@@ -16,7 +16,8 @@ T _$identity<T>(T value) => value;
 mixin _$Tokens {
 
  String get accessToken; String get refreshToken; UserRole get role;/// 009: `support` en la sesión de un usuario suspendido: solo abre soporte.
- String? get scope;
+ String? get scope;/// 011: conversaciones de Radio a las que llevaron invitaciones enviadas a este teléfono.
+ List<String> get radioInvitesApplied;
 /// Create a copy of Tokens
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -29,16 +30,16 @@ $TokensCopyWith<Tokens> get copyWith => _$TokensCopyWithImpl<Tokens>(this as Tok
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is Tokens&&(identical(other.accessToken, accessToken) || other.accessToken == accessToken)&&(identical(other.refreshToken, refreshToken) || other.refreshToken == refreshToken)&&(identical(other.role, role) || other.role == role)&&(identical(other.scope, scope) || other.scope == scope));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is Tokens&&(identical(other.accessToken, accessToken) || other.accessToken == accessToken)&&(identical(other.refreshToken, refreshToken) || other.refreshToken == refreshToken)&&(identical(other.role, role) || other.role == role)&&(identical(other.scope, scope) || other.scope == scope)&&const DeepCollectionEquality().equals(other.radioInvitesApplied, radioInvitesApplied));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,accessToken,refreshToken,role,scope);
+int get hashCode => Object.hash(runtimeType,accessToken,refreshToken,role,scope,const DeepCollectionEquality().hash(radioInvitesApplied));
 
 @override
 String toString() {
-  return 'Tokens(accessToken: $accessToken, refreshToken: $refreshToken, role: $role, scope: $scope)';
+  return 'Tokens(accessToken: $accessToken, refreshToken: $refreshToken, role: $role, scope: $scope, radioInvitesApplied: $radioInvitesApplied)';
 }
 
 
@@ -49,7 +50,7 @@ abstract mixin class $TokensCopyWith<$Res>  {
   factory $TokensCopyWith(Tokens value, $Res Function(Tokens) _then) = _$TokensCopyWithImpl;
 @useResult
 $Res call({
- String accessToken, String refreshToken, UserRole role, String? scope
+ String accessToken, String refreshToken, UserRole role, String? scope, List<String> radioInvitesApplied
 });
 
 
@@ -66,13 +67,14 @@ class _$TokensCopyWithImpl<$Res>
 
 /// Create a copy of Tokens
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? accessToken = null,Object? refreshToken = null,Object? role = null,Object? scope = freezed,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? accessToken = null,Object? refreshToken = null,Object? role = null,Object? scope = freezed,Object? radioInvitesApplied = null,}) {
   return _then(_self.copyWith(
 accessToken: null == accessToken ? _self.accessToken : accessToken // ignore: cast_nullable_to_non_nullable
 as String,refreshToken: null == refreshToken ? _self.refreshToken : refreshToken // ignore: cast_nullable_to_non_nullable
 as String,role: null == role ? _self.role : role // ignore: cast_nullable_to_non_nullable
 as UserRole,scope: freezed == scope ? _self.scope : scope // ignore: cast_nullable_to_non_nullable
-as String?,
+as String?,radioInvitesApplied: null == radioInvitesApplied ? _self.radioInvitesApplied : radioInvitesApplied // ignore: cast_nullable_to_non_nullable
+as List<String>,
   ));
 }
 
@@ -157,10 +159,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String accessToken,  String refreshToken,  UserRole role,  String? scope)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String accessToken,  String refreshToken,  UserRole role,  String? scope,  List<String> radioInvitesApplied)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _Tokens() when $default != null:
-return $default(_that.accessToken,_that.refreshToken,_that.role,_that.scope);case _:
+return $default(_that.accessToken,_that.refreshToken,_that.role,_that.scope,_that.radioInvitesApplied);case _:
   return orElse();
 
 }
@@ -178,10 +180,10 @@ return $default(_that.accessToken,_that.refreshToken,_that.role,_that.scope);cas
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String accessToken,  String refreshToken,  UserRole role,  String? scope)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String accessToken,  String refreshToken,  UserRole role,  String? scope,  List<String> radioInvitesApplied)  $default,) {final _that = this;
 switch (_that) {
 case _Tokens():
-return $default(_that.accessToken,_that.refreshToken,_that.role,_that.scope);case _:
+return $default(_that.accessToken,_that.refreshToken,_that.role,_that.scope,_that.radioInvitesApplied);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -198,10 +200,10 @@ return $default(_that.accessToken,_that.refreshToken,_that.role,_that.scope);cas
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String accessToken,  String refreshToken,  UserRole role,  String? scope)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String accessToken,  String refreshToken,  UserRole role,  String? scope,  List<String> radioInvitesApplied)?  $default,) {final _that = this;
 switch (_that) {
 case _Tokens() when $default != null:
-return $default(_that.accessToken,_that.refreshToken,_that.role,_that.scope);case _:
+return $default(_that.accessToken,_that.refreshToken,_that.role,_that.scope,_that.radioInvitesApplied);case _:
   return null;
 
 }
@@ -213,7 +215,7 @@ return $default(_that.accessToken,_that.refreshToken,_that.role,_that.scope);cas
 @JsonSerializable()
 
 class _Tokens implements Tokens {
-  const _Tokens({required this.accessToken, required this.refreshToken, required this.role, this.scope});
+  const _Tokens({required this.accessToken, required this.refreshToken, required this.role, this.scope, final  List<String> radioInvitesApplied = const []}): _radioInvitesApplied = radioInvitesApplied;
   factory _Tokens.fromJson(Map<String, dynamic> json) => _$TokensFromJson(json);
 
 @override final  String accessToken;
@@ -221,6 +223,15 @@ class _Tokens implements Tokens {
 @override final  UserRole role;
 /// 009: `support` en la sesión de un usuario suspendido: solo abre soporte.
 @override final  String? scope;
+/// 011: conversaciones de Radio a las que llevaron invitaciones enviadas a este teléfono.
+ final  List<String> _radioInvitesApplied;
+/// 011: conversaciones de Radio a las que llevaron invitaciones enviadas a este teléfono.
+@override@JsonKey() List<String> get radioInvitesApplied {
+  if (_radioInvitesApplied is EqualUnmodifiableListView) return _radioInvitesApplied;
+  // ignore: implicit_dynamic_type
+  return EqualUnmodifiableListView(_radioInvitesApplied);
+}
+
 
 /// Create a copy of Tokens
 /// with the given fields replaced by the non-null parameter values.
@@ -235,16 +246,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _Tokens&&(identical(other.accessToken, accessToken) || other.accessToken == accessToken)&&(identical(other.refreshToken, refreshToken) || other.refreshToken == refreshToken)&&(identical(other.role, role) || other.role == role)&&(identical(other.scope, scope) || other.scope == scope));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _Tokens&&(identical(other.accessToken, accessToken) || other.accessToken == accessToken)&&(identical(other.refreshToken, refreshToken) || other.refreshToken == refreshToken)&&(identical(other.role, role) || other.role == role)&&(identical(other.scope, scope) || other.scope == scope)&&const DeepCollectionEquality().equals(other._radioInvitesApplied, _radioInvitesApplied));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,accessToken,refreshToken,role,scope);
+int get hashCode => Object.hash(runtimeType,accessToken,refreshToken,role,scope,const DeepCollectionEquality().hash(_radioInvitesApplied));
 
 @override
 String toString() {
-  return 'Tokens(accessToken: $accessToken, refreshToken: $refreshToken, role: $role, scope: $scope)';
+  return 'Tokens(accessToken: $accessToken, refreshToken: $refreshToken, role: $role, scope: $scope, radioInvitesApplied: $radioInvitesApplied)';
 }
 
 
@@ -255,7 +266,7 @@ abstract mixin class _$TokensCopyWith<$Res> implements $TokensCopyWith<$Res> {
   factory _$TokensCopyWith(_Tokens value, $Res Function(_Tokens) _then) = __$TokensCopyWithImpl;
 @override @useResult
 $Res call({
- String accessToken, String refreshToken, UserRole role, String? scope
+ String accessToken, String refreshToken, UserRole role, String? scope, List<String> radioInvitesApplied
 });
 
 
@@ -272,13 +283,14 @@ class __$TokensCopyWithImpl<$Res>
 
 /// Create a copy of Tokens
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? accessToken = null,Object? refreshToken = null,Object? role = null,Object? scope = freezed,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? accessToken = null,Object? refreshToken = null,Object? role = null,Object? scope = freezed,Object? radioInvitesApplied = null,}) {
   return _then(_Tokens(
 accessToken: null == accessToken ? _self.accessToken : accessToken // ignore: cast_nullable_to_non_nullable
 as String,refreshToken: null == refreshToken ? _self.refreshToken : refreshToken // ignore: cast_nullable_to_non_nullable
 as String,role: null == role ? _self.role : role // ignore: cast_nullable_to_non_nullable
 as UserRole,scope: freezed == scope ? _self.scope : scope // ignore: cast_nullable_to_non_nullable
-as String?,
+as String?,radioInvitesApplied: null == radioInvitesApplied ? _self._radioInvitesApplied : radioInvitesApplied // ignore: cast_nullable_to_non_nullable
+as List<String>,
   ));
 }
 

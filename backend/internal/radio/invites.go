@@ -238,3 +238,26 @@ func (s *Service) OptOut(ctx context.Context, code string) error {
 	}
 	return s.Store.InsertRadioOptOut(ctx, store.InsertRadioOptOutParams{PhoneE164: inv.PhoneE164.String, At: s.now()})
 }
+
+// ApplyPhoneInvites accepts the pending invitations sent to a phone once its owner verifies it
+// by OTP (R9): the new user lands in the contact or channel without opening any link. It returns
+// the conversations it led to; an invitation for the other app or no longer valid is skipped.
+// auth.InviteApplier.
+func (s *Service) ApplyPhoneInvites(ctx context.Context, userID uuid.UUID, phone string) ([]uuid.UUID, error) {
+	invites, err := s.Store.ListPendingRadioInvitesForPhone(ctx, store.ListPendingRadioInvitesForPhoneParams{
+		PhoneE164: text(phone), ExpiresAt: s.now(),
+	})
+	if err != nil {
+		return nil, err
+	}
+	out := []uuid.UUID{}
+	for _, inv := range invites {
+		res, err := s.Accept(ctx, userID, inv.Code)
+		if err != nil {
+			s.logger().InfoContext(ctx, "radio phone invite not applied", "invite_id", inv.ID, "err", err)
+			continue
+		}
+		out = append(out, res.Conversation.ID)
+	}
+	return out, nil
+}

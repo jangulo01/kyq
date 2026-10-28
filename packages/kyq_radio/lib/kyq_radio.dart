@@ -8,6 +8,7 @@ export 'src/controller/radio_cubit.dart';
 export 'src/services.dart';
 export 'src/deps.dart';
 export 'src/mount.dart';
+export 'src/referrer.dart';
 export 'src/ui/add_contact.dart';
 export 'src/ui/channels.dart';
 export 'src/ui/conversation_page.dart';

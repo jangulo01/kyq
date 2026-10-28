@@ -133,4 +133,15 @@ void main() {
     expect(detail.rows.first.phoneMasked, '+57 300 *** **12');
     expect(detail.rows.last.error, 'teléfono inválido');
   });
+
+  test('verificar el OTP trae las conversaciones de las invitaciones aplicadas (T030)', () {
+    final t = Tokens.fromJson({
+      'access_token': 'a',
+      'refresh_token': 'r',
+      'role': 'driver',
+      'radio_invites_applied': ['c1', 'c2'],
+    });
+    expect(t.radioInvitesApplied, ['c1', 'c2']);
+    expect(Tokens.fromJson({'access_token': 'a', 'refresh_token': 'r', 'role': 'driver'}).radioInvitesApplied, isEmpty);
+  });
 }

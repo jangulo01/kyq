@@ -36,6 +36,7 @@ class DriverServices {
     this.radio = liveRadioCubit,
     this.radioPlayer = JustAudioMessagePlayer.new,
     this.radioApi,
+    this.radioReferrer = const PlayRadioReferrer(),
   });
 
   factory DriverServices.platform(DriverEventSource events) => DriverServices(
@@ -97,6 +98,9 @@ class DriverServices {
 
   /// API de Radio; null usa la de la app. Las pruebas pasan una en memoria.
   final RadioApi? radioApi;
+
+  /// Invitación con la que se instaló la app (Play Install Referrer, 011).
+  final RadioReferrer radioReferrer;
 }
 
 /// Sala LiveKit real para el megáfono (009).

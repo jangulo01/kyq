@@ -42,6 +42,7 @@ void main() {
         radio: _fakeRadio,
         radioPlayer: FakeMessagePlayer.new,
         radioApi: radio,
+        radioReferrer: const NoRadioReferrer(),
       ),
     );
     await tester.pumpAndSettle();

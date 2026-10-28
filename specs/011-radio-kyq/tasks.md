@@ -61,9 +61,9 @@
 
 ## Phase 8: US10 Migración y configuración (P1)
 
-- [ ] T029 [US10] `radio/invites.go`: página `GET /r/{code}` (abre `kyq://radio/{code}` o la tienda según tipo), vencimiento a 14 días, uso único para invitaciones con teléfono; pruebas
-- [ ] T030 [US10] `auth`: al verificar el OTP aplicar las invitaciones pendientes con ese teléfono (`radio_invites_applied`); pruebas de integración
-- [ ] T031 [US10] Apps: Play Install Referrer (`play_install_referrer`) y "¿Tienes un enlace de invitación?" con portapapeles para equipos sin Google Play; llevar al canal tras el registro; pruebas (SC-004)
+- [X] T029 [US10] `radio/invites.go`: página `GET /r/{code}` (abre `kyq://radio/{code}` o la tienda según tipo), vencimiento a 14 días, uso único para invitaciones con teléfono; pruebas
+- [X] T030 [US10] `auth`: al verificar el OTP aplicar las invitaciones pendientes con ese teléfono (`radio_invites_applied`); pruebas de integración
+- [X] T031 [US10] Apps: Play Install Referrer (`play_install_referrer`) y "¿Tienes un enlace de invitación?" con portapapeles para equipos sin Google Play; llevar al canal tras el registro; pruebas (SC-004)
 - [ ] T032 [US10] `radio/bulk.go`: `POST /v1/admin/radio/bulk-uploads` (CSV hasta 2 000 filas, normalización E.164, validación sin enviar, canales a crear con dueño), `…/send` a 20 SMS/s con reintento y `only_failed`, estados por fila, "ya estaba", teléfono enmascarado; texto del SMS con quién invita y cómo darse de baja; pruebas (FR-033–FR-035, SC-005)
 - [ ] T033 [US10] `GET/PUT /v1/admin/radio/settings` con auditoría en `radio_settings_audit`, costo estimado por retención (uso de los últimos 30 días × `cost_rates`), evento `radio.settings`; nuevo aviso de aceptación al cambiar la retención; pruebas (FR-040)
 - [ ] T034 [US10] Panel `apps/kyq_admin_web/lib/radio/`: página Configuración de Radio y página Cargas masivas (subir CSV con `file_picker`, errores, confirmar, estados, reenviar); pruebas de widget

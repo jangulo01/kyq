@@ -186,6 +186,7 @@ DriverServices fakeServices({
   FakeOverlayPermission? overlay,
   SafetyPlatform? safety,
   FakeRadioApi? radioApi,
+  RadioReferrer radioReferrer = const NoRadioReferrer(),
 }) => DriverServices(
   events: events ?? FakeEventSource(),
   permissions: permissions ?? FakePermissions(),
@@ -204,6 +205,7 @@ DriverServices fakeServices({
   radio: fakeRadio,
   radioPlayer: FakeMessagePlayer.new,
   radioApi: radioApi ?? FakeRadioApi(),
+  radioReferrer: radioReferrer,
 );
 
 /// Radio (011) con salas, tonos y audio falsos.
