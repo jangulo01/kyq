@@ -170,8 +170,8 @@ Diana y queda afiliado con origen "Enlace".
 - Un conductor suspendido (007) o sin suscripción o documentos al día no recibe ofertas de la
   bolsa aunque la tenga activada.
 - Un pasajero suspendido no puede pedir a la bolsa.
-- El conductor cambia su descuento mientras un cliente tiene una cotización abierta: se usa la
-  tarifa cotizada; el nuevo descuento aplica a las siguientes.
+- El conductor cambia su descuento mientras un cliente arma su solicitud: al pedir se aplica el
+  descuento vigente y queda fijo en ese viaje; los cambios posteriores aplican a los siguientes.
 - El pasajero abre el enlace de un conductor que ya es su elegido: se le dice que ya lo tiene.
 - El enlace de un conductor sin alta completa o suspendido: "Este conductor no está disponible".
 - Pasajero con una solicitud o viaje activo: no puede pedir otro, tampoco a la bolsa (como 001).
@@ -217,8 +217,8 @@ Diana y queda afiliado con origen "Enlace".
 - **FR-012**: La cotización de un pasajero afiliado al conductor que recibirá la oferta MUST
   aplicar el descuento a la tarifa sugerida y mostrarlo; no aplica a ofertas derivadas a otro
   conductor ni a pasajeros no afiliados.
-- **FR-013**: El viaje MUST conservar la tarifa sugerida que se le mostró al pasajero aunque el
-  conductor cambie su descuento después.
+- **FR-013**: El viaje MUST conservar el descuento aplicado al pedir aunque el conductor lo cambie
+  después; la pantalla de confirmación MUST mostrar la tarifa con el descuento vigente.
 
 **Afiliación sin QR (RN-KYQ-005)**
 

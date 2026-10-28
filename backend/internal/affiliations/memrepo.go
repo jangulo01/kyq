@@ -13,6 +13,7 @@ type link struct {
 	passenger, driver uuid.UUID
 	created           time.Time
 	removed           bool
+	source            Source
 }
 
 // MemRepo is an in-memory Repo for tests.
@@ -22,6 +23,8 @@ type MemRepo struct {
 	tokens  map[string]uuid.UUID
 	names   map[uuid.UUID]string
 	links   map[[2]uuid.UUID]*link
+	// trips are completed trips: trip → (passenger, driver), for AffiliateAfterTrip.
+	trips map[uuid.UUID][2]uuid.UUID
 }
 
 // NewMemRepo returns an empty repository.
@@ -31,7 +34,35 @@ func NewMemRepo() *MemRepo {
 		tokens:  map[string]uuid.UUID{},
 		names:   map[uuid.UUID]string{},
 		links:   map[[2]uuid.UUID]*link{},
+		trips:   map[uuid.UUID][2]uuid.UUID{},
 	}
+}
+
+// AddCompletedTrip registers a completed trip of passenger with driver.
+func (m *MemRepo) AddCompletedTrip(tripID, passenger, driver uuid.UUID) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.trips[tripID] = [2]uuid.UUID{passenger, driver}
+}
+
+func (m *MemRepo) CompletedTripDriver(_ context.Context, p, tripID uuid.UUID) (ChosenDriver, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	t, ok := m.trips[tripID]
+	if !ok || t[0] != p {
+		return ChosenDriver{}, ErrTripNotFound
+	}
+	return m.drivers[t[1]], nil
+}
+
+func (m *MemRepo) PublicName(_ context.Context, token string) (uuid.UUID, string, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	id, ok := m.tokens[token]
+	if !ok {
+		return uuid.Nil, "", ErrDriverNotFound
+	}
+	return id, m.drivers[id].DisplayName, nil
 }
 
 // AddDriver registers a driver reachable by qrToken.
@@ -73,18 +104,18 @@ func (m *MemRepo) State(_ context.Context, p, d uuid.UUID) (AffiliationState, er
 	}
 }
 
-func (m *MemRepo) Insert(_ context.Context, p, d uuid.UUID) error {
+func (m *MemRepo) Insert(_ context.Context, p, d uuid.UUID, source Source) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.links[[2]uuid.UUID{p, d}] = &link{passenger: p, driver: d, created: time.Now()}
+	m.links[[2]uuid.UUID{p, d}] = &link{passenger: p, driver: d, created: time.Now(), source: source}
 	return nil
 }
 
-func (m *MemRepo) Reactivate(_ context.Context, p, d uuid.UUID) error {
+func (m *MemRepo) Reactivate(_ context.Context, p, d uuid.UUID, source Source) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if l, ok := m.links[[2]uuid.UUID{p, d}]; ok {
-		l.removed, l.created = false, time.Now()
+		l.removed, l.created, l.source = false, time.Now(), source
 	}
 	return nil
 }
@@ -119,7 +150,7 @@ func (m *MemRepo) Clients(_ context.Context, d uuid.UUID) ([]Client, error) {
 	out := []Client{}
 	for _, l := range m.links {
 		if l.driver == d && !l.removed {
-			out = append(out, Client{PassengerID: l.passenger, DisplayName: m.names[l.passenger], AffiliatedAt: l.created})
+			out = append(out, Client{PassengerID: l.passenger, DisplayName: m.names[l.passenger], AffiliatedAt: l.created, Source: l.source})
 		}
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].AffiliatedAt.After(out[j].AffiliatedAt) })

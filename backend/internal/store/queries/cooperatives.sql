@@ -128,6 +128,24 @@ ORDER BY distance_m, d.user_id
 LIMIT 1
 FOR UPDATE OF d SKIP LOCKED;
 
+-- name: FindZonePoolCandidate :one
+-- 008: conductor libre más cercano a la recogida entre los que aceptan la bolsa zonal: no
+-- suspendido, con ubicación reciente, dentro del radio y sin oferta previa en el viaje. La fila
+-- queda bloqueada para que otra solicitud no lo reserve a la vez (como FindDelegationCandidate).
+SELECT d.user_id AS driver_id,
+       ST_Distance(d.last_location, ST_SetSRID(ST_MakePoint(sqlc.arg(lng)::float8, sqlc.arg(lat)::float8), 4326)::geography)::float8 AS distance_m
+FROM drivers d
+JOIN users u ON u.id = d.user_id AND u.suspended_at IS NULL
+WHERE d.accepts_zone_pool
+  AND d.presence = 'free'
+  AND d.last_location IS NOT NULL
+  AND d.last_location_at >= sqlc.arg(fresh_since)::timestamptz
+  AND ST_DWithin(d.last_location, ST_SetSRID(ST_MakePoint(sqlc.arg(lng)::float8, sqlc.arg(lat)::float8), 4326)::geography, sqlc.arg(radius_m)::float8)
+  AND NOT EXISTS (SELECT 1 FROM trip_offers o WHERE o.trip_id = sqlc.arg(trip_id) AND o.driver_id = d.user_id)
+ORDER BY distance_m, d.user_id
+LIMIT 1
+FOR UPDATE OF d SKIP LOCKED;
+
 -- name: InsertTripOffer :exec
 INSERT INTO trip_offers (trip_id, driver_id, offered_at, handover)
 VALUES ($1, $2, $3, $4)

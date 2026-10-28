@@ -2,7 +2,7 @@
 
 -- name: ListAffiliationTimeline :many
 -- Altas y bajas de las afiliaciones creadas antes de until (serie y abandono se calculan en Go).
-SELECT created_at, removed_at
+SELECT created_at, removed_at, source::text AS source
 FROM affiliations
 WHERE created_at < sqlc.arg(until);
 

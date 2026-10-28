@@ -46,6 +46,24 @@ func (q *Queries) DriverExists(ctx context.Context, userID uuid.UUID) (bool, err
 	return exists, err
 }
 
+const getDispatchSettings = `-- name: GetDispatchSettings :one
+SELECT accepts_zone_pool, preferential_discount_pct, qr_token FROM drivers WHERE user_id = $1
+`
+
+type GetDispatchSettingsRow struct {
+	AcceptsZonePool         bool
+	PreferentialDiscountPct int16
+	QrToken                 string
+}
+
+// 008: preferencias de despacho del conductor y su token para el enlace de afiliación.
+func (q *Queries) GetDispatchSettings(ctx context.Context, userID uuid.UUID) (GetDispatchSettingsRow, error) {
+	row := q.db.QueryRow(ctx, getDispatchSettings, userID)
+	var i GetDispatchSettingsRow
+	err := row.Scan(&i.AcceptsZonePool, &i.PreferentialDiscountPct, &i.QrToken)
+	return i, err
+}
+
 const listDocumentsForDrivers = `-- name: ListDocumentsForDrivers :many
 SELECT driver_id, doc_type, expires_at, exempt_until
 FROM driver_documents
@@ -139,6 +157,32 @@ func (q *Queries) ListDriversForAdmin(ctx context.Context) ([]ListDriversForAdmi
 		return nil, err
 	}
 	return items, nil
+}
+
+const setDispatchSettings = `-- name: SetDispatchSettings :one
+UPDATE drivers
+SET accepts_zone_pool = $1, preferential_discount_pct = $2
+WHERE user_id = $3
+RETURNING accepts_zone_pool, preferential_discount_pct, qr_token
+`
+
+type SetDispatchSettingsParams struct {
+	AcceptsZonePool         bool
+	PreferentialDiscountPct int16
+	UserID                  uuid.UUID
+}
+
+type SetDispatchSettingsRow struct {
+	AcceptsZonePool         bool
+	PreferentialDiscountPct int16
+	QrToken                 string
+}
+
+func (q *Queries) SetDispatchSettings(ctx context.Context, arg SetDispatchSettingsParams) (SetDispatchSettingsRow, error) {
+	row := q.db.QueryRow(ctx, setDispatchSettings, arg.AcceptsZonePool, arg.PreferentialDiscountPct, arg.UserID)
+	var i SetDispatchSettingsRow
+	err := row.Scan(&i.AcceptsZonePool, &i.PreferentialDiscountPct, &i.QrToken)
+	return i, err
 }
 
 const upsertSubscription = `-- name: UpsertSubscription :exec

@@ -2,6 +2,7 @@ package affiliations
 
 import (
 	"errors"
+	"html/template"
 	"net/http"
 
 	"github.com/google/uuid"
@@ -21,6 +22,8 @@ func (h *Handlers) Register(mux *http.ServeMux, authMW func(http.Handler) http.H
 	mux.Handle("POST /v1/affiliations", passenger(h.create))
 	mux.Handle("DELETE /v1/affiliations/{driverId}", passenger(h.remove))
 	mux.Handle("GET /v1/driver/clients", driver(h.clients))
+	// 008: página pública del enlace de un conductor (sin datos de contacto).
+	mux.HandleFunc("GET /a/{token}", h.linkPage)
 }
 
 func (h *Handlers) list(w http.ResponseWriter, r *http.Request) {
@@ -36,12 +39,33 @@ func (h *Handlers) list(w http.ResponseWriter, r *http.Request) {
 func (h *Handlers) create(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		QRToken string `json:"qr_token"`
+		// 008: qr_scan (por defecto) o link; con trip_id, después del viaje.
+		Source Source    `json:"source"`
+		TripID uuid.UUID `json:"trip_id"`
 	}
 	if !httpx.DecodeJSON(w, r, &body) {
 		return
 	}
 	p, _ := auth.FromContext(r.Context())
-	driver, created, err := h.Service.Affiliate(r.Context(), p.UserID, body.QRToken)
+	var driver ChosenDriver
+	var created bool
+	var err error
+	switch {
+	case body.TripID != uuid.Nil:
+		driver, created, err = h.Service.AffiliateAfterTrip(r.Context(), p.UserID, body.TripID)
+	case body.Source == "" || body.Source == SourceQRScan || body.Source == SourceLink:
+		if body.Source == "" {
+			body.Source = SourceQRScan
+		}
+		driver, created, err = h.Service.AffiliateFrom(r.Context(), p.UserID, body.QRToken, body.Source)
+	default:
+		httpx.WriteError(w, http.StatusBadRequest, "invalid_source", "origen inválido: qr_scan o link")
+		return
+	}
+	if errors.Is(err, ErrTripNotFound) {
+		httpx.WriteError(w, http.StatusNotFound, "trip_not_found", "no encontramos ese viaje terminado")
+		return
+	}
 	if errors.Is(err, ErrDriverNotFound) {
 		httpx.WriteError(w, http.StatusNotFound, "driver_not_found", "ese código no corresponde a un conductor Kyq")
 		return
@@ -89,4 +113,37 @@ func (h *Handlers) clients(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	httpx.WriteJSON(w, http.StatusOK, out)
+}
+
+// linkPageTemplate is the public page of a driver's link (008, FR-015). It only shows the name:
+// no phone, photo or plate (FR-017).
+var linkPageTemplate = template.Must(template.New("link").Parse(`<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kyq</title>
+<style>body{font-family:system-ui,sans-serif;max-width:28rem;margin:3rem auto;padding:0 1rem;color:#1f2933}
+a.btn{display:block;text-align:center;background:#1565c0;color:#fff;padding:.9rem;border-radius:.5rem;text-decoration:none;margin:1.5rem 0}</style>
+</head><body>
+{{if .Name}}<h1>{{.Name}} te invita a Kyq</h1>
+<p>Guárdalo como tu Conductor Elegido: verás cuándo está libre y le pedirás viajes directamente.</p>
+<a class="btn" href="kyq://affiliate/{{.Token}}">Abrir en Kyq Pasajero</a>
+<p>¿Aún no tienes Kyq Pasajero? Instálalo y vuelve a abrir este enlace.</p>
+{{else}}<h1>Este conductor no está disponible</h1>
+<p>El enlace no corresponde a un conductor que pueda recibir clientes ahora.</p>{{end}}
+</body></html>`))
+
+func (h *Handlers) linkPage(w http.ResponseWriter, r *http.Request) {
+	token := r.PathValue("token")
+	name, err := h.Service.PublicDriver(r.Context(), token)
+	status := http.StatusOK
+	switch {
+	case errors.Is(err, ErrDriverNotFound) || errors.Is(err, ErrDriverNotAvailable):
+		name, status = "", http.StatusNotFound
+	case err != nil:
+		httpx.InternalError(w, r, err)
+		return
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store")
+	w.WriteHeader(status)
+	_ = linkPageTemplate.Execute(w, struct{ Name, Token string }{name, token})
 }

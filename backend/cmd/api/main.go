@@ -189,7 +189,7 @@ func run(logger *slog.Logger) error {
 		},
 		Admin:        &admin.Handlers{Store: st},
 		Affils:       &affiliations.Handlers{Service: affils},
-		Drivers:      &drivers.Handlers{Store: st},
+		Drivers:      &drivers.Handlers{Store: st, PublicBaseURL: cfg.PublicBaseURL},
 		Presence:     &drivers.Presence{Store: st, Routes: routes, Publisher: publisher, Usage: usage, Logger: logger},
 		Trips:        &trips.Handlers{Service: tripService},
 		PTT:          &ptt.Handlers{Service: pttService},

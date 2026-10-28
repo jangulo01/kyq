@@ -33,3 +33,13 @@ ON CONFLICT (driver_id) DO UPDATE
 SET paid_until = EXCLUDED.paid_until,
     updated_by = EXCLUDED.updated_by,
     updated_at = now();
+
+-- name: GetDispatchSettings :one
+-- 008: preferencias de despacho del conductor y su token para el enlace de afiliación.
+SELECT accepts_zone_pool, preferential_discount_pct, qr_token FROM drivers WHERE user_id = $1;
+
+-- name: SetDispatchSettings :one
+UPDATE drivers
+SET accepts_zone_pool = sqlc.arg(accepts_zone_pool), preferential_discount_pct = sqlc.arg(preferential_discount_pct)
+WHERE user_id = sqlc.arg(user_id)
+RETURNING accepts_zone_pool, preferential_discount_pct, qr_token;

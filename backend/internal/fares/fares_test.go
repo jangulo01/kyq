@@ -22,6 +22,16 @@ func TestSuggestFormula(t *testing.T) {
 	assert.Equal(t, int64(1_470_000), bogota.Suggest(5200, 900))
 }
 
+// RN-KYQ-013 (008): tarifa preferencial para los clientes de la cartera, con el redondeo de la tabla.
+func TestWithDiscount(t *testing.T) {
+	// 14 700 × 0,9 = 13 230 pesos → 13 200.
+	assert.Equal(t, int64(1_320_000), bogota.WithDiscount(1_470_000, 10))
+	assert.Equal(t, int64(1_470_000), bogota.WithDiscount(1_470_000, 0), "0 % no descuenta")
+	assert.Equal(t, int64(1_470_000), bogota.WithDiscount(1_470_000, 31), "fuera de 0–30 % no aplica")
+	assert.Equal(t, int64(1_030_000), bogota.WithDiscount(1_470_000, 30), "30 %: 10 290 → 10 300 pesos")
+	assert.Equal(t, int64(10_000), bogota.WithDiscount(10_000, 30), "nunca por debajo de una unidad de redondeo")
+}
+
 func TestSuggestAppliesMinimum(t *testing.T) {
 	assert.Equal(t, int64(700_000), bogota.Suggest(300, 60))
 }

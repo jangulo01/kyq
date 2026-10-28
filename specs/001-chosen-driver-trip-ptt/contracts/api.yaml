@@ -186,6 +186,7 @@ paths:
                     passenger_id: { type: string, format: uuid }
                     display_name: { type: string }
                     affiliated_at: { type: string, format: date-time }
+                    source: { $ref: '#/components/schemas/AffiliationSource' }
 
   /v1/affiliations:
     get:
@@ -199,16 +200,20 @@ paths:
                 type: array
                 items: { $ref: '#/components/schemas/ChosenDriver' }
     post:
-      summary: Afilia un conductor por su QR (FR-006)
+      summary: Afilia un conductor por su QR, su enlace o después de un viaje (FR-006; 008 FR-014–FR-016)
+      description: |
+        Con `qr_token` (y `source` = `qr_scan` por defecto o `link` si llega del enlace del conductor) o
+        con `trip_id` de un viaje COMPLETED del pasajero (origen `post_trip`).
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
-              required: [qr_token]
               properties:
                 qr_token: { type: string }
+                source: { type: string, enum: [qr_scan, link] }
+                trip_id: { type: string, format: uuid }
       responses:
         '201':
           description: Afiliación creada
@@ -220,8 +225,9 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ChosenDriver' }
-        '404': { $ref: '#/components/responses/Error' }
-        '409': { description: '`driver_not_available`: el conductor aún no puede recibir clientes (documentos o suscripción, FR-004 de 002)' }
+        '400': { $ref: '#/components/responses/Error' }
+        '404': { description: '`driver_not_found` o `trip_not_found` (viaje que no es un viaje terminado del pasajero)' }
+        '409': { description: '`driver_not_available`: el conductor aún no puede recibir clientes (documentos, suscripción o suspendido)' }
   /v1/affiliations/{driverId}:
     delete:
       summary: Elimina un conductor de la lista (FR-006)
@@ -230,10 +236,68 @@ paths:
         '204': { description: Eliminado }
         '404': { $ref: '#/components/responses/Error' }
 
+  /v1/driver/dispatch-settings:
+    get:
+      summary: Preferencias de despacho del conductor (008)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DispatchSettings' }
+        '403': { $ref: '#/components/responses/Error' }
+    put:
+      summary: Activa la bolsa zonal y fija el descuento preferencial para su cartera (008 FR-008, FR-011)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [accepts_zone_pool, preferential_discount_pct]
+              properties:
+                accepts_zone_pool: { type: boolean }
+                preferential_discount_pct: { type: integer, minimum: 0, maximum: 30 }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DispatchSettings' }
+        '400': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+
+  /a/{token}:
+    get:
+      summary: Página pública del enlace de un conductor (008 FR-015); solo su nombre y cómo abrir Kyq
+      security: []
+      parameters:
+        - { name: token, in: path, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: Página con el botón `kyq://affiliate/{token}`
+          content:
+            text/html:
+              schema: { type: string }
+        '404':
+          description: Conductor inexistente, sin alta completa o suspendido
+          content:
+            text/html:
+              schema: { type: string }
+
   /v1/fares/quote:
     post:
-      summary: Tarifa sugerida para una ruta (FR-010)
-      requestBody: { $ref: '#/components/requestBodies/Route' }
+      summary: Tarifa sugerida para una ruta (FR-010); con `driver_id`, con su tarifa preferencial (008, RN-KYQ-013)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '#/components/schemas/RouteRequest'
+                - type: object
+                  properties:
+                    driver_id: { type: string, format: uuid, description: 'Conductor al que se pediría; si el pasajero es su cliente, aplica su descuento' }
       responses:
         '200':
           description: OK
@@ -252,20 +316,20 @@ paths:
               allOf:
                 - $ref: '#/components/schemas/RouteRequest'
                 - type: object
-                  required: [driver_id]
                   properties:
                     driver_id: { type: string, format: uuid }
                     dispatch:
                       type: string
-                      enum: [chosen_driver, cooperative]
+                      enum: [chosen_driver, cooperative, zone_pool]
                       default: chosen_driver
-                      description: '`nearest_independent` (opción 3) queda fuera de 006'
+                      description: '`zone_pool` (008): conductor libre más cercano de la bolsa zonal; `driver_id` es obligatorio salvo en la bolsa'
                     allow_delegation:
                       type: boolean
                       default: false
                       description: Consentimiento para pasar a la cooperativa del conductor (RN-KYQ-008)
       responses:
         '201': { $ref: '#/components/responses/Trip' }
+        '400': { description: '`invalid_route` (falta conductor fuera de la bolsa, origen o destino) o `invalid_dispatch`' }
         '403':
           description: '`code` = account_suspended: quien actúa está suspendido y no puede iniciar un viaje (007, FR-016)'
           content:
@@ -2231,8 +2295,22 @@ components:
       properties:
         distance_m: { type: integer }
         duration_s: { type: integer }
-        suggested_fare_minor: { type: integer }
+        suggested_fare_minor: { type: integer, description: 'Con la tarifa preferencial si aplica (008)' }
         currency: { type: string }
+        list_fare_minor: { type: integer, description: '008. Tarifa de la tabla' }
+        preferential_discount_pct: { type: integer, minimum: 0, maximum: 30, description: '008. RN-KYQ-013' }
+    DispatchSettings:
+      type: object
+      description: 008. Bolsa zonal, tarifa preferencial (RN-KYQ-013) y enlace para compartir
+      required: [accepts_zone_pool, preferential_discount_pct, affiliate_link]
+      properties:
+        accepts_zone_pool: { type: boolean }
+        preferential_discount_pct: { type: integer, minimum: 0, maximum: 30 }
+        affiliate_link: { type: string, description: 'KYQ_PUBLIC_BASE_URL/a/{qr_token}' }
+    AffiliationSource:
+      type: string
+      enum: [qr_scan, post_trip, link]
+      description: 008. Origen de la afiliación
     FareTable:
       type: object
       required: [currency, base_minor, per_km_minor, per_minute_minor, minimum_minor]
@@ -2322,7 +2400,7 @@ components:
         cancel_reason:
           type: [string, 'null']
           description: 006 añade `no_driver_available` (la delegación no encontró compañero)
-        dispatch: { type: string, enum: [chosen_driver, cooperative], description: '006' }
+        dispatch: { type: string, enum: [chosen_driver, cooperative, zone_pool], description: '006; zone_pool en 008' }
         requested_driver_id: { type: string, format: uuid, description: 006. Conductor Elegido pedido }
         driver_name: { type: string, description: 006. Nombre del conductor actual (cambia al derivar) }
         cooperative_id: { type: [string, 'null'], format: uuid }
@@ -2330,6 +2408,8 @@ components:
         allow_delegation: { type: boolean, description: 006. Consentimiento del pasajero (RN-KYQ-008) }
         handover_count: { type: integer, minimum: 0, maximum: 3 }
         can_delegate: { type: boolean, description: 006. El conductor actual puede pasar la oferta }
+        list_fare_minor: { type: integer, description: 008. Tarifa de la tabla }
+        preferential_discount_pct: { type: integer, minimum: 0, maximum: 30, description: '008. Descuento preferencial aplicado (RN-KYQ-013)' }
 
     # --- 002 ---------------------------------------------------------------------------------
     DocumentProblem:
@@ -2658,6 +2738,13 @@ components:
             net: { type: integer }
             churn_rate: { type: [number, 'null'], description: 'Bajas / (activas al inicio + nuevas)' }
             weekly: { type: array, items: { $ref: '#/components/schemas/CrmWeek' } }
+            created_by_source:
+              type: object
+              description: '008. Nuevas afiliaciones del periodo por origen; suman `created`'
+              properties:
+                qr_scan: { type: integer }
+                post_trip: { type: integer }
+                link: { type: integer }
         repeat:
           type: object
           required: [pairs, repeat_pairs, repeat_rate, completed_trips, avg_trips_per_pair]

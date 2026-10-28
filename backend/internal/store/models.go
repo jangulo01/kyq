@@ -16,7 +16,9 @@ import (
 type AffiliationSource string
 
 const (
-	AffiliationSourceQrScan AffiliationSource = "qr_scan"
+	AffiliationSourceQrScan   AffiliationSource = "qr_scan"
+	AffiliationSourcePostTrip AffiliationSource = "post_trip"
+	AffiliationSourceLink     AffiliationSource = "link"
 )
 
 func (e *AffiliationSource) Scan(src interface{}) error {
@@ -887,6 +889,7 @@ type TripDispatch string
 const (
 	TripDispatchChosenDriver TripDispatch = "chosen_driver"
 	TripDispatchCooperative  TripDispatch = "cooperative"
+	TripDispatchZonePool     TripDispatch = "zone_pool"
 )
 
 func (e *TripDispatch) Scan(src interface{}) error {
@@ -1157,24 +1160,26 @@ type DocumentPhoto struct {
 }
 
 type Driver struct {
-	UserID                uuid.UUID
-	QrToken               string
-	VehiclePlate          string
-	VehicleDescription    string
-	Presence              DriverPresence
-	LastLocation          interface{}
-	LastLocationAt        pgtype.Timestamptz
-	BusyUntilEstimate     pgtype.Timestamptz
-	LastLat               pgtype.Float8
-	LastLng               pgtype.Float8
-	BusyEstimateUpdatedAt pgtype.Timestamptz
-	VehicleBrand          pgtype.Text
-	VehicleModel          pgtype.Text
-	VehicleColor          pgtype.Text
-	VehicleYear           pgtype.Int2
-	AcceptsCash           bool
-	AcceptsBold           bool
-	AcceptsPreconsults    bool
+	UserID                  uuid.UUID
+	QrToken                 string
+	VehiclePlate            string
+	VehicleDescription      string
+	Presence                DriverPresence
+	LastLocation            interface{}
+	LastLocationAt          pgtype.Timestamptz
+	BusyUntilEstimate       pgtype.Timestamptz
+	LastLat                 pgtype.Float8
+	LastLng                 pgtype.Float8
+	BusyEstimateUpdatedAt   pgtype.Timestamptz
+	VehicleBrand            pgtype.Text
+	VehicleModel            pgtype.Text
+	VehicleColor            pgtype.Text
+	VehicleYear             pgtype.Int2
+	AcceptsCash             bool
+	AcceptsBold             bool
+	AcceptsPreconsults      bool
+	AcceptsZonePool         bool
+	PreferentialDiscountPct int16
 }
 
 type DriverDocument struct {
@@ -1454,6 +1459,8 @@ type Trip struct {
 	CooperativeID           uuid.NullUUID
 	AllowDelegation         bool
 	HandoverCount           int16
+	ListFareMinor           int64
+	PreferentialDiscountPct int16
 }
 
 type TripOffer struct {

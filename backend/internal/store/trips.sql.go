@@ -13,8 +13,27 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const countCompletedTripsForPair = `-- name: CountCompletedTripsForPair :one
+SELECT count(*)::int AS trips
+FROM trips
+WHERE passenger_id = $1 AND driver_id = $2 AND status = 'COMPLETED'
+`
+
+type CountCompletedTripsForPairParams struct {
+	PassengerID uuid.UUID
+	DriverID    uuid.UUID
+}
+
+// 008: viajes completados entre un pasajero y un conductor (tarjeta de la oferta).
+func (q *Queries) CountCompletedTripsForPair(ctx context.Context, arg CountCompletedTripsForPairParams) (int32, error) {
+	row := q.db.QueryRow(ctx, countCompletedTripsForPair, arg.PassengerID, arg.DriverID)
+	var trips int32
+	err := row.Scan(&trips)
+	return trips, err
+}
+
 const getActiveTripForDriver = `-- name: GetActiveTripForDriver :one
-SELECT id, passenger_id, driver_id, city_code, currency, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, route_distance_m, route_duration_s, suggested_fare_minor, agreed_fare_minor, driver_payout_minor, platform_commission_minor, status, cancel_reason, respond_by, negotiation_expires_at, created_at, accepted_at, arrived_at, started_at, completed_at, cancelled_at, dispatch, requested_driver_id, cooperative_id, allow_delegation, handover_count FROM trips
+SELECT id, passenger_id, driver_id, city_code, currency, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, route_distance_m, route_duration_s, suggested_fare_minor, agreed_fare_minor, driver_payout_minor, platform_commission_minor, status, cancel_reason, respond_by, negotiation_expires_at, created_at, accepted_at, arrived_at, started_at, completed_at, cancelled_at, dispatch, requested_driver_id, cooperative_id, allow_delegation, handover_count, list_fare_minor, preferential_discount_pct FROM trips
 WHERE driver_id = $1 AND status NOT IN ('COMPLETED', 'CANCELLED')
 `
 
@@ -52,12 +71,14 @@ func (q *Queries) GetActiveTripForDriver(ctx context.Context, driverID uuid.UUID
 		&i.CooperativeID,
 		&i.AllowDelegation,
 		&i.HandoverCount,
+		&i.ListFareMinor,
+		&i.PreferentialDiscountPct,
 	)
 	return i, err
 }
 
 const getActiveTripForPassenger = `-- name: GetActiveTripForPassenger :one
-SELECT id, passenger_id, driver_id, city_code, currency, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, route_distance_m, route_duration_s, suggested_fare_minor, agreed_fare_minor, driver_payout_minor, platform_commission_minor, status, cancel_reason, respond_by, negotiation_expires_at, created_at, accepted_at, arrived_at, started_at, completed_at, cancelled_at, dispatch, requested_driver_id, cooperative_id, allow_delegation, handover_count FROM trips
+SELECT id, passenger_id, driver_id, city_code, currency, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, route_distance_m, route_duration_s, suggested_fare_minor, agreed_fare_minor, driver_payout_minor, platform_commission_minor, status, cancel_reason, respond_by, negotiation_expires_at, created_at, accepted_at, arrived_at, started_at, completed_at, cancelled_at, dispatch, requested_driver_id, cooperative_id, allow_delegation, handover_count, list_fare_minor, preferential_discount_pct FROM trips
 WHERE passenger_id = $1 AND status NOT IN ('COMPLETED', 'CANCELLED')
 `
 
@@ -95,7 +116,47 @@ func (q *Queries) GetActiveTripForPassenger(ctx context.Context, passengerID uui
 		&i.CooperativeID,
 		&i.AllowDelegation,
 		&i.HandoverCount,
+		&i.ListFareMinor,
+		&i.PreferentialDiscountPct,
 	)
+	return i, err
+}
+
+const getDriverDiscount = `-- name: GetDriverDiscount :one
+SELECT preferential_discount_pct FROM drivers WHERE user_id = $1
+`
+
+// 008: descuento preferencial del conductor (RN-KYQ-013).
+func (q *Queries) GetDriverDiscount(ctx context.Context, userID uuid.UUID) (int16, error) {
+	row := q.db.QueryRow(ctx, getDriverDiscount, userID)
+	var preferential_discount_pct int16
+	err := row.Scan(&preferential_discount_pct)
+	return preferential_discount_pct, err
+}
+
+const getDriverPickupDistance = `-- name: GetDriverPickupDistance :one
+SELECT (d.last_location IS NOT NULL)::boolean AS has_location,
+       coalesce(ST_Distance(d.last_location, ST_SetSRID(ST_MakePoint($1::float8, $2::float8), 4326)::geography), 0)::float8 AS distance_m
+FROM drivers d
+WHERE d.user_id = $3
+`
+
+type GetDriverPickupDistanceParams struct {
+	Lng      float64
+	Lat      float64
+	DriverID uuid.UUID
+}
+
+type GetDriverPickupDistanceRow struct {
+	HasLocation bool
+	DistanceM   float64
+}
+
+// 008: distancia en línea recta de la última ubicación del conductor a la recogida.
+func (q *Queries) GetDriverPickupDistance(ctx context.Context, arg GetDriverPickupDistanceParams) (GetDriverPickupDistanceRow, error) {
+	row := q.db.QueryRow(ctx, getDriverPickupDistance, arg.Lng, arg.Lat, arg.DriverID)
+	var i GetDriverPickupDistanceRow
+	err := row.Scan(&i.HasLocation, &i.DistanceM)
 	return i, err
 }
 
@@ -182,7 +243,7 @@ func (q *Queries) GetOpenProposal(ctx context.Context, tripID uuid.UUID) (FarePr
 }
 
 const getTrip = `-- name: GetTrip :one
-SELECT id, passenger_id, driver_id, city_code, currency, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, route_distance_m, route_duration_s, suggested_fare_minor, agreed_fare_minor, driver_payout_minor, platform_commission_minor, status, cancel_reason, respond_by, negotiation_expires_at, created_at, accepted_at, arrived_at, started_at, completed_at, cancelled_at, dispatch, requested_driver_id, cooperative_id, allow_delegation, handover_count FROM trips WHERE id = $1
+SELECT id, passenger_id, driver_id, city_code, currency, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, route_distance_m, route_duration_s, suggested_fare_minor, agreed_fare_minor, driver_payout_minor, platform_commission_minor, status, cancel_reason, respond_by, negotiation_expires_at, created_at, accepted_at, arrived_at, started_at, completed_at, cancelled_at, dispatch, requested_driver_id, cooperative_id, allow_delegation, handover_count, list_fare_minor, preferential_discount_pct FROM trips WHERE id = $1
 `
 
 func (q *Queries) GetTrip(ctx context.Context, id uuid.UUID) (Trip, error) {
@@ -219,12 +280,14 @@ func (q *Queries) GetTrip(ctx context.Context, id uuid.UUID) (Trip, error) {
 		&i.CooperativeID,
 		&i.AllowDelegation,
 		&i.HandoverCount,
+		&i.ListFareMinor,
+		&i.PreferentialDiscountPct,
 	)
 	return i, err
 }
 
 const getTripForUpdate = `-- name: GetTripForUpdate :one
-SELECT id, passenger_id, driver_id, city_code, currency, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, route_distance_m, route_duration_s, suggested_fare_minor, agreed_fare_minor, driver_payout_minor, platform_commission_minor, status, cancel_reason, respond_by, negotiation_expires_at, created_at, accepted_at, arrived_at, started_at, completed_at, cancelled_at, dispatch, requested_driver_id, cooperative_id, allow_delegation, handover_count FROM trips WHERE id = $1 FOR UPDATE
+SELECT id, passenger_id, driver_id, city_code, currency, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, route_distance_m, route_duration_s, suggested_fare_minor, agreed_fare_minor, driver_payout_minor, platform_commission_minor, status, cancel_reason, respond_by, negotiation_expires_at, created_at, accepted_at, arrived_at, started_at, completed_at, cancelled_at, dispatch, requested_driver_id, cooperative_id, allow_delegation, handover_count, list_fare_minor, preferential_discount_pct FROM trips WHERE id = $1 FOR UPDATE
 `
 
 func (q *Queries) GetTripForUpdate(ctx context.Context, id uuid.UUID) (Trip, error) {
@@ -261,6 +324,8 @@ func (q *Queries) GetTripForUpdate(ctx context.Context, id uuid.UUID) (Trip, err
 		&i.CooperativeID,
 		&i.AllowDelegation,
 		&i.HandoverCount,
+		&i.ListFareMinor,
+		&i.PreferentialDiscountPct,
 	)
 	return i, err
 }
@@ -305,7 +370,8 @@ INSERT INTO trips (
     pickup_lat, pickup_lng, dropoff_lat, dropoff_lng,
     route_distance_m, route_duration_s, suggested_fare_minor,
     status, respond_by, created_at,
-    dispatch, requested_driver_id, cooperative_id, allow_delegation, handover_count
+    dispatch, requested_driver_id, cooperative_id, allow_delegation, handover_count,
+    list_fare_minor, preferential_discount_pct
 ) VALUES (
     $1, $2, $3, $4, $5,
     $6, $7, $8, $9,
@@ -314,31 +380,35 @@ INSERT INTO trips (
     -- Valores vacíos (llamadas anteriores a 006) quedan como despacho directo al conductor.
     coalesce(nullif($16::text, ''), 'chosen_driver')::trip_dispatch,
     coalesce(nullif($17::uuid, '00000000-0000-0000-0000-000000000000'::uuid), $3),
-    $18, $19, $20
+    $18, $19, $20,
+    -- 008: sin tarifa de lista (llamadas anteriores) se toma la sugerida.
+    coalesce(nullif($21::bigint, 0), $12), $22
 )
 `
 
 type InsertTripParams struct {
-	ID                 uuid.UUID
-	PassengerID        uuid.UUID
-	DriverID           uuid.UUID
-	CityCode           string
-	Currency           string
-	PickupLat          float64
-	PickupLng          float64
-	DropoffLat         float64
-	DropoffLng         float64
-	RouteDistanceM     int32
-	RouteDurationS     int32
-	SuggestedFareMinor int64
-	Status             TripStatus
-	RespondBy          pgtype.Timestamptz
-	CreatedAt          time.Time
-	Dispatch           string
-	RequestedDriverID  uuid.UUID
-	CooperativeID      uuid.NullUUID
-	AllowDelegation    bool
-	HandoverCount      int16
+	ID                      uuid.UUID
+	PassengerID             uuid.UUID
+	DriverID                uuid.UUID
+	CityCode                string
+	Currency                string
+	PickupLat               float64
+	PickupLng               float64
+	DropoffLat              float64
+	DropoffLng              float64
+	RouteDistanceM          int32
+	RouteDurationS          int32
+	SuggestedFareMinor      int64
+	Status                  TripStatus
+	RespondBy               pgtype.Timestamptz
+	CreatedAt               time.Time
+	Dispatch                string
+	RequestedDriverID       uuid.UUID
+	CooperativeID           uuid.NullUUID
+	AllowDelegation         bool
+	HandoverCount           int16
+	ListFareMinor           int64
+	PreferentialDiscountPct int16
 }
 
 func (q *Queries) InsertTrip(ctx context.Context, arg InsertTripParams) error {
@@ -363,6 +433,8 @@ func (q *Queries) InsertTrip(ctx context.Context, arg InsertTripParams) error {
 		arg.CooperativeID,
 		arg.AllowDelegation,
 		arg.HandoverCount,
+		arg.ListFareMinor,
+		arg.PreferentialDiscountPct,
 	)
 	return err
 }
@@ -426,25 +498,30 @@ SET status = $2,
     completed_at = $11,
     cancelled_at = $12,
     driver_id = $13,
-    handover_count = $14
+    handover_count = $14,
+    -- 008: la tarifa ofrecida cambia si el traspaso quita o pone la tarifa preferencial; 0 la conserva.
+    suggested_fare_minor = coalesce(nullif($15::bigint, 0), suggested_fare_minor),
+    preferential_discount_pct = $16
 WHERE id = $1
 `
 
 type UpdateTripParams struct {
-	ID                   uuid.UUID
-	Status               TripStatus
-	AgreedFareMinor      pgtype.Int8
-	DriverPayoutMinor    pgtype.Int8
-	CancelReason         NullTripCancelReason
-	RespondBy            pgtype.Timestamptz
-	NegotiationExpiresAt pgtype.Timestamptz
-	AcceptedAt           pgtype.Timestamptz
-	ArrivedAt            pgtype.Timestamptz
-	StartedAt            pgtype.Timestamptz
-	CompletedAt          pgtype.Timestamptz
-	CancelledAt          pgtype.Timestamptz
-	DriverID             uuid.UUID
-	HandoverCount        int16
+	ID                      uuid.UUID
+	Status                  TripStatus
+	AgreedFareMinor         pgtype.Int8
+	DriverPayoutMinor       pgtype.Int8
+	CancelReason            NullTripCancelReason
+	RespondBy               pgtype.Timestamptz
+	NegotiationExpiresAt    pgtype.Timestamptz
+	AcceptedAt              pgtype.Timestamptz
+	ArrivedAt               pgtype.Timestamptz
+	StartedAt               pgtype.Timestamptz
+	CompletedAt             pgtype.Timestamptz
+	CancelledAt             pgtype.Timestamptz
+	DriverID                uuid.UUID
+	HandoverCount           int16
+	SuggestedFareMinor      int64
+	PreferentialDiscountPct int16
 }
 
 func (q *Queries) UpdateTrip(ctx context.Context, arg UpdateTripParams) error {
@@ -463,6 +540,8 @@ func (q *Queries) UpdateTrip(ctx context.Context, arg UpdateTripParams) error {
 		arg.CancelledAt,
 		arg.DriverID,
 		arg.HandoverCount,
+		arg.SuggestedFareMinor,
+		arg.PreferentialDiscountPct,
 	)
 	return err
 }

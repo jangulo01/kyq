@@ -40,6 +40,8 @@ type Affiliations struct {
 	Net           int      `json:"net"`
 	ChurnRate     *float64 `json:"churn_rate"`
 	Weekly        []Week   `json:"weekly"`
+	// CreatedBySource splits Created by origin (008): qr_scan, post_trip and link.
+	CreatedBySource map[string]int `json:"created_by_source"`
 }
 
 // Repeat summarizes repeat trips per passenger–driver pair.
@@ -92,6 +94,8 @@ type Report struct {
 type AffiliationSpan struct {
 	CreatedAt time.Time
 	RemovedAt *time.Time
+	// Source is the origin of the affiliation (008); empty counts as qr_scan.
+	Source string
 }
 
 func (a AffiliationSpan) activeAt(t time.Time) bool {
@@ -116,7 +120,7 @@ func weekStart(t time.Time) time.Time {
 // SummarizeAffiliations computes growth, churn and the weekly series for [from, to) (to is the
 // day after the last day of the period) as of now.
 func SummarizeAffiliations(spans []AffiliationSpan, from, to, now time.Time) Affiliations {
-	out := Affiliations{Weekly: []Week{}}
+	out := Affiliations{Weekly: []Week{}, CreatedBySource: map[string]int{"qr_scan": 0, "post_trip": 0, "link": 0}}
 	for _, a := range spans {
 		if a.activeAt(now) {
 			out.ActiveNow++
@@ -126,6 +130,11 @@ func SummarizeAffiliations(spans []AffiliationSpan, from, to, now time.Time) Aff
 		}
 		if !a.CreatedAt.Before(from) && a.CreatedAt.Before(to) {
 			out.Created++
+			source := a.Source
+			if source == "" {
+				source = "qr_scan"
+			}
+			out.CreatedBySource[source]++
 		}
 		if a.RemovedAt != nil && !a.RemovedAt.Before(from) && a.RemovedAt.Before(to) {
 			out.Removed++
@@ -210,7 +219,7 @@ func BuildReport(ctx context.Context, q *store.Queries, from, to, now time.Time)
 	}
 	spans := make([]AffiliationSpan, len(timeline))
 	for i, row := range timeline {
-		spans[i] = AffiliationSpan{CreatedAt: row.CreatedAt}
+		spans[i] = AffiliationSpan{CreatedAt: row.CreatedAt, Source: row.Source}
 		if row.RemovedAt.Valid {
 			removed := row.RemovedAt.Time
 			spans[i].RemovedAt = &removed

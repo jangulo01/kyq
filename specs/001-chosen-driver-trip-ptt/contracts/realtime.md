@@ -49,6 +49,13 @@ recuperar eventos tras reconectar.
 derivada). `trip.offer_closed` puede traer `reason = delegated` (el conductor pasó la oferta a su
 cooperativa) y `trip.status` puede traer `cancel_reason = no_driver_available`.
 
+008 añade a `trip.offer`: `origin` (`chosen_driver` \| `cooperative` \| `zone_pool`), `loyal_client`
+(bool: el pasajero está en la cartera del conductor, "⭐ Cliente de tu cartera"), `trips_together`
+(viajes completados de la pareja), `pickup_distance_m` (int|null, línea recta a la recogida) y
+`preferential_discount_pct` (descuento aplicado a `suggested_fare_minor`, RN-KYQ-013). En la bolsa
+zonal, `trip.delegated` llega con `cooperative_id` y `cooperative_name` nulos cuando la oferta pasa
+al siguiente conductor.
+
 Los eventos SOS nunca van a `trip:{tripId}` ni al canal de la otra parte del viaje (003 FR-006).
 
 Los eventos de turno PTT (quién habla) viajan como mensajes de datos de LiveKit dentro de la sala
