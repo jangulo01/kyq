@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -51,3 +52,9 @@ func (s *Store) WithTx(ctx context.Context, fn func(q *Queries) error) error {
 
 // IsNotFound reports whether err means no row matched.
 func IsNotFound(err error) bool { return errors.Is(err, pgx.ErrNoRows) }
+
+// IsUniqueViolation reports a PostgreSQL unique_violation (23505).
+func IsUniqueViolation(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.Code == "23505"
+}

@@ -43,6 +43,7 @@ type DriverInput struct {
 
 // TripInput is an active trip (ACCEPTED, ARRIVED, IN_PROGRESS).
 type TripInput struct {
+	ID       uuid.UUID
 	DriverID uuid.UUID
 	Pickup   hexgrid.Point
 }
@@ -83,6 +84,8 @@ type Cell struct {
 	UnservedRequests int      `json:"unserved_requests"`
 	Pressure         *float64 `json:"pressure"`
 	Level            string   `json:"level"`
+	// 009: viajes activos del hexágono para abrirlos desde la torre (FR-001).
+	TripIDs []uuid.UUID `json:"trip_ids"`
 }
 
 // Driver is a driver drawn on the map (contracts: TowerDriver).
@@ -95,6 +98,8 @@ type Driver struct {
 	LocationAt  time.Time `json:"location_at"`
 	Stale       bool      `json:"stale"`
 	Cell        string    `json:"cell"`
+	// 009: viaje activo del conductor ocupado, para inspeccionarlo con un clic (FR-001).
+	ActiveTripID *uuid.UUID `json:"active_trip_id"`
 }
 
 // Snapshot is GET /v1/admin/tower (contracts: TowerSnapshot).
@@ -147,7 +152,7 @@ func Aggregate(res int, now time.Time, drivers []DriverInput, trips []TripInput,
 			return c, existing, true
 		}
 		center := c.Center()
-		out := &Cell{Cell: c.String(), Center: Point{center.Lat, center.Lng}}
+		out := &Cell{Cell: c.String(), Center: Point{center.Lat, center.Lng}, TripIDs: []uuid.UUID{}}
 		for _, v := range c.Boundary() {
 			out.Boundary = append(out.Boundary, Point{v.Lat, v.Lng})
 		}
@@ -156,6 +161,7 @@ func Aggregate(res int, now time.Time, drivers []DriverInput, trips []TripInput,
 	}
 
 	driverPos := map[uuid.UUID]hexgrid.Point{}
+	drawn := map[uuid.UUID]int{} // índice en snap.Drivers
 	for _, d := range drivers {
 		snap.Totals.Online++
 		if d.Presence == PresenceBusy {
@@ -182,6 +188,7 @@ func Aggregate(res int, now time.Time, drivers []DriverInput, trips []TripInput,
 		} else {
 			cell.FreeDrivers++
 		}
+		drawn[d.ID] = len(snap.Drivers)
 		snap.Drivers = append(snap.Drivers, Driver{
 			DriverID: d.ID, DisplayName: d.Name, Presence: d.Presence, Lat: d.Position.Lat, Lng: d.Position.Lng,
 			LocationAt: d.LocationAt, Stale: stale, Cell: c.String(),
@@ -196,6 +203,11 @@ func Aggregate(res int, now time.Time, drivers []DriverInput, trips []TripInput,
 		}
 		if _, cell, ok := cellOf(at); ok {
 			cell.ActiveTrips++
+			cell.TripIDs = append(cell.TripIDs, t.ID)
+		}
+		if i, ok := drawn[t.DriverID]; ok {
+			id := t.ID
+			snap.Drivers[i].ActiveTripID = &id
 		}
 	}
 	for _, r := range requests {

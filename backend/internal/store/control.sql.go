@@ -13,6 +13,155 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const getOpenSosForTrip = `-- name: GetOpenSosForTrip :one
+SELECT id, status::text AS status
+FROM sos_alerts
+WHERE trip_id = $1 AND status IN ('open', 'claimed')
+ORDER BY created_at DESC
+LIMIT 1
+`
+
+type GetOpenSosForTripRow struct {
+	ID     uuid.UUID
+	Status string
+}
+
+func (q *Queries) GetOpenSosForTrip(ctx context.Context, tripID uuid.UUID) (GetOpenSosForTripRow, error) {
+	row := q.db.QueryRow(ctx, getOpenSosForTrip, tripID)
+	var i GetOpenSosForTripRow
+	err := row.Scan(&i.ID, &i.Status)
+	return i, err
+}
+
+const getTripForInspection = `-- name: GetTripForInspection :one
+
+SELECT t.id, t.status, t.cancel_reason, t.dispatch, t.handover_count, t.currency,
+       t.pickup_lat, t.pickup_lng, t.dropoff_lat, t.dropoff_lng,
+       t.route_distance_m, t.route_duration_s, t.list_fare_minor, t.suggested_fare_minor,
+       t.agreed_fare_minor, t.preferential_discount_pct,
+       t.created_at, t.accepted_at, t.arrived_at, t.started_at, t.completed_at, t.cancelled_at,
+       t.passenger_id, pu.display_name AS passenger_name,
+       t.driver_id, du.display_name AS driver_name,
+       d.vehicle_plate, d.vehicle_description,
+       d.last_lat, d.last_lng, d.last_location_at,
+       c.name AS cooperative_name
+FROM trips t
+JOIN users pu ON pu.id = t.passenger_id
+JOIN users du ON du.id = t.driver_id
+JOIN drivers d ON d.user_id = t.driver_id
+LEFT JOIN cooperatives c ON c.id = t.cooperative_id
+WHERE t.id = $1
+`
+
+type GetTripForInspectionRow struct {
+	ID                      uuid.UUID
+	Status                  TripStatus
+	CancelReason            NullTripCancelReason
+	Dispatch                TripDispatch
+	HandoverCount           int16
+	Currency                string
+	PickupLat               float64
+	PickupLng               float64
+	DropoffLat              float64
+	DropoffLng              float64
+	RouteDistanceM          int32
+	RouteDurationS          int32
+	ListFareMinor           int64
+	SuggestedFareMinor      int64
+	AgreedFareMinor         pgtype.Int8
+	PreferentialDiscountPct int16
+	CreatedAt               time.Time
+	AcceptedAt              pgtype.Timestamptz
+	ArrivedAt               pgtype.Timestamptz
+	StartedAt               pgtype.Timestamptz
+	CompletedAt             pgtype.Timestamptz
+	CancelledAt             pgtype.Timestamptz
+	PassengerID             uuid.UUID
+	PassengerName           string
+	DriverID                uuid.UUID
+	DriverName              string
+	VehiclePlate            string
+	VehicleDescription      string
+	LastLat                 pgtype.Float8
+	LastLng                 pgtype.Float8
+	LastLocationAt          pgtype.Timestamptz
+	CooperativeName         pgtype.Text
+}
+
+// 009: detalle de un viaje para la inspección desde la torre (sin teléfonos, FR-002).
+func (q *Queries) GetTripForInspection(ctx context.Context, id uuid.UUID) (GetTripForInspectionRow, error) {
+	row := q.db.QueryRow(ctx, getTripForInspection, id)
+	var i GetTripForInspectionRow
+	err := row.Scan(
+		&i.ID,
+		&i.Status,
+		&i.CancelReason,
+		&i.Dispatch,
+		&i.HandoverCount,
+		&i.Currency,
+		&i.PickupLat,
+		&i.PickupLng,
+		&i.DropoffLat,
+		&i.DropoffLng,
+		&i.RouteDistanceM,
+		&i.RouteDurationS,
+		&i.ListFareMinor,
+		&i.SuggestedFareMinor,
+		&i.AgreedFareMinor,
+		&i.PreferentialDiscountPct,
+		&i.CreatedAt,
+		&i.AcceptedAt,
+		&i.ArrivedAt,
+		&i.StartedAt,
+		&i.CompletedAt,
+		&i.CancelledAt,
+		&i.PassengerID,
+		&i.PassengerName,
+		&i.DriverID,
+		&i.DriverName,
+		&i.VehiclePlate,
+		&i.VehicleDescription,
+		&i.LastLat,
+		&i.LastLng,
+		&i.LastLocationAt,
+		&i.CooperativeName,
+	)
+	return i, err
+}
+
+const getTripPaymentStatusForInspection = `-- name: GetTripPaymentStatusForInspection :one
+SELECT status::text AS status, coalesce(method::text, '')::text AS method
+FROM trip_payments
+WHERE trip_id = $1
+`
+
+type GetTripPaymentStatusForInspectionRow struct {
+	Status string
+	Method string
+}
+
+func (q *Queries) GetTripPaymentStatusForInspection(ctx context.Context, tripID uuid.UUID) (GetTripPaymentStatusForInspectionRow, error) {
+	row := q.db.QueryRow(ctx, getTripPaymentStatusForInspection, tripID)
+	var i GetTripPaymentStatusForInspectionRow
+	err := row.Scan(&i.Status, &i.Method)
+	return i, err
+}
+
+const insertTripInspection = `-- name: InsertTripInspection :exec
+INSERT INTO trip_inspections (admin_id, trip_id, opened_at) VALUES ($1, $2, $3)
+`
+
+type InsertTripInspectionParams struct {
+	AdminID  uuid.UUID
+	TripID   uuid.UUID
+	OpenedAt time.Time
+}
+
+func (q *Queries) InsertTripInspection(ctx context.Context, arg InsertTripInspectionParams) error {
+	_, err := q.db.Exec(ctx, insertTripInspection, arg.AdminID, arg.TripID, arg.OpenedAt)
+	return err
+}
+
 const listActiveTripsForTower = `-- name: ListActiveTripsForTower :many
 SELECT id, driver_id, status, pickup_lat, pickup_lng
 FROM trips
@@ -128,6 +277,41 @@ func (q *Queries) ListRecentRequestsForTower(ctx context.Context, since time.Tim
 			&i.Status,
 			&i.CancelReason,
 		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listTripInspections = `-- name: ListTripInspections :many
+SELECT i.admin_id, u.display_name AS admin_name, i.opened_at
+FROM trip_inspections i
+JOIN users u ON u.id = i.admin_id
+WHERE i.trip_id = $1
+ORDER BY i.opened_at DESC
+LIMIT 20
+`
+
+type ListTripInspectionsRow struct {
+	AdminID   uuid.UUID
+	AdminName string
+	OpenedAt  time.Time
+}
+
+func (q *Queries) ListTripInspections(ctx context.Context, tripID uuid.UUID) ([]ListTripInspectionsRow, error) {
+	rows, err := q.db.Query(ctx, listTripInspections, tripID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListTripInspectionsRow{}
+	for rows.Next() {
+		var i ListTripInspectionsRow
+		if err := rows.Scan(&i.AdminID, &i.AdminName, &i.OpenedAt); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

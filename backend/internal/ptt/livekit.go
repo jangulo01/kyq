@@ -82,6 +82,18 @@ func (l LiveKit) ParticipantToken(identity, name, room string, now time.Time, tt
 	}, now, ttl)
 }
 
+// BroadcastToken is a token for a one-way room (009, megaphone): the speaker may publish the
+// microphone; listeners may only listen, not even send data.
+func (l LiveKit) BroadcastToken(identity, name, room string, speaker bool, now time.Time, ttl time.Duration) (string, error) {
+	yes, no := true, false
+	grant := videoGrant{Room: room, RoomJoin: true, CanSubscribe: &yes, CanPublish: &no, CanPublishData: &no}
+	if speaker {
+		grant.CanPublish, grant.CanSubscribe = &yes, &no
+		grant.CanPublishSources = []string{"microphone"}
+	}
+	return l.sign(claims{RegisteredClaims: jwt.RegisteredClaims{Subject: identity}, Name: name, Video: grant}, now, ttl)
+}
+
 func (l LiveKit) sign(c claims, now time.Time, ttl time.Duration) (string, error) {
 	c.Issuer = l.APIKey
 	c.NotBefore = jwt.NewNumericDate(now)

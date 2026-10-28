@@ -12,13 +12,16 @@ import (
 	"github.com/kyq/backend/internal/control"
 	"github.com/kyq/backend/internal/cooperatives"
 	"github.com/kyq/backend/internal/crm"
+	"github.com/kyq/backend/internal/domains"
 	"github.com/kyq/backend/internal/drivers"
 	"github.com/kyq/backend/internal/health"
 	"github.com/kyq/backend/internal/kyc"
+	"github.com/kyq/backend/internal/megaphone"
 	"github.com/kyq/backend/internal/notify"
 	"github.com/kyq/backend/internal/ptt"
 	"github.com/kyq/backend/internal/realtime"
 	"github.com/kyq/backend/internal/safety"
+	"github.com/kyq/backend/internal/support"
 	"github.com/kyq/backend/internal/telemetry"
 	"github.com/kyq/backend/internal/trippay"
 	"github.com/kyq/backend/internal/trips"
@@ -53,6 +56,12 @@ type Deps struct {
 	Safety *safety.Handlers
 	// 004: pago del viaje con Bold o en efectivo, libro de liquidación y giros.
 	TripPay *trippay.Handlers
+	// 009: centro de soporte y disputas (usuarios, también suspendidos, y panel).
+	Support *support.Handlers
+	// 009: megáfono de voz a zonas H3 (solo admins).
+	Megaphone *megaphone.Handlers
+	// 009: dominios espejo; la lista firmada GET /v1/domains es pública.
+	Domains *domains.Handlers
 	// LiveKitWebhook is public: LiveKit authenticates it with its own signature.
 	LiveKitWebhook *telemetry.LiveKitWebhook
 }
@@ -133,6 +142,15 @@ func NewRouter(d Deps) http.Handler {
 		}
 		if d.TripPay != nil {
 			d.TripPay.Register(mux, requireAuth)
+		}
+		if d.Support != nil {
+			d.Support.Register(mux, requireAuth)
+		}
+		if d.Megaphone != nil {
+			d.Megaphone.Register(mux, requireAuth)
+		}
+		if d.Domains != nil {
+			d.Domains.Register(mux, requireAuth)
 		}
 	}
 

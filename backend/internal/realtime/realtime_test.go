@@ -56,6 +56,9 @@ func TestAuthorizeRoleAdminTower(t *testing.T) {
 	for _, role := range []string{"passenger", "driver", ""} {
 		assert.ErrorIs(t, a.AuthorizeRole(ctx, me, role, AdminTowerChannel), ErrForbiddenChannel, role)
 	}
+	// 009: bandeja de soporte, también solo para admins.
+	assert.NoError(t, a.AuthorizeRole(ctx, me, "admin", AdminSupportChannel))
+	assert.ErrorIs(t, a.AuthorizeRole(ctx, me, "driver", AdminSupportChannel), ErrForbiddenChannel)
 	assert.ErrorIs(t, a.AuthorizeRole(ctx, me, "admin", "admin:otro"), ErrForbiddenChannel)
 	assert.NoError(t, a.AuthorizeRole(ctx, me, "passenger", "user:"+me.String()))
 	assert.ErrorIs(t, a.AuthorizeRole(ctx, me, "admin", "user:"+uuid.NewString()), ErrForbiddenChannel)

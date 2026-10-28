@@ -152,10 +152,13 @@ type Authorizer struct {
 // AdminTowerChannel is the live control tower notice channel (007): admins only.
 const AdminTowerChannel = "admin:tower"
 
+// AdminSupportChannel carries "support.case" for the support inbox of the panel (009): admins only.
+const AdminSupportChannel = "admin:support"
+
 // AuthorizeRole is Authorize for a caller with role: the admin namespace is only for admins.
 func (a Authorizer) AuthorizeRole(ctx context.Context, userID uuid.UUID, role, channel string) error {
 	if strings.HasPrefix(channel, "admin:") {
-		if role == auth.RoleAdmin && channel == AdminTowerChannel {
+		if role == auth.RoleAdmin && (channel == AdminTowerChannel || channel == AdminSupportChannel) {
 			return nil
 		}
 		return ErrForbiddenChannel

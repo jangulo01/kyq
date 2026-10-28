@@ -108,6 +108,49 @@ func TestIntegrationTowerSnapshot(t *testing.T) {
 	assert.Equal(t, http.StatusForbidden, get(passenger, auth.RolePassenger, "/v1/admin/tower").Code)
 	assert.Equal(t, http.StatusForbidden, get(free, auth.RoleDriver, "/v1/admin/tower").Code)
 
+	// 009: el conductor ocupado y su hexágono llevan el viaje activo (FR-001).
+	var tripID uuid.UUID
+	for _, d := range s.Drivers {
+		if d.DriverID == busy {
+			require.NotNil(t, d.ActiveTripID)
+			tripID = *d.ActiveTripID
+		} else {
+			assert.Nil(t, d.ActiveTripID)
+		}
+	}
+	assert.Equal(t, []uuid.UUID{tripID}, cells[cellOf(t, chapinero, 8)].TripIDs)
+
+	// Detalle del viaje: sin teléfonos, con pasos, posición y SOS (FR-002), y auditado (FR-004).
+	_, err := st.InsertSOSAlert(ctx, store.InsertSOSAlertParams{
+		ID: uuid.New(), TripID: tripID, RaisedBy: passenger, RaisedRole: store.SosRolePassenger,
+		RoomName: "sos-test", CreatedAt: at,
+	})
+	require.NoError(t, err)
+	rec = get(admin, auth.RoleAdmin, "/v1/admin/trips/"+tripID.String())
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	assert.NotContains(t, rec.Body.String(), "+57", "FR-002: sin teléfonos")
+	var in Inspection
+	require.NoError(t, json.NewDecoder(rec.Body).Decode(&in))
+	assert.True(t, in.Active)
+	assert.Equal(t, "Ana", in.Passenger.DisplayName)
+	assert.Equal(t, "Diana", in.Driver.DisplayName)
+	assert.Equal(t, "ABC124", in.VehiclePlate)
+	assert.Equal(t, "REQUESTED", in.Steps[0].Status)
+	require.NotNil(t, in.DriverPosition)
+	assert.InDelta(t, chapinero.Lat, in.DriverPosition.Lat, 1e-9)
+	assert.True(t, in.DriverPosition.Stale, "ubicación de hace 5 min")
+	require.NotNil(t, in.OpenSos)
+	assert.Equal(t, "open", in.OpenSos.Status)
+	assert.Nil(t, in.Payment)
+	audit, err := st.ListTripInspections(ctx, tripID)
+	require.NoError(t, err)
+	require.Len(t, audit, 1)
+	assert.Equal(t, admin, audit[0].AdminID)
+
+	assert.Equal(t, http.StatusForbidden, get(passenger, auth.RolePassenger, "/v1/admin/trips/"+tripID.String()).Code)
+	assert.Equal(t, http.StatusNotFound, get(admin, auth.RoleAdmin, "/v1/admin/trips/"+uuid.NewString()).Code)
+	assert.Equal(t, http.StatusNotFound, get(admin, auth.RoleAdmin, "/v1/admin/trips/x").Code)
+
 	// La huella cambia cuando cambia la presencia.
 	before, err := st.TowerFingerprint(ctx, at.Add(-RequestWindow))
 	require.NoError(t, err)

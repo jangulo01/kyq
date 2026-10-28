@@ -19,11 +19,13 @@ import (
 	"github.com/kyq/backend/internal/control"
 	"github.com/kyq/backend/internal/cooperatives"
 	"github.com/kyq/backend/internal/crm"
+	"github.com/kyq/backend/internal/domains"
 	"github.com/kyq/backend/internal/drivers"
 	"github.com/kyq/backend/internal/fares"
 	"github.com/kyq/backend/internal/health"
 	"github.com/kyq/backend/internal/httpapi"
 	"github.com/kyq/backend/internal/kyc"
+	"github.com/kyq/backend/internal/megaphone"
 	"github.com/kyq/backend/internal/notify"
 	"github.com/kyq/backend/internal/observability"
 	"github.com/kyq/backend/internal/ptt"
@@ -31,6 +33,7 @@ import (
 	"github.com/kyq/backend/internal/safety"
 	"github.com/kyq/backend/internal/storage"
 	"github.com/kyq/backend/internal/store"
+	"github.com/kyq/backend/internal/support"
 	"github.com/kyq/backend/internal/telemetry"
 	"github.com/kyq/backend/internal/trippay"
 	"github.com/kyq/backend/internal/trips"
@@ -135,6 +138,15 @@ func run(logger *slog.Logger) error {
 	towerNotifier := &control.Notifier{Source: st.Queries, Publisher: publisher, Logger: logger}
 	go towerNotifier.Run(ctx, 3*time.Second)
 	probeClient := &http.Client{Timeout: health.Timeout}
+	// 009: sesiones sin fallos desde Sentry (sin token: "no configurado").
+	sentryProjects, err := health.ParseProjects(cfg.SentryProjects)
+	if err != nil {
+		return err
+	}
+	sentrySessions := &health.Sessions{
+		APIURL: cfg.SentryAPIURL, Token: cfg.SentryAPIToken, Org: cfg.SentryOrg, Projects: sentryProjects,
+		HTTP: &http.Client{Timeout: health.SessionsTimeout},
+	}
 	cityLat, cityLng := health.CityCenter(cfg.CityCode)
 	checker := &health.Checker{Probes: []health.Named{
 		{Name: health.Database, Probe: health.DatabaseProbe(st.Pool)},
@@ -173,6 +185,22 @@ func run(logger *slog.Logger) error {
 	// 004: el pago del viaje usa el mismo cliente de Bold; el webhook de 002 le delega sus
 	// referencias y el viaje abre el pago al completarse.
 	tripPayService := &trippay.Service{Store: st, Bold: billingService.Bold, Notify: notices, Publisher: publisher, Logger: logger}
+	// 009: centro de soporte; los casos de pago se abren y resuelven con el pago (research R3).
+	supportService := &support.Service{Store: st, Publisher: publisher, Payments: tripPayService, Logger: logger}
+	tripPayService.Cases = supportService
+	go supportService.RunSweeper(ctx, time.Minute)
+	// 009: megáfono por zonas; el barrido corta los comunicados a los 60 s.
+	megaphoneService := &megaphone.Service{Store: st, Voice: livekit, VoiceURL: cfg.LiveKitURL, Publisher: publisher, Logger: logger}
+	go megaphoneService.RunSweeper(ctx, time.Second)
+	// 009: dominios espejo; sin clave de firma el panel los edita pero no se publica la lista.
+	domainService := &domains.Service{Store: st, Probe: domains.HTTPProbe(probeClient)}
+	if cfg.DomainsSigningKey != "" {
+		signer, err := domains.NewSigner(cfg.DomainsSigningKey)
+		if err != nil {
+			return err
+		}
+		domainService.Signer = signer
+	}
 	billingService.References = append(billingService.References, tripPayService)
 	tripService.Payments = tripPayService
 	go tripService.RunSweeper(ctx, time.Second)
@@ -200,11 +228,14 @@ func run(logger *slog.Logger) error {
 		Costs:        &telemetry.CostHandlers{Store: st, CityCode: cfg.CityCode},
 		Tower:        &control.Handlers{Store: st},
 		CRM:          &crm.Handlers{Store: st, Moderation: &crm.Moderation{Store: st, Publisher: publisher, Logger: logger}},
-		Health:       &health.Handlers{Checker: checker},
+		Health:       &health.Handlers{Checker: checker, Sessions: sentrySessions},
 		Cooperatives: &cooperatives.Handlers{Service: coopService},
 		GroupPTT:     &ptt.GroupHandlers{Service: pttService},
 		Safety:       &safety.Handlers{Service: safetyService, MapStyleURL: cfg.MapStyleURL},
 		TripPay:      &trippay.Handlers{Service: tripPayService},
+		Support:      &support.Handlers{Service: supportService},
+		Megaphone:    &megaphone.Handlers{Service: megaphoneService},
+		Domains:      &domains.Handlers{Service: domainService},
 		LiveKitWebhook: &telemetry.LiveKitWebhook{
 			APIKey: cfg.LiveKitAPIKey, APISecret: cfg.LiveKitAPISecret, Store: st, Usage: usage,
 		},

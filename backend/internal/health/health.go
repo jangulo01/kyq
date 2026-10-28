@@ -150,12 +150,26 @@ func Overall(checks []Check) string {
 	return status
 }
 
-// Handlers serves GET /v1/admin/health (admin only).
-type Handlers struct{ Checker *Checker }
+// Handlers serves GET /v1/admin/health and, with Sessions, GET /v1/admin/health/sessions (admin
+// only).
+type Handlers struct {
+	Checker  *Checker
+	Sessions *Sessions
+}
 
-// Register mounts the route behind authMW and the admin role check.
+// Register mounts the routes behind authMW and the admin role check.
 func (h *Handlers) Register(mux *http.ServeMux, authMW func(http.Handler) http.Handler) {
 	mux.Handle("GET /v1/admin/health", authMW(auth.RequireRole(auth.RoleAdmin)(http.HandlerFunc(h.health))))
+	mux.Handle("GET /v1/admin/health/sessions", authMW(auth.RequireRole(auth.RoleAdmin)(http.HandlerFunc(h.sessions))))
+}
+
+// sessions is the crash-free rate per app (009, US4).
+func (h *Handlers) sessions(w http.ResponseWriter, r *http.Request) {
+	s := h.Sessions
+	if s == nil {
+		s = &Sessions{}
+	}
+	httpx.WriteJSON(w, http.StatusOK, s.Report(r.Context()))
 }
 
 func (h *Handlers) health(w http.ResponseWriter, r *http.Request) {

@@ -89,7 +89,16 @@ type Tokens struct {
 	AccessToken  string `json:"access_token"`
 	RefreshToken string `json:"refresh_token"`
 	Role         string `json:"role"`
+	// Scope is ScopeSupport for the support-only session of a suspended user (009).
+	Scope string `json:"scope,omitempty"`
 }
+
+// SuspendedError is ErrAccountSuspended carrying the support-only session of the user (009,
+// FR-011): the apps keep 007's "account suspended" answer and can still reach support.
+type SuspendedError struct{ Support Tokens }
+
+func (e *SuspendedError) Error() string        { return ErrAccountSuspended.Error() }
+func (e *SuspendedError) Is(target error) bool { return target == ErrAccountSuspended }
 
 // Service implements the authentication use cases.
 type Service struct {
@@ -214,7 +223,7 @@ func (s *Service) VerifyOTP(ctx context.Context, phone, code, displayName, role 
 	} else if role != "" && user.Role != role {
 		return Tokens{}, ErrPhoneHasOtherRole
 	} else if user.Suspended {
-		return Tokens{}, ErrAccountSuspended
+		return s.suspended(ctx, user)
 	}
 	return s.issue(ctx, user)
 }
@@ -249,13 +258,26 @@ func (s *Service) Refresh(ctx context.Context, raw string) (Tokens, error) {
 		return Tokens{}, fmt.Errorf("get user: %w", err)
 	}
 	if user.Suspended {
-		return Tokens{}, ErrAccountSuspended
+		return s.suspended(ctx, user)
 	}
 	return s.issue(ctx, user)
 }
 
+// suspended answers ErrAccountSuspended with a support-only session (009, research R4).
+func (s *Service) suspended(ctx context.Context, user User) (Tokens, error) {
+	support, err := s.issue(ctx, user)
+	if err != nil {
+		return Tokens{}, err
+	}
+	return Tokens{}, &SuspendedError{Support: support}
+}
+
 func (s *Service) issue(ctx context.Context, user User) (Tokens, error) {
-	access, err := s.tokens.IssueAccess(Principal{UserID: user.ID, Role: user.Role})
+	scope := ""
+	if user.Suspended {
+		scope = ScopeSupport
+	}
+	access, err := s.tokens.IssueAccess(Principal{UserID: user.ID, Role: user.Role, Scope: scope})
 	if err != nil {
 		return Tokens{}, fmt.Errorf("issue access token: %w", err)
 	}
@@ -273,7 +295,7 @@ func (s *Service) issue(ctx context.Context, user User) (Tokens, error) {
 	if err != nil {
 		return Tokens{}, fmt.Errorf("store refresh token: %w", err)
 	}
-	return Tokens{AccessToken: access, RefreshToken: raw, Role: user.Role}, nil
+	return Tokens{AccessToken: access, RefreshToken: raw, Role: user.Role, Scope: scope}, nil
 }
 
 // ip48Key groups IPv6 clients by /48 for the coarser limiter; IPv4 keys are unchanged.

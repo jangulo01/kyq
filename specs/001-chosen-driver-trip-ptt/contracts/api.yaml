@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
-  title: Kyq API (MVP 001 + etapas 002–007)
-  version: 0.3.0
+  title: Kyq API (MVP 001 + etapas 002–009)
+  version: 0.5.0
   description: |
     API REST del MVP Conductor Elegido + Viaje + PTT. Todas las rutas salvo /v1/auth/* exigen
     `Authorization: Bearer <access_token>`. Errores con cuerpo `Error`.
@@ -22,6 +22,10 @@ info:
     Pago del viaje (004, `/v1/trips/{tripId}/payment*`): solo pasajero `bold`, `refresh` y
     `cash`; solo conductor `cash-received`, `cash-dispute` y `unpaid` (`403 forbidden` a la otra
     parte); `409 invalid_state` si el estado del pago no lo permite.
+    009: `/v1/support/*` exige rol `passenger` o `driver`. Un usuario suspendido recibe en el
+    `403 account_suspended` de `otp/verify` y `refresh` una `support_session` (alcance `support`)
+    que solo abre `/v1/support/*`, `/v1/realtime/*` y `/v1/auth/*`; cualquier otra ruta responde
+    `403 account_suspended`. `GET /v1/domains` es pública.
 servers:
   - url: http://localhost:8080
 security:
@@ -67,10 +71,10 @@ paths:
         '400': { $ref: '#/components/responses/Error' }
         '401': { $ref: '#/components/responses/Error' }
         '403':
-          description: '`account_suspended` (007): la cuenta está suspendida por un administrador'
+          description: '`account_suspended` (007): la cuenta está suspendida; 009 añade la sesión de solo soporte'
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/Error' }
+              schema: { $ref: '#/components/schemas/SuspendedError' }
         '409':
           description: '`phone_has_other_role`: el teléfono ya existe con otro rol'
           content:
@@ -93,10 +97,10 @@ paths:
         '200': { $ref: '#/components/responses/Tokens' }
         '401': { $ref: '#/components/responses/Error' }
         '403':
-          description: '`account_suspended` (007)'
+          description: '`account_suspended` (007), con la sesión de solo soporte (009)'
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/Error' }
+              schema: { $ref: '#/components/schemas/SuspendedError' }
 
   /v1/realtime/token:
     post:
@@ -2147,6 +2151,345 @@ paths:
         '404': { $ref: '#/components/responses/Error' }
         '409': { $ref: '#/components/responses/Error' }
 
+  # ---------- 009: operación del panel ----------
+
+  /v1/admin/trips/{tripId}:
+    get:
+      summary: Detalle de un viaje desde la torre, sin teléfonos; cada apertura se registra (009 FR-001–FR-004)
+      parameters: [ { $ref: '#/components/parameters/TripId' } ]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TripInspection' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+
+  /v1/support/cases:
+    get:
+      summary: Casos del usuario, abiertos por él o de los que es parte (009 FR-011)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/SupportCase' } }
+        '403': { $ref: '#/components/responses/Error' }
+    post:
+      summary: Abre un caso con tema, descripción y, opcional, uno de sus viajes de los últimos 30 días (009 FR-005)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [topic, description]
+              properties:
+                topic: { $ref: '#/components/schemas/SupportTopic' }
+                description: { type: string, minLength: 10, maxLength: 2000 }
+                trip_id: { type: [string, 'null'], format: uuid }
+      responses:
+        '201':
+          description: Creado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SupportCaseDetail' }
+        '400': { description: '`invalid_topic`, `invalid_text` o `invalid_trip`', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '403': { $ref: '#/components/responses/Error' }
+  /v1/support/cases/{caseId}:
+    get:
+      summary: Caso con su conversación, sin notas internas
+      parameters: [ { $ref: '#/components/parameters/CaseId' } ]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SupportCaseDetail' }
+        '404': { $ref: '#/components/responses/Error' }
+  /v1/support/cases/{caseId}/messages:
+    post:
+      summary: Responde; reabre un caso esperando al usuario o resuelto (009 FR-007)
+      parameters: [ { $ref: '#/components/parameters/CaseId' } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [body]
+              properties:
+                body: { type: string, minLength: 1, maxLength: 2000 }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SupportCaseDetail' }
+        '400': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { description: '`case_closed`: abre un caso nuevo', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+  /v1/support/trips:
+    get:
+      summary: Viajes del usuario de los últimos 30 días para asociarlos a un caso
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  required: [id, status, created_at, other_party]
+                  properties:
+                    id: { type: string, format: uuid }
+                    status: { type: string }
+                    created_at: { type: string, format: date-time }
+                    other_party: { type: string }
+
+  /v1/admin/support/cases:
+    get:
+      summary: Bandeja de soporte, del más antiguo sin atender al más reciente (009 FR-008)
+      parameters:
+        - { name: status, in: query, schema: { $ref: '#/components/schemas/SupportStatus' } }
+        - { name: topic, in: query, schema: { $ref: '#/components/schemas/SupportTopic' } }
+        - { name: assigned_to, in: query, schema: { type: string }, description: '`me` o el id de un administrador' }
+        - { name: unanswered, in: query, schema: { type: boolean } }
+        - { name: include_closed, in: query, schema: { type: boolean } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/SupportCase' } }
+        '400': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+  /v1/admin/support/cases/{caseId}:
+    get:
+      summary: Caso con su conversación y notas internas
+      parameters: [ { $ref: '#/components/parameters/CaseId' } ]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SupportCaseDetail' }
+        '404': { $ref: '#/components/responses/Error' }
+  /v1/admin/support/cases/{caseId}/messages:
+    post:
+      summary: Responde al usuario o, con `internal`, deja una nota que solo ven los administradores (009 FR-006)
+      parameters: [ { $ref: '#/components/parameters/CaseId' } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [body]
+              properties:
+                body: { type: string, minLength: 1, maxLength: 2000 }
+                internal: { type: boolean }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SupportCaseDetail' }
+        '400': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+  /v1/admin/support/cases/{caseId}/status:
+    post:
+      summary: Cambia el estado del caso; uno cerrado no se reabre (009 FR-007)
+      parameters: [ { $ref: '#/components/parameters/CaseId' } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status: { $ref: '#/components/schemas/SupportStatus' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SupportCaseDetail' }
+        '400': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+  /v1/admin/support/cases/{caseId}/assign:
+    post:
+      summary: Asigna el caso a un administrador o, con null, lo deja sin asignar
+      parameters: [ { $ref: '#/components/parameters/CaseId' } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                admin_id: { type: [string, 'null'], format: uuid }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SupportCaseDetail' }
+        '400': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+  /v1/admin/support/cases/{caseId}/resolve-payment:
+    post:
+      summary: Resuelve el pago de un caso de disputa con las reglas de 004; el caso queda resuelto (009 FR-010)
+      parameters: [ { $ref: '#/components/parameters/CaseId' } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [outcome, note]
+              properties:
+                outcome: { type: string, enum: [paid, unpaid] }
+                note: { type: string, maxLength: 200 }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SupportCaseDetail' }
+        '400': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { description: '`not_payment_case` o `invalid_state`', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /v1/admin/megaphone:
+    get:
+      summary: Registro de comunicados (009 FR-016)
+      parameters:
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 200 } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/MegaphoneBroadcast' } }
+        '400': { $ref: '#/components/responses/Error' }
+    post:
+      summary: Empieza un comunicado de voz a los conductores ONLINE de los hexágonos (009 FR-013, FR-014)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [cells]
+              properties:
+                cells: { type: array, minItems: 1, maxItems: 50, items: { type: string } }
+      responses:
+        '201':
+          description: En el aire; el token deja publicar el micrófono hasta `ends_at`
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MegaphoneStarted' }
+        '400': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '409': { description: '`on_air` o `no_recipients`', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+  /v1/admin/megaphone/{broadcastId}/end:
+    post:
+      summary: Termina el comunicado (al soltar el botón)
+      parameters: [ { $ref: '#/components/parameters/BroadcastId' } ]
+      responses:
+        '204': { description: Terminado }
+        '404': { $ref: '#/components/responses/Error' }
+
+  /v1/admin/health/sessions:
+    get:
+      summary: Porcentaje de sesiones sin fallos por app en 24 h y 7 días, desde Sentry (009 FR-017, FR-018)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SessionsReport' }
+        '403': { $ref: '#/components/responses/Error' }
+
+  /v1/domains:
+    get:
+      summary: Lista de dominios activos firmada por Kyq con Ed25519 (009 FR-020)
+      security: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SignedDomainList' }
+        '503': { description: '`domains_unavailable`: sin clave de firma', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+  /v1/admin/domains:
+    get:
+      summary: Dominios espejo con su estado y latencia (009 FR-019)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MirrorDomainListing' }
+        '403': { $ref: '#/components/responses/Error' }
+    post:
+      summary: Añade un dominio al final de la lista
+      requestBody: { $ref: '#/components/requestBodies/MirrorDomainInput' }
+      responses:
+        '201':
+          description: Creado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MirrorDomain' }
+        '400': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+  /v1/admin/domains/order:
+    put:
+      summary: Fija el orden; debe nombrar cada dominio una vez
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ids]
+              properties:
+                ids: { type: array, items: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MirrorDomainListing' }
+        '400': { $ref: '#/components/responses/Error' }
+  /v1/admin/domains/{domainId}:
+    put:
+      summary: Cambia o activa/desactiva un dominio; no puede quedar ninguno activo (`409 last_active_domain`)
+      parameters: [ { $ref: '#/components/parameters/DomainId' } ]
+      requestBody: { $ref: '#/components/requestBodies/MirrorDomainInput' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MirrorDomain' }
+        '400': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+    delete:
+      summary: Borra un dominio; no el último activo
+      parameters: [ { $ref: '#/components/parameters/DomainId' } ]
+      responses:
+        '204': { description: Borrado }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+
 components:
   securitySchemes:
     bearer: { type: http, scheme: bearer, bearerFormat: JWT }
@@ -2164,8 +2507,22 @@ components:
     UserId: { name: userId, in: path, required: true, schema: { type: string, format: uuid } }
     CooperativeId: { name: cooperativeId, in: path, required: true, schema: { type: string, format: uuid } }
     MembershipId: { name: membershipId, in: path, required: true, schema: { type: string, format: uuid } }
+    CaseId: { name: caseId, in: path, required: true, schema: { type: string, format: uuid } }
+    BroadcastId: { name: broadcastId, in: path, required: true, schema: { type: string, format: uuid } }
+    DomainId: { name: domainId, in: path, required: true, schema: { type: string, format: uuid } }
 
   requestBodies:
+    MirrorDomainInput:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [api_url, realtime_url, active]
+            properties:
+              api_url: { type: string, description: 'https://dominio sin ruta' }
+              realtime_url: { type: string, description: 'wss://dominio/connection/websocket' }
+              active: { type: boolean }
     Phone:
       required: true
       content:
@@ -2216,6 +2573,7 @@ components:
               access_token: { type: string }
               refresh_token: { type: string }
               role: { type: string, enum: [passenger, driver, admin] }
+              scope: { type: string, enum: [support], description: '009: solo en la sesión de un suspendido' }
     RealtimeToken:
       description: Token de Centrifugo
       content:
@@ -2651,6 +3009,10 @@ components:
         unserved_requests: { type: integer }
         pressure: { type: [number, 'null'], description: 'Solicitudes por conductor libre; null sin libres' }
         level: { type: string, enum: [none, balanced, high, no_supply] }
+        trip_ids:
+          type: array
+          description: '009: viajes activos del hexágono, para abrirlos desde la torre'
+          items: { type: string, format: uuid }
     TowerDriver:
       type: object
       required: [driver_id, display_name, presence, lat, lng, location_at, stale, cell]
@@ -2663,6 +3025,7 @@ components:
         location_at: { type: string, format: date-time }
         stale: { type: boolean }
         cell: { type: string }
+        active_trip_id: { type: [string, 'null'], format: uuid, description: '009: viaje activo del conductor ocupado' }
     TowerSnapshot:
       type: object
       required: [generated_at, resolution, window_minutes, stale_after_seconds, totals, cells, drivers]
@@ -3137,3 +3500,182 @@ components:
         note: { type: [string, 'null'] }
         created_by: { type: string, format: uuid }
         created_at: { type: string, format: date-time }
+
+    # ---------- 009 ----------
+    SuspendedError:
+      allOf:
+        - $ref: '#/components/schemas/Error'
+        - type: object
+          properties:
+            support_session:
+              type: object
+              description: 'Sesión de solo soporte (alcance `support`)'
+              required: [access_token, refresh_token, role, scope]
+              properties:
+                access_token: { type: string }
+                refresh_token: { type: string }
+                role: { type: string, enum: [passenger, driver, admin] }
+                scope: { type: string, enum: [support] }
+    TripInspection:
+      type: object
+      required: [trip_id, status, active, dispatch, passenger, driver, vehicle_plate, pickup, dropoff, distance_m, duration_s, currency, list_fare_minor, suggested_fare_minor, steps, generated_at]
+      properties:
+        trip_id: { type: string, format: uuid }
+        status: { type: string }
+        active: { type: boolean }
+        cancel_reason: { type: [string, 'null'] }
+        dispatch: { type: string, enum: [chosen_driver, cooperative, zone_pool] }
+        handover_count: { type: integer }
+        cooperative_name: { type: [string, 'null'] }
+        passenger: { $ref: '#/components/schemas/PersonRef' }
+        driver: { $ref: '#/components/schemas/PersonRef' }
+        vehicle_plate: { type: string }
+        vehicle_description: { type: string }
+        pickup: { $ref: '#/components/schemas/Point' }
+        dropoff: { $ref: '#/components/schemas/Point' }
+        distance_m: { type: integer }
+        duration_s: { type: integer }
+        currency: { type: string }
+        list_fare_minor: { type: integer }
+        suggested_fare_minor: { type: integer }
+        agreed_fare_minor: { type: [integer, 'null'] }
+        preferential_discount_pct: { type: integer }
+        steps:
+          type: array
+          items:
+            type: object
+            required: [status, at]
+            properties:
+              status: { type: string }
+              at: { type: string, format: date-time }
+        driver_position:
+          type: [object, 'null']
+          properties:
+            lat: { type: number }
+            lng: { type: number }
+            location_at: { type: string, format: date-time }
+            stale: { type: boolean }
+        payment:
+          type: [object, 'null']
+          properties:
+            status: { type: string }
+            method: { type: [string, 'null'] }
+        open_sos:
+          type: [object, 'null']
+          properties:
+            id: { type: string, format: uuid }
+            status: { type: string }
+        generated_at: { type: string, format: date-time }
+    PersonRef:
+      type: object
+      required: [id, display_name]
+      properties:
+        id: { type: string, format: uuid }
+        display_name: { type: string }
+    SupportTopic: { type: string, enum: [trip, payment, lost_item, safety, account, other] }
+    SupportStatus: { type: string, enum: [open, in_progress, waiting_user, resolved, closed] }
+    SupportCase:
+      type: object
+      required: [id, topic, subject, status, user, user_role, created_at, last_message_at, awaiting_reply]
+      properties:
+        id: { type: string, format: uuid }
+        topic: { $ref: '#/components/schemas/SupportTopic' }
+        subject: { type: string }
+        status: { $ref: '#/components/schemas/SupportStatus' }
+        user: { $ref: '#/components/schemas/PersonRef' }
+        user_role: { type: string, enum: [passenger, driver] }
+        counterpart: { oneOf: [ { $ref: '#/components/schemas/PersonRef' }, { type: 'null' } ] }
+        trip_id: { type: [string, 'null'], format: uuid }
+        trip_payment_id: { type: [string, 'null'], format: uuid }
+        assigned_to: { oneOf: [ { $ref: '#/components/schemas/PersonRef' }, { type: 'null' } ] }
+        created_at: { type: string, format: date-time }
+        last_message_at: { type: string, format: date-time }
+        last_user_message_at: { type: [string, 'null'], format: date-time }
+        awaiting_reply: { type: boolean }
+        resolved_at: { type: [string, 'null'], format: date-time }
+        closed_at: { type: [string, 'null'], format: date-time }
+    SupportMessage:
+      type: object
+      required: [id, author_kind, mine, body, internal, created_at]
+      properties:
+        id: { type: string, format: uuid }
+        author_kind: { type: string, enum: [user, admin, system] }
+        author_name: { type: [string, 'null'] }
+        mine: { type: boolean }
+        body: { type: string }
+        internal: { type: boolean }
+        created_at: { type: string, format: date-time }
+    SupportCaseDetail:
+      allOf:
+        - $ref: '#/components/schemas/SupportCase'
+        - type: object
+          required: [messages]
+          properties:
+            messages: { type: array, items: { $ref: '#/components/schemas/SupportMessage' } }
+    MegaphoneStarted:
+      type: object
+      required: [broadcast_id, url, token, ends_at, recipients]
+      properties:
+        broadcast_id: { type: string, format: uuid }
+        url: { type: string }
+        token: { type: string }
+        ends_at: { type: string, format: date-time }
+        recipients: { type: integer }
+    MegaphoneBroadcast:
+      type: object
+      required: [id, admin_name, cells, resolution, started_at, recipients]
+      properties:
+        id: { type: string, format: uuid }
+        admin_name: { type: string }
+        cells: { type: array, items: { type: string } }
+        resolution: { type: integer }
+        started_at: { type: string, format: date-time }
+        ended_at: { type: [string, 'null'], format: date-time }
+        duration_s: { type: [integer, 'null'] }
+        recipients: { type: integer }
+    SessionsReport:
+      type: object
+      required: [status, checked_at, target, apps]
+      properties:
+        status: { type: string, enum: [ok, not_configured, unavailable] }
+        checked_at: { type: string, format: date-time }
+        target: { type: number }
+        apps:
+          type: array
+          items:
+            type: object
+            required: [app, below_target, link]
+            properties:
+              app: { type: string, enum: [driver, rider, admin] }
+              crash_free_24h: { type: [number, 'null'] }
+              crash_free_7d: { type: [number, 'null'] }
+              top_release: { type: [string, 'null'] }
+              below_target: { type: boolean }
+              link: { type: string }
+    SignedDomainList:
+      type: object
+      required: [payload, signature]
+      properties:
+        payload:
+          type: string
+          description: 'JSON {"version","issued_at","domains":[{"api_url","realtime_url"}]} tal como se firmó'
+        signature: { type: string, description: 'Ed25519 en base64 de los bytes de payload' }
+    MirrorDomain:
+      type: object
+      required: [id, api_url, realtime_url, position, active, status]
+      properties:
+        id: { type: string, format: uuid }
+        api_url: { type: string }
+        realtime_url: { type: string }
+        position: { type: integer }
+        active: { type: boolean }
+        status: { type: string, enum: [ok, down, unchecked] }
+        latency_ms: { type: [integer, 'null'] }
+    MirrorDomainListing:
+      type: object
+      required: [version, signing_configured, domains]
+      properties:
+        version: { type: integer }
+        signing_configured: { type: boolean }
+        public_key: { type: [string, 'null'] }
+        domains: { type: array, items: { $ref: '#/components/schemas/MirrorDomain' } }

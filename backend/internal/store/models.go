@@ -837,6 +837,97 @@ func (ns NullSosStatus) Value() (driver.Value, error) {
 	return string(ns.SosStatus), nil
 }
 
+type SupportStatus string
+
+const (
+	SupportStatusOpen        SupportStatus = "open"
+	SupportStatusInProgress  SupportStatus = "in_progress"
+	SupportStatusWaitingUser SupportStatus = "waiting_user"
+	SupportStatusResolved    SupportStatus = "resolved"
+	SupportStatusClosed      SupportStatus = "closed"
+)
+
+func (e *SupportStatus) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = SupportStatus(s)
+	case string:
+		*e = SupportStatus(s)
+	default:
+		return fmt.Errorf("unsupported scan type for SupportStatus: %T", src)
+	}
+	return nil
+}
+
+type NullSupportStatus struct {
+	SupportStatus SupportStatus
+	Valid         bool // Valid is true if SupportStatus is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullSupportStatus) Scan(value interface{}) error {
+	if value == nil {
+		ns.SupportStatus, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.SupportStatus.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullSupportStatus) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.SupportStatus), nil
+}
+
+type SupportTopic string
+
+const (
+	SupportTopicTrip     SupportTopic = "trip"
+	SupportTopicPayment  SupportTopic = "payment"
+	SupportTopicLostItem SupportTopic = "lost_item"
+	SupportTopicSafety   SupportTopic = "safety"
+	SupportTopicAccount  SupportTopic = "account"
+	SupportTopicOther    SupportTopic = "other"
+)
+
+func (e *SupportTopic) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = SupportTopic(s)
+	case string:
+		*e = SupportTopic(s)
+	default:
+		return fmt.Errorf("unsupported scan type for SupportTopic: %T", src)
+	}
+	return nil
+}
+
+type NullSupportTopic struct {
+	SupportTopic SupportTopic
+	Valid        bool // Valid is true if SupportTopic is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullSupportTopic) Scan(value interface{}) error {
+	if value == nil {
+		ns.SupportTopic, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.SupportTopic.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullSupportTopic) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.SupportTopic), nil
+}
+
 type TripCancelReason string
 
 const (
@@ -1274,6 +1365,39 @@ type GroupPttChannel struct {
 	CreatedAt      time.Time
 }
 
+type MegaphoneBroadcast struct {
+	ID             uuid.UUID
+	AdminID        uuid.UUID
+	RoomName       string
+	Cells          []string
+	Resolution     int16
+	StartedAt      time.Time
+	EndsAt         time.Time
+	EndedAt        pgtype.Timestamptz
+	RecipientCount int32
+}
+
+type MegaphoneRecipient struct {
+	BroadcastID uuid.UUID
+	DriverID    uuid.UUID
+}
+
+type MirrorDomain struct {
+	ID          uuid.UUID
+	ApiUrl      string
+	RealtimeUrl string
+	Position    int32
+	Active      bool
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+}
+
+type MirrorDomainsVersion struct {
+	ID        bool
+	Version   int64
+	UpdatedAt time.Time
+}
+
 type ModerationAction struct {
 	ID        uuid.UUID
 	UserID    uuid.UUID
@@ -1428,6 +1552,35 @@ type SubscriptionPrice struct {
 	CreatedAt     time.Time
 }
 
+type SupportCase struct {
+	ID                uuid.UUID
+	UserID            uuid.UUID
+	UserRole          UserRole
+	CounterpartID     uuid.NullUUID
+	Topic             SupportTopic
+	Subject           string
+	TripID            uuid.NullUUID
+	TripPaymentID     uuid.NullUUID
+	Status            SupportStatus
+	AssignedTo        uuid.NullUUID
+	CreatedAt         time.Time
+	LastMessageAt     time.Time
+	LastUserMessageAt pgtype.Timestamptz
+	LastAuthorIsUser  bool
+	ResolvedAt        pgtype.Timestamptz
+	ClosedAt          pgtype.Timestamptz
+}
+
+type SupportMessage struct {
+	ID         uuid.UUID
+	CaseID     uuid.UUID
+	AuthorID   uuid.NullUUID
+	AuthorKind string
+	Body       string
+	Internal   bool
+	CreatedAt  time.Time
+}
+
 type Trip struct {
 	ID                      uuid.UUID
 	PassengerID             uuid.UUID
@@ -1461,6 +1614,13 @@ type Trip struct {
 	HandoverCount           int16
 	ListFareMinor           int64
 	PreferentialDiscountPct int16
+}
+
+type TripInspection struct {
+	ID       int64
+	AdminID  uuid.UUID
+	TripID   uuid.UUID
+	OpenedAt time.Time
 }
 
 type TripOffer struct {

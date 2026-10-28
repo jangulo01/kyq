@@ -12,7 +12,7 @@ import (
 	"github.com/kyq/backend/internal/store"
 )
 
-// Handlers serves GET /v1/admin/tower (admin only).
+// Handlers serves GET /v1/admin/tower and the trip inspection (admin only).
 type Handlers struct {
 	Store *store.Store
 	Now   func() time.Time
@@ -28,6 +28,8 @@ func (h *Handlers) now() time.Time {
 // Register mounts the routes behind authMW and the admin role check.
 func (h *Handlers) Register(mux *http.ServeMux, authMW func(http.Handler) http.Handler) {
 	mux.Handle("GET /v1/admin/tower", authMW(auth.RequireRole(auth.RoleAdmin)(http.HandlerFunc(h.tower))))
+	// 009: detalle de un viaje desde la torre, con auditoría (FR-001–FR-004).
+	mux.Handle("GET /v1/admin/trips/{tripId}", authMW(auth.RequireRole(auth.RoleAdmin)(http.HandlerFunc(h.inspect))))
 }
 
 func (h *Handlers) tower(w http.ResponseWriter, r *http.Request) {
@@ -80,7 +82,7 @@ func LoadSnapshot(ctx context.Context, q *store.Queries, res int, now time.Time)
 	}
 	trips := make([]TripInput, len(tripRows))
 	for i, t := range tripRows {
-		trips[i] = TripInput{DriverID: t.DriverID, Pickup: hexgrid.Point{Lat: t.PickupLat, Lng: t.PickupLng}}
+		trips[i] = TripInput{ID: t.ID, DriverID: t.DriverID, Pickup: hexgrid.Point{Lat: t.PickupLat, Lng: t.PickupLng}}
 	}
 	requests := make([]RequestInput, len(requestRows))
 	for i, rq := range requestRows {

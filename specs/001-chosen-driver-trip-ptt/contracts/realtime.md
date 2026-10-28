@@ -43,6 +43,9 @@ recuperar eventos tras reconectar.
 | `sos.location` | `sos:{alertId}` | `alert_id`, `lat`, `lng`, `accuracy_m`, `at` | 003 FR-003 |
 | `trip_payment.updated` | `user:{passengerId}` y `user:{driverId}` | `trip_id`, `payment_id`, `status`, `method?` | 004 FR-007 |
 | `trip_payment.reminder` | `user:{passengerId}` | `trip_id`, `payment_id`, `amount_minor`, `currency` | 004 FR-015 |
+| `support.case` | `user:{userId}`, `user:{counterpartId}` y `admin:support` | `case_id`, `status` | 009 FR-009 |
+| `megaphone.started` | `user:{driverId}` | `broadcast_id`, `url`, `token` (solo escucha), `ends_at` | 009 FR-013–FR-015 |
+| `megaphone.ended` | `user:{driverId}` | `broadcast_id` | 009 FR-013 |
 
 006 añade a `trip.offer`: `delegated` (bool), `can_delegate` (bool), `cooperative_name`
 (string|null) y `requested_driver_name` (string|null, el Conductor Elegido cuando la oferta llega
@@ -55,6 +58,12 @@ cooperativa) y `trip.status` puede traer `cancel_reason = no_driver_available`.
 `preferential_discount_pct` (descuento aplicado a `suggested_fare_minor`, RN-KYQ-013). En la bolsa
 zonal, `trip.delegated` llega con `cooperative_id` y `cooperative_name` nulos cuando la oferta pasa
 al siguiente conductor.
+
+009: `admin:support` (solo administradores) avisa a la bandeja de soporte; `support.case` no
+lleva texto: la app vuelve a pedir el caso. La torre (`TowerDriver`) trae `active_trip_id` para
+abrir el detalle. El comunicado del megáfono es una sala LiveKit `mega-{broadcastId}` de un solo
+sentido: el administrador publica el micrófono y los conductores solo escuchan; dura como mucho
+60 s y no se graba.
 
 Los eventos SOS nunca van a `trip:{tripId}` ni al canal de la otra parte del viaje (003 FR-006).
 

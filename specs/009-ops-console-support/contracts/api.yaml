@@ -1,0 +1,54 @@
+openapi: 3.1.0
+info:
+  title: Kyq API — 009 operación del panel (rutas nuevas y cambiadas)
+  version: 0.5.0
+  description: |
+    Vista de las rutas nuevas y cambiadas de 009. Las definiciones viven en el contrato principal
+    `specs/001-chosen-driver-trip-ptt/contracts/api.yaml`, contra el que corren las pruebas de
+    contrato (`backend/internal/contracttest/ops_support_test.go`); aquí solo se referencian.
+
+    Cambios en rutas existentes:
+    - `POST /v1/auth/otp/verify` y `POST /v1/auth/refresh`: el `403 account_suspended` de 007
+      trae `support_session` (alcance `support`): solo abre `/v1/support/*`, `/v1/realtime/*` y
+      `/v1/auth/*`.
+    - `GET /v1/admin/tower`: `TowerDriver.active_trip_id` y `TowerCell.trip_ids`.
+
+    Tiempo real (contracts/realtime.md de 001): `support.case` en `user:{id}` y `admin:support`;
+    `megaphone.started` y `megaphone.ended` en `user:{driverId}`.
+paths:
+  /v1/admin/trips/{tripId}:
+    $ref: '../../001-chosen-driver-trip-ptt/contracts/api.yaml#/paths/~1v1~1admin~1trips~1{tripId}'
+  /v1/support/cases:
+    $ref: '../../001-chosen-driver-trip-ptt/contracts/api.yaml#/paths/~1v1~1support~1cases'
+  /v1/support/cases/{caseId}:
+    $ref: '../../001-chosen-driver-trip-ptt/contracts/api.yaml#/paths/~1v1~1support~1cases~1{caseId}'
+  /v1/support/cases/{caseId}/messages:
+    $ref: '../../001-chosen-driver-trip-ptt/contracts/api.yaml#/paths/~1v1~1support~1cases~1{caseId}~1messages'
+  /v1/support/trips:
+    $ref: '../../001-chosen-driver-trip-ptt/contracts/api.yaml#/paths/~1v1~1support~1trips'
+  /v1/admin/support/cases:
+    $ref: '../../001-chosen-driver-trip-ptt/contracts/api.yaml#/paths/~1v1~1admin~1support~1cases'
+  /v1/admin/support/cases/{caseId}:
+    $ref: '../../001-chosen-driver-trip-ptt/contracts/api.yaml#/paths/~1v1~1admin~1support~1cases~1{caseId}'
+  /v1/admin/support/cases/{caseId}/messages:
+    $ref: '../../001-chosen-driver-trip-ptt/contracts/api.yaml#/paths/~1v1~1admin~1support~1cases~1{caseId}~1messages'
+  /v1/admin/support/cases/{caseId}/status:
+    $ref: '../../001-chosen-driver-trip-ptt/contracts/api.yaml#/paths/~1v1~1admin~1support~1cases~1{caseId}~1status'
+  /v1/admin/support/cases/{caseId}/assign:
+    $ref: '../../001-chosen-driver-trip-ptt/contracts/api.yaml#/paths/~1v1~1admin~1support~1cases~1{caseId}~1assign'
+  /v1/admin/support/cases/{caseId}/resolve-payment:
+    $ref: '../../001-chosen-driver-trip-ptt/contracts/api.yaml#/paths/~1v1~1admin~1support~1cases~1{caseId}~1resolve-payment'
+  /v1/admin/megaphone:
+    $ref: '../../001-chosen-driver-trip-ptt/contracts/api.yaml#/paths/~1v1~1admin~1megaphone'
+  /v1/admin/megaphone/{broadcastId}/end:
+    $ref: '../../001-chosen-driver-trip-ptt/contracts/api.yaml#/paths/~1v1~1admin~1megaphone~1{broadcastId}~1end'
+  /v1/admin/health/sessions:
+    $ref: '../../001-chosen-driver-trip-ptt/contracts/api.yaml#/paths/~1v1~1admin~1health~1sessions'
+  /v1/domains:
+    $ref: '../../001-chosen-driver-trip-ptt/contracts/api.yaml#/paths/~1v1~1domains'
+  /v1/admin/domains:
+    $ref: '../../001-chosen-driver-trip-ptt/contracts/api.yaml#/paths/~1v1~1admin~1domains'
+  /v1/admin/domains/order:
+    $ref: '../../001-chosen-driver-trip-ptt/contracts/api.yaml#/paths/~1v1~1admin~1domains~1order'
+  /v1/admin/domains/{domainId}:
+    $ref: '../../001-chosen-driver-trip-ptt/contracts/api.yaml#/paths/~1v1~1admin~1domains~1{domainId}'

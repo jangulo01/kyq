@@ -28,6 +28,15 @@ type Config struct {
 	SentryDSN         string // vacío: sin envío de errores
 	SentryEnvironment string
 
+	// 009: lectura de sesiones sin fallos desde la API de Sentry; sin token, "no configurado".
+	SentryAPIURL   string
+	SentryAPIToken string
+	SentryOrg      string
+	SentryProjects string // driver=ID,rider=ID,admin=ID
+
+	// 009: semilla Ed25519 en base64 para firmar la lista de dominios espejo; vacía, sin lista.
+	DomainsSigningKey string
+
 	DevOTPCode             string
 	TwilioAccountSID       string
 	TwilioAuthToken        string
@@ -80,6 +89,11 @@ func Load() (Config, error) {
 		CityCode:               getenv("KYQ_CITY_CODE", "bogota"),
 		SentryDSN:              os.Getenv("KYQ_SENTRY_DSN"),
 		SentryEnvironment:      getenv("KYQ_SENTRY_ENVIRONMENT", "dev"),
+		SentryAPIURL:           getenv("KYQ_SENTRY_API_URL", "https://sentry.io"),
+		SentryAPIToken:         os.Getenv("KYQ_SENTRY_API_TOKEN"),
+		SentryOrg:              os.Getenv("KYQ_SENTRY_ORG"),
+		SentryProjects:         os.Getenv("KYQ_SENTRY_PROJECTS"),
+		DomainsSigningKey:      os.Getenv("KYQ_DOMAINS_SIGNING_KEY"),
 		DevOTPCode:             os.Getenv("KYQ_DEV_OTP_CODE"),
 		TwilioAccountSID:       os.Getenv("KYQ_TWILIO_ACCOUNT_SID"),
 		TwilioAuthToken:        os.Getenv("KYQ_TWILIO_AUTH_TOKEN"),
