@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  flutter:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.44.x
+          cache: true
+      - run: dart pub global activate melos 7.8.2
+      - run: flutter pub get
+      - run: melos run analyze
+      - run: melos run test
+
+  go:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgis/postgis:17-3.5
+        env:
+          POSTGRES_DB: kyq_test
+          POSTGRES_USER: kyq
+          POSTGRES_PASSWORD: kyq_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U kyq -d kyq_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      KYQ_TEST_DATABASE_URL: postgres://kyq:kyq_test@localhost:5432/kyq_test?sslmode=disable
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+      - run: go vet ./...
+      - run: go test ./...

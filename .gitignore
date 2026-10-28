@@ -16,3 +16,6 @@ backend/bin/
 # SO
 .DS_Store
 Thumbs.db
+
+# Datos locales de infraestructura
+infra/data/

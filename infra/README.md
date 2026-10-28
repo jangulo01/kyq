@@ -1,0 +1,138 @@
+# Infraestructura local
+
+```bash
+docker compose -f infra/docker-compose.yml up -d
+```
+
+| Servicio | Puerto | Uso |
+|---|---|---|
+| postgres | 5432 | PostgreSQL 17 + PostGIS (`kyq` / `kyq_dev`) |
+| centrifugo | 8000 | Tiempo real; configuración en `centrifugo.json` |
+| livekit | 7880, 7881, 7882/udp | Voz PTT y salas SOS; claves de desarrollo `devkey` / `secret` |
+| redis | (interno) | Cola de LiveKit Egress (003); sin persistencia |
+| egress | (interno) | LiveKit Egress: graba el audio de las salas `sos-*` en `kyq-sos` (003) |
+| minio | 9000 (9001 local) | Objetos privados: fotos KYC (`kyq-kyc`) y grabaciones SOS (`kyq-sos`) |
+| osrm | 5000 | Rutas, distancia y tiempo para tarifas y ETA |
+| tiles | 8081 | Teselas PMTiles de la ciudad |
+
+## Datos de la ciudad piloto
+
+Los datos no se versionan (`infra/data/` está en `.gitignore`).
+
+### OSRM
+
+1. Descargar el extracto OSM de la región (por ejemplo desde Geofabrik) y recortarlo a la
+   ciudad con `osmium extract` si hace falta. Guardarlo como `infra/data/osrm/city.osm.pbf`.
+2. Preprocesar con el perfil de coche:
+
+```bash
+docker run --rm -t -v "$PWD/infra/data/osrm:/data" ghcr.io/project-osrm/osrm-backend:v5.27.1 osrm-extract -p /opt/car.lua /data/city.osm.pbf
+docker run --rm -t -v "$PWD/infra/data/osrm:/data" ghcr.io/project-osrm/osrm-backend:v5.27.1 osrm-partition /data/city.osrm
+docker run --rm -t -v "$PWD/infra/data/osrm:/data" ghcr.io/project-osrm/osrm-backend:v5.27.1 osrm-customize /data/city.osrm
+```
+
+3. Reiniciar el servicio `osrm`. Prueba:
+   `curl "http://localhost:5000/route/v1/driving/-74.08,4.60;-74.05,4.65?overview=false"`.
+
+Repetir cada mes para tener calles actualizadas.
+
+### Teselas
+
+Mapa base vectorial propio (sin Google ni coste por carga). `tiles/build.sh` deja en
+`infra/data/tiles/`:
+
+- `city.pmtiles`: extracto zoom 0–15 de las regiones de `tiles/regions.geojson` (Cali
+  metropolitana y Bogotá, ~29 MB) desde el build diario de Protomaps
+  (`https://build.protomaps.com/AAAAMMDD.pmtiles`, ver `build-metadata.protomaps.dev/builds.json`),
+  con `pmtiles extract` de la imagen `protomaps/go-pmtiles`.
+- `style.json`: estilo MapLibre generado con `@protomaps/basemaps` (tema claro, nombres en español)
+  que apunta a `pmtiles://<base>/city.pmtiles`; MapLibre Native lee el archivo con peticiones Range.
+- `fonts/` (Noto Sans, licencia OFL en `fonts/OFL.txt`) y `sprites/v4/light*` de
+  `protomaps/basemaps-assets` (commit fijado en el script).
+
+```bash
+cd infra
+TILES_BASE_URL=http://192.168.1.66:8081 sh tiles/build.sh 20261027   # sin fecha: build de ayer
+docker compose --profile routing up -d tiles
+curl -I http://localhost:8081/style.json
+```
+
+`TILES_BASE_URL` queda escrito en `style.json` (glifos, sprites y fuente), así que debe ser la URL
+con la que el móvil llega al servicio. La atribución de OpenStreetMap va en la fuente del estilo y
+se muestra en el botón (i) del mapa. Caddy (`tiles/Caddyfile`) sirve los archivos con CORS y
+`Accept-Ranges`. En producción el mismo contenido se publica en Cloudflare R2.
+
+La app de pasajero usa por defecto `http://<host de KYQ_API_URL>:8081/style.json`; se puede fijar
+otro estilo con `--dart-define=KYQ_MAP_STYLE_URL=...`.
+
+## Documentos KYC en MinIO (002)
+
+- La API guarda las fotos de los documentos en el bucket privado `kyq-kyc` (job `minio-init`) y
+  entrega URLs firmadas de corta duración. Credenciales en el `.env`: `KYQ_S3_ACCESS_KEY` y
+  `KYQ_S3_SECRET_KEY` (`openssl rand -hex 16`), que son también el usuario y la clave raíz de MinIO.
+- `KYQ_S3_PUBLIC_ENDPOINT` es la URL con la que el móvil y el panel llegan a MinIO para subir y ver
+  las fotos (por defecto `http://KYQ_PUBLIC_HOST:9000`); dentro de Docker la API usa
+  `http://minio:9000`. La consola de MinIO (9001) solo escucha en la máquina.
+- En producción el mismo bucket va en Cloudflare R2: `KYQ_S3_ENDPOINT` y `KYQ_S3_PUBLIC_ENDPOINT`
+  con la URL S3 de R2 y `KYQ_S3_REGION=auto`.
+
+## Pagos con Bold (002 y 004)
+
+Bold cobra la suscripción del conductor (002) y, si el conductor lo acepta, el viaje (004). Con
+`KYQ_BOLD_ENV` vacío los pagos con Bold quedan desactivados (la API lo avisa al arrancar); el pago en
+efectivo del viaje funciona igual.
+
+| Variable | Valor |
+|---|---|
+| `KYQ_BOLD_ENV` | vacío (desactivado), `sandbox` o `production` |
+| `KYQ_BOLD_IDENTITY_KEY` | llave de identidad (panel de Bold → Integraciones → Llaves de API); en `sandbox`, la de pruebas |
+| `KYQ_BOLD_SECRET_KEY` | llave secreta; firma los webhooks en `production` (en `sandbox` Bold firma con llave vacía) |
+| `KYQ_BOLD_API_URL` | opcional; por defecto `https://integrations.api.bold.co` |
+
+Las llaves nunca se versionan: solo en `infra/.env` (`chmod 600`).
+
+**Confirmación de pagos.** La API consulta a Bold cada 10 s los enlaces de pago abiertos de
+suscripciones y viajes, así que en la VM de desarrollo (sin HTTPS público) los pagos se confirman
+sin webhook. El webhook acelera la confirmación y es obligatorio en producción:
+
+1. Publicar la API detrás de HTTPS con un dominio (por ejemplo Caddy o Cloudflare Tunnel delante del
+   puerto 8080): el webhook necesita una URL pública con `https://`.
+2. En el panel de Bold, en la configuración de webhooks de la integración, registrar
+   `https://<dominio>/v1/billing/bold/webhook`. Es la misma URL para suscripciones (002) y pagos de
+   viajes (004): la API reparte cada notificación según su referencia.
+3. Con `KYQ_BOLD_ENV=production` la API comprueba la cabecera `x-bold-signature` (HMAC-SHA256 con
+   `KYQ_BOLD_SECRET_KEY`); una firma inválida responde 401 y no cambia nada. Las notificaciones
+   repetidas no abonan dos veces.
+4. Prueba: pagar con una tarjeta de pruebas en `sandbox` y comprobar en el log de la API el webhook
+   recibido y que la suscripción o el pago del viaje pasan a pagados.
+
+En la app del pasajero el checkout de Bold se abre en una Custom Tab (Android) y la app vuelve a
+consultar el pago al regresar.
+
+## SOS y consola de emergencias (003)
+
+- **Grabación**: `egress` (LiveKit Egress, configuración en `egress.yaml`) recibe por Redis las
+  órdenes de la API (`StartRoomCompositeEgress` solo audio, OGG/Opus) y sube
+  `sos/{alertId}.ogg` al bucket `kyq-sos`. Las credenciales S3 le llegan por
+  `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` (las de MinIO del `.env`). El job
+  `minio-init-sos` crea el bucket y la API le pone al arrancar la regla de ciclo de vida que borra
+  el audio a los 90 días (también válida en Cloudflare R2). Sin egress, poner
+  `KYQ_SOS_RECORDING=false`: las alertas funcionan igual, sin grabación.
+- **Redis** solo existe por Egress (desviación registrada en el plan de 003); `livekit.yaml` lo
+  declara para que el servidor publique las peticiones de grabación.
+- **Centrifugo**: namespaces `ops` (cola `ops:sos`) y `sos` (`sos:{alertId}`, ubicación a 1 Hz),
+  solo para administradores con permiso de operador de emergencias.
+- **Operadores**: la semilla deja al administrador de `KYQ_SEED_ADMIN_PHONE` como operador de
+  emergencias de guardia (tabla `emergency_operators`). La guardia se cambia desde la consola; a
+  los 60 s sin tomar una alerta se avisa por SMS a los de guardia (`KYQ_TWILIO_SMS_FROM`; vacío o
+  con OTP de desarrollo, solo se registra en el log).
+- **Viaje compartido**: la API sirve la página pública `GET /s/{token}` (MapLibre GL JS 4.7.1 y
+  pmtiles 3.2.1 desde unpkg con SRI) y `GET /v1/share/{token}`. El mapa usa `KYQ_MAP_STYLE_URL`
+  o el servicio `tiles` del mismo host (puerto 8081, perfil `routing`).
+
+Comprobar tras `docker compose up -d`:
+
+```bash
+docker compose logs egress | tail          # "service ready" y conectado a Redis
+docker compose run --rm minio-init-sos ls local/   # lista los buckets: kyq-kyc y kyq-sos
+```

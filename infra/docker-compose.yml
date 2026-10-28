@@ -1,37 +1,204 @@
-# Entorno local de desarrollo. Credenciales solo para desarrollo: no usar en producción.
+# Entorno de desarrollo completo. Secretos en infra/.env (copiar de .env.example; no se versiona).
+#   docker compose up -d --build            # backend + servicios
+#   docker compose --profile routing up -d  # además OSRM (requiere infra/data/osrm, ver README)
 services:
   postgres:
     image: postgis/postgis:17-3.5
     environment:
       POSTGRES_DB: kyq
       POSTGRES_USER: kyq
-      POSTGRES_PASSWORD: kyq_dev
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      # -h fuerza TCP: en el primer arranque Postgres solo escucha el socket mientras inicializa.
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U kyq -d kyq"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
 
-  redis:
-    image: redis:7-alpine
+  migrate:
+    build: ../backend
+    entrypoint: ["/app/migrate", "up"]
+    environment:
+      KYQ_DATABASE_URL: postgres://kyq:${POSTGRES_PASSWORD}@postgres:5432/kyq?sslmode=disable
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  seed:
+    build: ../backend
+    entrypoint: ["/app/seed"]
+    environment:
+      KYQ_DATABASE_URL: postgres://kyq:${POSTGRES_PASSWORD}@postgres:5432/kyq?sslmode=disable
+      KYQ_SEED_ADMIN_PHONE: ${KYQ_SEED_ADMIN_PHONE}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  api:
+    build: ../backend
+    environment:
+      KYQ_HTTP_ADDR: ":8080"
+      KYQ_DATABASE_URL: postgres://kyq:${POSTGRES_PASSWORD}@postgres:5432/kyq?sslmode=disable
+      KYQ_JWT_SECRET: ${KYQ_JWT_SECRET}
+      KYQ_CENTRIFUGO_API_URL: http://centrifugo:8000/api
+      KYQ_CENTRIFUGO_API_KEY: ${KYQ_CENTRIFUGO_API_KEY}
+      KYQ_CENTRIFUGO_TOKEN_SECRET: ${KYQ_CENTRIFUGO_TOKEN_SECRET}
+      KYQ_LIVEKIT_URL: ws://${KYQ_PUBLIC_HOST}:7880
+      KYQ_LIVEKIT_API_URL: http://livekit:7880
+      KYQ_LIVEKIT_API_KEY: devkey
+      KYQ_LIVEKIT_API_SECRET: secret
+      KYQ_OSRM_URL: http://osrm:5000
+      KYQ_DEV_OTP_CODE: ${KYQ_DEV_OTP_CODE}
+      KYQ_SENTRY_DSN: ${KYQ_SENTRY_DSN:-}
+      # Orígenes del panel web que pueden llamar a la API (coma); vacío desactiva CORS.
+      KYQ_CORS_ORIGINS: ${KYQ_CORS_ORIGINS:-}
+      # Fotos de documentos (002): bucket privado; las URLs firmadas usan el endpoint público
+      # para que el móvil llegue por la LAN.
+      KYQ_S3_ENDPOINT: http://minio:9000
+      KYQ_S3_PUBLIC_ENDPOINT: ${KYQ_S3_PUBLIC_ENDPOINT:-http://${KYQ_PUBLIC_HOST}:9000}
+      KYQ_S3_ACCESS_KEY: ${KYQ_S3_ACCESS_KEY}
+      KYQ_S3_SECRET_KEY: ${KYQ_S3_SECRET_KEY}
+      KYQ_S3_BUCKET: ${KYQ_S3_BUCKET:-kyq-kyc}
+      # Bold (002). Vacío KYQ_BOLD_ENV: pagos con Bold desactivados.
+      KYQ_BOLD_ENV: ${KYQ_BOLD_ENV:-}
+      KYQ_BOLD_IDENTITY_KEY: ${KYQ_BOLD_IDENTITY_KEY:-}
+      KYQ_BOLD_SECRET_KEY: ${KYQ_BOLD_SECRET_KEY:-}
+      # SOS (003): enlaces de viaje compartido que reciben los contactos, estilo del mapa de esa
+      # página y grabaciones en el bucket kyq-sos (KYQ_SOS_RECORDING=false si egress no corre).
+      KYQ_PUBLIC_BASE_URL: ${KYQ_PUBLIC_BASE_URL:-http://${KYQ_PUBLIC_HOST}:8080}
+      KYQ_MAP_STYLE_URL: ${KYQ_MAP_STYLE_URL:-}
+      KYQ_S3_SOS_BUCKET: kyq-sos
+      KYQ_SOS_RECORDING: ${KYQ_SOS_RECORDING:-true}
+      KYQ_TWILIO_SMS_FROM: ${KYQ_TWILIO_SMS_FROM:-}
     ports:
-      - "6379:6379"
+      - "8080:8080"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      minio-init:
+        condition: service_completed_successfully
+      minio-init-sos:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  # Almacenamiento S3 compatible para las fotos KYC (research R4). La imagen oficial de MinIO ya
+  # no se publica en Docker Hub; se usa la compilación de Chainguard fijada por digest.
+  minio:
+    image: cgr.dev/chainguard/minio@sha256:e70b2b1e74d79457f808710483bd726ff364529ca30736eaa15a6ab547d3a5a7
+    command: server /data --address :9000 --console-address :9001
+    environment:
+      MINIO_ROOT_USER: ${KYQ_S3_ACCESS_KEY}
+      MINIO_ROOT_PASSWORD: ${KYQ_S3_SECRET_KEY}
+    volumes:
+      - miniodata:/data
+    ports:
+      # 9000 en la LAN: el móvil sube y descarga con URLs firmadas. Consola solo en la VM.
+      - "9000:9000"
+      - "127.0.0.1:9001:9001"
+    restart: unless-stopped
+
+  # Crea el bucket privado (idempotente). Sin política anónima: nada es público.
+  minio-init:
+    image: cgr.dev/chainguard/minio-client@sha256:799a60aa839c0d79b53f1dccdddc974d0fe94282cca712fbfbad3b196f88d0ee
+    command: ["mb", "--ignore-existing", "local/${KYQ_S3_BUCKET:-kyq-kyc}"]
+    environment:
+      MC_HOST_local: http://${KYQ_S3_ACCESS_KEY}:${KYQ_S3_SECRET_KEY}@minio:9000
+    depends_on:
+      - minio
+    restart: on-failure
+
+  # Bucket privado de las grabaciones SOS (003, FR-018). La API le pone al arrancar la regla de
+  # ciclo de vida que borra el audio a los 90 días (storage.EnsureExpiry, también válida en R2).
+  minio-init-sos:
+    image: cgr.dev/chainguard/minio-client@sha256:799a60aa839c0d79b53f1dccdddc974d0fe94282cca712fbfbad3b196f88d0ee
+    command: ["mb", "--ignore-existing", "local/kyq-sos"]
+    environment:
+      MC_HOST_local: http://${KYQ_S3_ACCESS_KEY}:${KYQ_S3_SECRET_KEY}@minio:9000
+    depends_on:
+      - minio
+    restart: on-failure
 
   centrifugo:
     image: centrifugo/centrifugo:v6
     command: centrifugo --config=/centrifugo/config.json
+    environment:
+      CENTRIFUGO_CLIENT_TOKEN_HMAC_SECRET_KEY: ${KYQ_CENTRIFUGO_TOKEN_SECRET}
+      CENTRIFUGO_HTTP_API_KEY: ${KYQ_CENTRIFUGO_API_KEY}
+      CENTRIFUGO_ADMIN_PASSWORD: ${KYQ_CENTRIFUGO_ADMIN_PASSWORD}
+      CENTRIFUGO_ADMIN_SECRET: ${KYQ_CENTRIFUGO_ADMIN_SECRET}
     volumes:
       - ./centrifugo.json:/centrifugo/config.json:ro
     ports:
       - "8000:8000"
+    restart: unless-stopped
 
   livekit:
     image: livekit/livekit-server:v1.9.0
-    # --dev usa las claves devkey / secret
-    command: --dev --bind 0.0.0.0
+    # --dev usa las claves devkey / secret; --node-ip para que el móvil llegue por la LAN.
+    command: --dev --config /etc/livekit.yaml --bind 0.0.0.0 --node-ip ${KYQ_PUBLIC_HOST}
+    volumes:
+      - ./livekit.yaml:/etc/livekit.yaml:ro
     ports:
       - "7880:7880"
       - "7881:7881"
       - "7882:7882/udp"
+    depends_on:
+      - redis
+    restart: unless-stopped
+
+  # Redis: lo exigen LiveKit Egress y el servidor LiveKit para comunicarse con él (003, solo para
+  # grabar el audio SOS; ver Complexity Tracking del plan).
+  redis:
+    image: redis:7.4.1-alpine
+    command: redis-server --save "" --appendonly no
+    restart: unless-stopped
+
+  # Grabación del audio de las salas SOS (RoomCompositeEgress solo audio, OGG) hacia el bucket
+  # kyq-sos de MinIO. La configuración no secreta está en egress.yaml; las credenciales S3 llegan
+  # por las variables estándar de AWS que egress usa cuando egress.yaml no las trae.
+  egress:
+    image: livekit/egress:v1.9.0
+    environment:
+      EGRESS_CONFIG_FILE: /etc/egress.yaml
+      AWS_ACCESS_KEY_ID: ${KYQ_S3_ACCESS_KEY}
+      AWS_SECRET_ACCESS_KEY: ${KYQ_S3_SECRET_KEY}
+    volumes:
+      - ./egress.yaml:/etc/egress.yaml:ro
+    cap_add:
+      - SYS_ADMIN
+    depends_on:
+      - redis
+      - livekit
+      - minio-init-sos
+    restart: unless-stopped
+
+  osrm:
+    profiles: ["routing"]
+    image: ghcr.io/project-osrm/osrm-backend:v5.27.1
+    command: osrm-routed --algorithm mld /data/city.osrm
+    volumes:
+      - ./data/osrm:/data
+    ports:
+      - "5000:5000"
+    restart: unless-stopped
+
+  tiles:
+    profiles: ["routing"]
+    image: caddy:2-alpine
+    # Mapa base: city.pmtiles + style.json + fonts/ + sprites/ (ver tiles/build.sh), con CORS y Range.
+    command: caddy run --config /etc/caddy/Caddyfile --adapter caddyfile
+    volumes:
+      - ./data/tiles:/srv:ro
+      - ./tiles/Caddyfile:/etc/caddy/Caddyfile:ro
+    ports:
+      - "8081:8081"
+    restart: unless-stopped
 
 volumes:
   pgdata:
+  miniodata:
