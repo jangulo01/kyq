@@ -1,10 +1,13 @@
 -- Pre-consulta de voz (RN-KYQ-010, specs/005-ptt-extras).
 
 -- name: GetPreconsultTarget :one
--- Afiliación activa del pasajero con el conductor y lo que decide si puede consultarle.
-SELECT a.preconsults_blocked, d.accepts_preconsults, d.presence
+-- Afiliación activa del pasajero con el conductor y lo que decide si puede consultarle (un
+-- conductor suspendido no está disponible, 007 FR-016).
+SELECT a.preconsults_blocked, d.accepts_preconsults, d.presence,
+       (u.suspended_at IS NOT NULL)::boolean AS driver_suspended
 FROM affiliations a
 JOIN drivers d ON d.user_id = a.driver_id
+JOIN users u ON u.id = d.user_id
 WHERE a.passenger_id = $1 AND a.driver_id = $2 AND a.removed_at IS NULL;
 
 -- name: GetOpenPreconsultByPassenger :one
@@ -128,9 +131,11 @@ UPDATE affiliations SET preconsults_blocked = sqlc.arg(blocked)
 WHERE driver_id = sqlc.arg(driver_id) AND passenger_id = sqlc.arg(passenger_id) AND removed_at IS NULL;
 
 -- name: ListPreconsultDrivers :many
--- Conductores Elegidos del pasajero que aceptan sus consultas (sin mirar la presencia).
+-- Conductores Elegidos del pasajero que aceptan sus consultas (sin mirar la presencia) y no
+-- están suspendidos (007, FR-016).
 SELECT a.driver_id
 FROM affiliations a
 JOIN drivers d ON d.user_id = a.driver_id
+JOIN users u ON u.id = d.user_id AND u.suspended_at IS NULL
 WHERE a.passenger_id = $1 AND a.removed_at IS NULL AND NOT a.preconsults_blocked AND d.accepts_preconsults
 ORDER BY a.driver_id;

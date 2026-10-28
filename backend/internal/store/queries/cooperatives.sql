@@ -108,13 +108,15 @@ WHERE m.driver_id = $1 AND m.status = 'active' AND c.status = 'active';
 
 -- name: FindDelegationCandidate :one
 -- Compañero libre más cercano a la recogida (FR-015): miembro activo de la cooperativa activa,
--- con ubicación reciente, dentro del radio y sin oferta previa en el viaje. La fila del conductor
--- queda bloqueada para que otra solicitud no lo reserve a la vez (research R2).
+-- con ubicación reciente, dentro del radio, sin oferta previa en el viaje y no suspendido (007,
+-- FR-016). La fila del conductor queda bloqueada para que otra solicitud no lo reserve a la vez
+-- (research R2).
 SELECT d.user_id AS driver_id,
        ST_Distance(d.last_location, ST_SetSRID(ST_MakePoint(sqlc.arg(lng)::float8, sqlc.arg(lat)::float8), 4326)::geography)::float8 AS distance_m
 FROM cooperative_memberships m
 JOIN cooperatives c ON c.id = m.cooperative_id AND c.status = 'active'
 JOIN drivers d ON d.user_id = m.driver_id
+JOIN users u ON u.id = d.user_id AND u.suspended_at IS NULL
 WHERE m.cooperative_id = sqlc.arg(cooperative_id)
   AND m.status = 'active'
   AND d.presence = 'free'

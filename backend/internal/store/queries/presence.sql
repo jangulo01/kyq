@@ -1,6 +1,9 @@
 -- name: GetDriverForPresence :one
-SELECT d.user_id, d.presence, d.last_lat, d.last_lng, d.busy_until_estimate, d.busy_estimate_updated_at, s.paid_until
+-- suspended (007, FR-016): un conductor suspendido nunca cuenta como libre para recibir viajes.
+SELECT d.user_id, d.presence, d.last_lat, d.last_lng, d.busy_until_estimate, d.busy_estimate_updated_at, s.paid_until,
+       (u.suspended_at IS NOT NULL)::boolean AS suspended
 FROM drivers d
+JOIN users u ON u.id = d.user_id
 LEFT JOIN subscriptions s ON s.driver_id = d.user_id
 WHERE d.user_id = $1
 FOR UPDATE OF d;

@@ -139,7 +139,7 @@ func (s *Service) RequestWith(ctx context.Context, passengerID, driverID uuid.UU
 			if err != nil {
 				return err
 			}
-			if d.Presence != store.DriverPresenceFree {
+			if d.Presence != store.DriverPresenceFree || d.Suspended {
 				return ErrNoDriverAvailable
 			}
 		}
@@ -320,10 +320,11 @@ func (s *Service) persist(ctx context.Context, q *store.Queries, t *Trip, before
 	var msgs []Message
 	switch {
 	case before.Active() && !t.Status.Active():
-		if err := q.SetDriverPresence(ctx, store.SetDriverPresenceParams{UserID: t.DriverID, Presence: store.DriverPresenceFree}); err != nil {
+		presence, err := releaseDriver(ctx, q, t.DriverID)
+		if err != nil {
 			return nil, err
 		}
-		msgs = append(msgs, presenceMessage(t.DriverID, store.DriverPresenceFree, nil, now))
+		msgs = append(msgs, presenceMessage(t.DriverID, presence, nil, now))
 	case t.Status == StatusAccepted && before != StatusAccepted:
 		// Estimación inicial: duración del viaje; se afina con la ubicación del conductor.
 		until := now.Add(time.Duration(t.DurationS) * time.Second)
@@ -352,6 +353,20 @@ func (s *Service) persist(ctx context.Context, q *store.Queries, t *Trip, before
 		passengerName = name
 	}
 	return append(eventsFor(before, beforeProposal, t, false, passengerName, driver, now), msgs...), nil
+}
+
+// releaseDriver deja libre al conductor cuando termina su viaje u oferta, salvo que lo hayan
+// suspendido mientras tanto (007, FR-016): entonces queda OFFLINE y no vuelve a recibir solicitudes.
+func releaseDriver(ctx context.Context, q *store.Queries, driverID uuid.UUID) (store.DriverPresence, error) {
+	suspended, err := q.IsUserSuspended(ctx, driverID)
+	if err != nil {
+		return "", err
+	}
+	presence := store.DriverPresenceFree
+	if suspended {
+		presence = store.DriverPresenceOffline
+	}
+	return presence, q.SetDriverPresence(ctx, store.SetDriverPresenceParams{UserID: driverID, Presence: presence})
 }
 
 // PTTCloseDelay keeps the voice channel open after the trip ends, for forgotten objects and

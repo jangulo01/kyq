@@ -88,7 +88,8 @@ func afterHandOver(ctx context.Context, q *store.Queries, t *Trip, now time.Time
 	if err := q.InsertTripOffer(ctx, store.InsertTripOfferParams{TripID: t.ID, DriverID: t.DriverID, OfferedAt: now, Handover: true}); err != nil {
 		return nil, err
 	}
-	if err := q.SetDriverPresence(ctx, store.SetDriverPresenceParams{UserID: prev, Presence: store.DriverPresenceFree}); err != nil {
+	prevPresence, err := releaseDriver(ctx, q, prev)
+	if err != nil {
 		return nil, err
 	}
 	if err := q.SetDriverPresence(ctx, store.SetDriverPresenceParams{UserID: t.DriverID, Presence: store.DriverPresenceBusy}); err != nil {
@@ -108,7 +109,7 @@ func afterHandOver(ctx context.Context, q *store.Queries, t *Trip, now time.Time
 		{userChannel(prev), ev("trip.offer_closed", map[string]any{"trip_id": t.ID, "reason": t.HandoverReason})},
 		offerMessage(t, passengerName, now),
 		delegatedMessage(t, t.HandoverReason, now),
-		presenceMessage(prev, store.DriverPresenceFree, nil, now),
+		presenceMessage(prev, prevPresence, nil, now),
 		presenceMessage(t.DriverID, store.DriverPresenceBusy, nil, now),
 	}, nil
 }
@@ -176,7 +177,8 @@ func dispatchNew(ctx context.Context, q *store.Queries, t *Trip, opts RequestOpt
 	if err != nil {
 		return err
 	}
-	if driver.Presence == store.DriverPresenceFree {
+	// Un conductor suspendido (007, FR-016) cuenta como no disponible aunque figure libre.
+	if driver.Presence == store.DriverPresenceFree && !driver.Suspended {
 		return nil
 	}
 	if !t.AllowDelegation {

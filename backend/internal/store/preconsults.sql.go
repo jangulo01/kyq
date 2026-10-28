@@ -207,9 +207,11 @@ func (q *Queries) GetPreconsultDriver(ctx context.Context, id uuid.UUID) (uuid.U
 
 const getPreconsultTarget = `-- name: GetPreconsultTarget :one
 
-SELECT a.preconsults_blocked, d.accepts_preconsults, d.presence
+SELECT a.preconsults_blocked, d.accepts_preconsults, d.presence,
+       (u.suspended_at IS NOT NULL)::boolean AS driver_suspended
 FROM affiliations a
 JOIN drivers d ON d.user_id = a.driver_id
+JOIN users u ON u.id = d.user_id
 WHERE a.passenger_id = $1 AND a.driver_id = $2 AND a.removed_at IS NULL
 `
 
@@ -222,14 +224,21 @@ type GetPreconsultTargetRow struct {
 	PreconsultsBlocked bool
 	AcceptsPreconsults bool
 	Presence           DriverPresence
+	DriverSuspended    bool
 }
 
 // Pre-consulta de voz (RN-KYQ-010, specs/005-ptt-extras).
-// Afiliación activa del pasajero con el conductor y lo que decide si puede consultarle.
+// Afiliación activa del pasajero con el conductor y lo que decide si puede consultarle (un
+// conductor suspendido no está disponible, 007 FR-016).
 func (q *Queries) GetPreconsultTarget(ctx context.Context, arg GetPreconsultTargetParams) (GetPreconsultTargetRow, error) {
 	row := q.db.QueryRow(ctx, getPreconsultTarget, arg.PassengerID, arg.DriverID)
 	var i GetPreconsultTargetRow
-	err := row.Scan(&i.PreconsultsBlocked, &i.AcceptsPreconsults, &i.Presence)
+	err := row.Scan(
+		&i.PreconsultsBlocked,
+		&i.AcceptsPreconsults,
+		&i.Presence,
+		&i.DriverSuspended,
+	)
 	return i, err
 }
 
@@ -445,11 +454,13 @@ const listPreconsultDrivers = `-- name: ListPreconsultDrivers :many
 SELECT a.driver_id
 FROM affiliations a
 JOIN drivers d ON d.user_id = a.driver_id
+JOIN users u ON u.id = d.user_id AND u.suspended_at IS NULL
 WHERE a.passenger_id = $1 AND a.removed_at IS NULL AND NOT a.preconsults_blocked AND d.accepts_preconsults
 ORDER BY a.driver_id
 `
 
-// Conductores Elegidos del pasajero que aceptan sus consultas (sin mirar la presencia).
+// Conductores Elegidos del pasajero que aceptan sus consultas (sin mirar la presencia) y no
+// están suspendidos (007, FR-016).
 func (q *Queries) ListPreconsultDrivers(ctx context.Context, passengerID uuid.UUID) ([]uuid.UUID, error) {
 	rows, err := q.db.Query(ctx, listPreconsultDrivers, passengerID)
 	if err != nil {

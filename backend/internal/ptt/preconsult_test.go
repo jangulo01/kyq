@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -375,4 +376,23 @@ func TestIntegrationPreconsultHTTPStatuses(t *testing.T) {
 	code, out = call(http.MethodPost, base+"/ptt/token", passenger, nil)
 	assert.Equal(t, http.StatusGone, code)
 	assert.Equal(t, "ptt_closed", out["code"])
+}
+
+// 007 (FR-016): a un conductor suspendido no se le puede abrir una consulta de voz aunque figure
+// libre, y deja de aparecer entre los que aceptan consultas.
+func TestIntegrationPreconsultSuspendedDriverUnavailable(t *testing.T) {
+	f := setup(t)
+	ctx := context.Background()
+	f.acceptPreconsults(t, true)
+	f.setPresence(t, store.DriverPresenceFree)
+	require.NoError(t, f.store().SetUserSuspension(ctx, store.SetUserSuspensionParams{
+		ID: f.driver, SuspendedAt: pgtype.Timestamptz{Time: *f.clock, Valid: true}, SuspensionReason: pgtype.Text{String: "prueba", Valid: true},
+	}))
+
+	_, _, err := f.ptt.OpenPreconsult(ctx, f.passenger, f.driver)
+	assert.ErrorIs(t, err, ptt.ErrDriverUnavailable)
+	assert.Empty(t, f.pub.msgs["user:"+f.driver.String()], "no recibe preconsult.opened")
+	ids, err := f.ptt.PreconsultDrivers(ctx, f.passenger)
+	require.NoError(t, err)
+	assert.Empty(t, ids)
 }

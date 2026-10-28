@@ -162,7 +162,7 @@ func (s *Service) OpenPreconsult(ctx context.Context, passengerID, driverID uuid
 	if existing, ok, err := s.existingPreconsult(ctx, passengerID, driverID); err != nil || ok {
 		return existing, false, err
 	}
-	if target.Presence != store.DriverPresenceFree {
+	if target.Presence != store.DriverPresenceFree || target.DriverSuspended {
 		return Preconsult{}, false, ErrDriverUnavailable
 	}
 	counts, err := s.Store.CountRecentPreconsults(ctx, store.CountRecentPreconsultsParams{
