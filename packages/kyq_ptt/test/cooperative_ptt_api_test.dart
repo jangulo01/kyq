@@ -4,11 +4,14 @@ import 'package:kyq_ptt/kyq_ptt.dart';
 
 /// Cliente con las rutas del canal de grupo simuladas.
 class _GroupClient extends KyqApiClient {
-  _GroupClient(this.status) : super(baseUrl: 'http://api.test', tokenStore: InMemoryTokenStore());
+  _GroupClient(this.status, {this.code = 'x'}) : super(baseUrl: 'http://api.test', tokenStore: InMemoryTokenStore());
 
   final int? status;
 
-  Never _fail() => throw ApiException(status, 'x', 'x');
+  /// Código de error del cuerpo; el backend responde `404 no_cooperative` al que ya no es miembro.
+  final String code;
+
+  Never _fail() => throw ApiException(status, code, 'x');
 
   @override
   Future<PttCredentials> cooperativePttToken() async {
@@ -37,7 +40,10 @@ void main() {
 
   test('409 es turno ocupado; 404 (ya no es miembro) cierra el canal', () async {
     expect(KyqCooperativePttApi(_GroupClient(409)).requestFloor(), throwsA(isA<PttFloorBusy>()));
-    expect(KyqCooperativePttApi(_GroupClient(404)).token(), throwsA(isA<PttChannelClosed>()));
+    expect(KyqCooperativePttApi(_GroupClient(404, code: 'no_cooperative')).token(), throwsA(isA<PttChannelClosed>()));
+    expect(KyqCooperativePttApi(_GroupClient(410)).requestFloor(), throwsA(isA<PttChannelClosed>()));
+    // Un 404 que no es `no_cooperative` (p. ej. de un proxy) no cierra el canal: se reintenta.
+    expect(KyqCooperativePttApi(_GroupClient(404)).token(), throwsA(isA<ApiException>()));
     expect(KyqCooperativePttApi(_GroupClient(503)).releaseFloor(), throwsA(isA<ApiException>()));
   });
 }
