@@ -15,6 +15,7 @@ import (
 	"github.com/kyq/backend/internal/ptt"
 	"github.com/kyq/backend/internal/realtime"
 	"github.com/kyq/backend/internal/telemetry"
+	"github.com/kyq/backend/internal/trippay"
 	"github.com/kyq/backend/internal/trips"
 )
 
@@ -36,6 +37,8 @@ type Deps struct {
 	Billing *billing.Handlers
 	Notices *notify.Handlers
 	Costs   *telemetry.CostHandlers
+	// 004: pago del viaje con Bold o en efectivo, libro de liquidación y giros.
+	TripPay *trippay.Handlers
 	// LiveKitWebhook is public: LiveKit authenticates it with its own signature.
 	LiveKitWebhook *telemetry.LiveKitWebhook
 }
@@ -95,6 +98,9 @@ func NewRouter(d Deps) http.Handler {
 		}
 		if d.Costs != nil {
 			d.Costs.Register(mux, requireAuth)
+		}
+		if d.TripPay != nil {
+			d.TripPay.Register(mux, requireAuth)
 		}
 	}
 

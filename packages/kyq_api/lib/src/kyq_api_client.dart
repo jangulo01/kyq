@@ -5,6 +5,7 @@ import 'package:dio/dio.dart';
 import 'models.dart';
 import 'onboarding_models.dart';
 import 'token_store.dart';
+import 'trip_payment_models.dart';
 
 /// Error de la API con el cuerpo `Error{code,message}` del contrato.
 class ApiException implements Exception {
@@ -492,6 +493,119 @@ class KyqApiClient {
     );
     return _list(res.data, 'drivers').map(CostBreakdown.fromJson).toList();
   }
+
+  // Pago del viaje (004)
+
+  /// Pago del viaje, o null si no tiene (no completado o anterior a 004).
+  Future<TripPayment?> tripPayment(String tripId) async {
+    try {
+      final res = await _send(() => _dio.get<Map<String, dynamic>>('/v1/trips/$tripId/payment'));
+      return TripPayment.fromJson(res.data!);
+    } on ApiException catch (e) {
+      if (e.statusCode == 404) return null;
+      rethrow;
+    }
+  }
+
+  /// El pasajero abre el checkout de Bold por la tarifa acordada; reutiliza el enlace vigente.
+  /// 409 `method_not_accepted` o `bold_in_progress`; 503 `bold_unavailable`.
+  Future<TripPayment> payTripWithBold(String tripId) => _tripPayment('/v1/trips/$tripId/payment/bold');
+
+  /// Pide al backend que consulte ya a Bold (al volver del checkout).
+  Future<TripPayment> refreshTripPayment(String tripId) => _tripPayment('/v1/trips/$tripId/payment/refresh');
+
+  /// "Pagué en efectivo" del pasajero.
+  Future<TripPayment> reportCashPayment(String tripId) => _tripPayment('/v1/trips/$tripId/payment/cash');
+
+  /// "Recibí el efectivo" del conductor.
+  Future<TripPayment> confirmCashReceived(String tripId) => _tripPayment('/v1/trips/$tripId/payment/cash-received');
+
+  /// "No recibí el efectivo" del conductor ante un reporte del pasajero.
+  Future<TripPayment> disputeCash(String tripId) => _tripPayment('/v1/trips/$tripId/payment/cash-dispute');
+
+  /// "No me pagó" del conductor.
+  Future<TripPayment> markTripUnpaid(String tripId) => _tripPayment('/v1/trips/$tripId/payment/unpaid');
+
+  /// Viajes del pasajero aún sin pagar, recientes primero.
+  Future<List<TripPayment>> pendingTripPayments() async {
+    final res = await _send(() => _dio.get<dynamic>('/v1/trip-payments/pending'));
+    return _list(res.data, 'payments').map(TripPayment.fromJson).toList();
+  }
+
+  Future<PaymentMethods> driverPaymentMethods() async {
+    final res = await _send(() => _dio.get<Map<String, dynamic>>('/v1/driver/payment-methods'));
+    return PaymentMethods.fromJson(res.data!);
+  }
+
+  /// 400 `no_method` si se desactivan los dos.
+  Future<PaymentMethods> setDriverPaymentMethods({required bool cash, required bool bold}) async {
+    final res = await _send(
+      () => _dio.put<Map<String, dynamic>>(
+        '/v1/driver/payment-methods',
+        data: {'accepts_cash': cash, 'accepts_bold': bold},
+      ),
+    );
+    return PaymentMethods.fromJson(res.data!);
+  }
+
+  /// Saldo por girar, libro y pagos de viajes recientes del conductor.
+  Future<DriverSettlement> driverSettlement() async {
+    final res = await _send(() => _dio.get<Map<String, dynamic>>('/v1/driver/settlement'));
+    return DriverSettlement.fromJson(res.data!);
+  }
+
+  Future<TripPayment> _tripPayment(String path) async {
+    final res = await _send(() => _dio.post<Map<String, dynamic>>(path));
+    return TripPayment.fromJson(res.data!);
+  }
+
+  // Admin: pagos de viajes y liquidaciones (004)
+
+  /// [status]: un estado del pago o `issues` (no pagado, en disputa, en revisión).
+  Future<List<TripPayment>> adminTripPayments({String? status}) async {
+    final res = await _send(() => _dio.get<dynamic>('/v1/admin/trip-payments', queryParameters: {'status': ?status}));
+    return _list(res.data, 'payments').map(TripPayment.fromJson).toList();
+  }
+
+  /// Resuelve una disputa o un no pagado: [paid] true = pagado en efectivo.
+  Future<void> adminResolveTripPayment(String tripPaymentId, {required bool paid, required String note}) => _send(
+    () => _dio.post<void>(
+      '/v1/admin/trip-payments/$tripPaymentId/resolve',
+      data: {'outcome': paid ? 'paid' : 'unpaid', 'note': note},
+    ),
+  );
+
+  Future<void> adminVoidTripPayment(String tripPaymentId, String reason) =>
+      _send(() => _dio.post<void>('/v1/admin/trip-payments/$tripPaymentId/void', data: {'reason': reason}));
+
+  Future<List<SettlementRow>> adminSettlements() async {
+    final res = await _send(() => _dio.get<dynamic>('/v1/admin/settlements'));
+    return _list(res.data, 'settlements').map(SettlementRow.fromJson).toList();
+  }
+
+  Future<DriverSettlement> adminDriverSettlement(String driverId) async {
+    final res = await _send(() => _dio.get<Map<String, dynamic>>('/v1/admin/drivers/$driverId/settlement'));
+    return DriverSettlement.fromJson(res.data!);
+  }
+
+  /// Giro hecho por fuera al conductor. 409 `exceeds_balance` si supera el saldo.
+  Future<void> adminRegisterPayout(
+    String driverId, {
+    required int amountMinor,
+    required String currency,
+    required String reference,
+    String? note,
+  }) => _send(
+    () => _dio.post<void>(
+      '/v1/admin/drivers/$driverId/payouts',
+      data: {
+        'amount_minor': amountMinor,
+        'currency': currency,
+        'reference': reference,
+        if (note != null && note.trim().isNotEmpty) 'note': note.trim(),
+      },
+    ),
+  );
 
   Future<Response<T>> _send<T>(Future<Response<T>> Function() request) async {
     try {

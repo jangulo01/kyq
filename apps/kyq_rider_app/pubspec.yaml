@@ -27,6 +27,7 @@ dependencies:
     path: ../../packages/kyq_ui
   maplibre_gl: ^0.27.1
   mobile_scanner: ^7.4.2
+  url_launcher: ^6.3.3
 
 dev_dependencies:
   flutter_test:

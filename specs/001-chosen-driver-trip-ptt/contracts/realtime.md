@@ -25,6 +25,8 @@ recuperar eventos tras reconectar.
 | `trip.location` | `trip:{tripId}` | `lat`, `lng`, `heading`, `speed_mps` | FR-014 |
 | `driver.presence` | `driver_presence:{driverId}` | `driver_id`, `presence`, `busy_until_estimate?` | FR-008 |
 | `ptt.closed` | `user:{passengerId}` y `user:{driverId}` | `trip_id` | FR-020 |
+| `trip_payment.updated` | `user:{passengerId}` y `user:{driverId}` | `trip_id`, `payment_id`, `status`, `method?` | 004 FR-007 |
+| `trip_payment.reminder` | `user:{passengerId}` | `trip_id`, `payment_id`, `amount_minor`, `currency` | 004 FR-015 |
 
 Los eventos de turno PTT (quién habla) viajan como mensajes de datos de LiveKit dentro de la sala
 del viaje: `{"type":"floor.taken","user_id":...}` y `{"type":"floor.released"}`.

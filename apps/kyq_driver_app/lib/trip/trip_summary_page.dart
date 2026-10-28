@@ -5,11 +5,14 @@ import 'package:kyq_ui/kyq_ui.dart';
 import 'trip_texts.dart';
 
 /// Resumen del viaje terminado o cancelado (T060, FR-015, RN-KYQ-001).
+///
+/// Con [payment] (004), el pago del viaje reemplaza el aviso de cobrar por fuera de la app.
 class TripSummaryView extends StatelessWidget {
-  const TripSummaryView({super.key, required this.trip, required this.onDone});
+  const TripSummaryView({super.key, required this.trip, required this.onDone, this.payment});
 
   final Trip trip;
   final VoidCallback onDone;
+  final Widget? payment;
 
   @override
   Widget build(BuildContext context) {
@@ -51,8 +54,10 @@ class TripSummaryView extends StatelessWidget {
                     'Comisión Kyq: ${formatMoney(trip.platformCommissionMinor, trip.currency)}',
                     key: const Key('summary.commission'),
                   ),
-                  const SizedBox(height: 12),
-                  Text('Cobra al pasajero directamente; Kyq no cobra en la app.', style: theme.textTheme.bodySmall),
+                  if (payment == null) ...[
+                    const SizedBox(height: 12),
+                    Text('Cobra al pasajero directamente; Kyq no cobra en la app.', style: theme.textTheme.bodySmall),
+                  ],
                 ],
               ),
             ),
@@ -64,6 +69,7 @@ class TripSummaryView extends StatelessWidget {
               title: Text(cancelReasonMessage(trip.cancelReason), key: const Key('summary.cancelReason')),
             ),
           ),
+        if (completed && payment != null) ...[const SizedBox(height: 8), payment!],
         const SizedBox(height: 24),
         FilledButton(onPressed: onDone, child: const Text('Volver al inicio')),
       ],

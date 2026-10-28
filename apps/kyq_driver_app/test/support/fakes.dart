@@ -18,6 +18,12 @@ class MockApi extends Mock implements KyqApiClient {
   // La pantalla de inicio siempre pregunta por un viaje en curso; por defecto no hay ninguno.
   @override
   Future<Trip?> activeTrip() async => null;
+
+  /// Pago del viaje que devuelve [tripPayment] (004); null: el viaje no tiene pago.
+  TripPayment? payment;
+
+  @override
+  Future<TripPayment?> tripPayment(String tripId) async => payment;
 }
 
 /// Conductor con el alta terminada: el router no lo desvía a vehículo ni documentos.

@@ -26,6 +26,9 @@ import '../subscription/subscription_cubit.dart';
 import '../subscription/subscription_page.dart';
 import '../trip/trip_cubit.dart';
 import '../trip/trip_page.dart';
+import '../trip_payments/trip_payment_cubit.dart';
+import '../trip_payments/trip_payments_cubit.dart';
+import '../trip_payments/trip_payments_page.dart';
 import 'driver_services.dart';
 import 'home_page.dart';
 
@@ -137,6 +140,11 @@ class _KyqDriverAppState extends State<KyqDriverApp> {
           GoRoute(path: 'clients', builder: (context, state) => const ClientsPage()),
           GoRoute(path: 'notices', builder: (context, state) => const NoticesPage()),
           GoRoute(
+            path: 'trip-payments',
+            builder: (context, state) =>
+                BlocProvider(create: (_) => TripPaymentsCubit(widget.api)..load(), child: const TripPaymentsPage()),
+          ),
+          GoRoute(
             path: 'subscription',
             builder: (context, state) => BlocProvider(
               create: (_) => SubscriptionCubit(
@@ -169,8 +177,17 @@ class _KyqDriverAppState extends State<KyqDriverApp> {
                       _events.stream.where((e) => e is PttClosed && e.tripId == tripId),
                     ),
                   ),
+                  // Pago del viaje (004): existe desde que el viaje se completa.
+                  BlocProvider(create: (_) => TripPaymentCubit(widget.api, _events.stream, tripId)..load()),
                 ],
-                child: Builder(builder: (context) => TripPage(ptt: context.read<PttController>())),
+                child: Builder(
+                  builder: (context) => BlocListener<TripCubit, TripState>(
+                    listenWhen: (a, b) =>
+                        a.trip?.status != TripStatus.completed && b.trip?.status == TripStatus.completed,
+                    listener: (context, _) => context.read<TripPaymentCubit>().load(),
+                    child: TripPage(ptt: context.read<PttController>(), payments: true),
+                  ),
+                ),
               );
             },
           ),

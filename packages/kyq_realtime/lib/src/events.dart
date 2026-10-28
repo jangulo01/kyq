@@ -1,4 +1,5 @@
-// Eventos de specs/001-chosen-driver-trip-ptt/contracts/realtime.md y `notice.created` de 002.
+// Eventos de specs/001-chosen-driver-trip-ptt/contracts/realtime.md, `notice.created` de 002 y
+// `trip_payment.*` de 004.
 
 /// Nombres de canal autorizados por el backend.
 abstract final class Channels {
@@ -73,6 +74,20 @@ sealed class RealtimeEvent {
         kind: data['kind'] as String? ?? '',
         title: data['title'] as String? ?? '',
         body: data['body'] as String? ?? '',
+      ),
+      'trip_payment.updated' => TripPaymentUpdated(
+        at,
+        tripId: data['trip_id'] as String,
+        paymentId: data['payment_id'] as String,
+        status: data['status'] as String,
+        method: data['method'] as String?,
+      ),
+      'trip_payment.reminder' => TripPaymentReminder(
+        at,
+        tripId: data['trip_id'] as String,
+        paymentId: data['payment_id'] as String,
+        amountMinor: data['amount_minor'] as int,
+        currency: data['currency'] as String,
       ),
       _ => UnknownEvent(at, type: type, data: data),
     };
@@ -209,6 +224,42 @@ final class NoticeCreated extends RealtimeEvent {
   final String kind;
   final String title;
   final String body;
+}
+
+/// El pago de un viaje cambió de estado (004): ambas apps recargan el pago.
+final class TripPaymentUpdated extends RealtimeEvent {
+  const TripPaymentUpdated(
+    super.occurredAt, {
+    required this.tripId,
+    required this.paymentId,
+    required this.status,
+    this.method,
+  });
+
+  final String tripId;
+  final String paymentId;
+
+  /// p. ej. `cash_reported`, `paid`.
+  final String status;
+
+  /// `bold` o `cash`.
+  final String? method;
+}
+
+/// Recordatorio al pasajero de un viaje sin pagar (004, FR-015).
+final class TripPaymentReminder extends RealtimeEvent {
+  const TripPaymentReminder(
+    super.occurredAt, {
+    required this.tripId,
+    required this.paymentId,
+    required this.amountMinor,
+    required this.currency,
+  });
+
+  final String tripId;
+  final String paymentId;
+  final int amountMinor;
+  final String currency;
 }
 
 final class UnknownEvent extends RealtimeEvent {

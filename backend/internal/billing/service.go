@@ -45,8 +45,11 @@ type Service struct {
 	CityCode string
 	// WebhookSecret signs Bold webhooks (empty in the sandbox).
 	WebhookSecret string
-	Now           func() time.Time
-	Logger        *slog.Logger
+	// References receive the webhooks whose reference is not a subscription payment (trip
+	// payments, 004): Bold allows a single webhook URL per account.
+	References []ReferenceHandler
+	Now        func() time.Time
+	Logger     *slog.Logger
 }
 
 func (s *Service) now() time.Time {
@@ -314,22 +317,17 @@ func (s *Service) poll(ctx context.Context, p store.Payment) error {
 		return err
 	}
 	var o outcome
-	switch ls.Status {
-	case LinkPaid:
+	switch ClassifyLink(ls.Status, p.CreatedAt, s.now()) {
+	case OutcomeApproved:
 		o.status = store.PaymentStatusApproved
-	case LinkProcessing:
+	case OutcomeProcessing:
 		o.status = store.PaymentStatusProcessing
-	case LinkRejected, LinkCancelled:
+	case OutcomeRejected:
 		o.status = store.PaymentStatusRejected
-	case LinkExpired:
+	case OutcomeExpired:
 		o.status = store.PaymentStatusExpired
 	default:
-		// En el sandbox Bold sigue respondiendo ACTIVE después de caducar el enlace (su checkout ya
-		// dice "expiró"): pasado el plazo con margen, el pago se da por caducado.
-		if s.now().Sub(p.CreatedAt) < LinkTTL+linkExpiryMargin {
-			return nil // ACTIVE: aún sin pagar
-		}
-		o.status = store.PaymentStatusExpired
+		return nil // ACTIVE: aún sin pagar
 	}
 	o.totalMinor, o.currency = ls.TotalMinor, ls.Currency
 	o.detail, o.boldPaymentID = ls.PaymentMethod, ls.TransactionID

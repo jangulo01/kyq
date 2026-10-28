@@ -4,11 +4,14 @@ import 'package:kyq_api/kyq_api.dart';
 import 'package:kyq_ui/kyq_ui.dart';
 
 /// Resumen final con la tarifa acordada, 100 % para el conductor (RN-KYQ-001, FR-015).
+///
+/// Con [payment] (004), el pago del viaje reemplaza el aviso de pagar por fuera de la app.
 class TripSummaryView extends StatelessWidget {
-  const TripSummaryView({super.key, required this.trip, required this.driverName});
+  const TripSummaryView({super.key, required this.trip, required this.driverName, this.payment});
 
   final Trip trip;
   final String driverName;
+  final Widget? payment;
 
   @override
   Widget build(BuildContext context) {
@@ -31,10 +34,11 @@ class TripSummaryView extends StatelessWidget {
         const SizedBox(height: 16),
         const Text('El 100 % es para tu conductor. Kyq no cobra comisión.', textAlign: TextAlign.center),
         const SizedBox(height: 8),
-        Text(
-          'Págale directamente a $driverName, en efectivo o por transferencia. La app no hace cobros.',
-          textAlign: TextAlign.center,
-        ),
+        payment ??
+            Text(
+              'Págale directamente a $driverName, en efectivo o por transferencia. La app no hace cobros.',
+              textAlign: TextAlign.center,
+            ),
         const SizedBox(height: 32),
         FilledButton(onPressed: () => context.go('/'), child: const Text('Volver a mis conductores')),
       ],

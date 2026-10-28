@@ -11,6 +11,12 @@ class MockApi extends Mock implements KyqApiClient {
   // La pantalla de inicio siempre pregunta por un viaje en curso; por defecto no hay ninguno.
   @override
   Future<Trip?> activeTrip() async => null;
+
+  // Ni viajes sin pagar (004) mientras la prueba no diga otra cosa.
+  @override
+  Future<List<TripPayment>> pendingTripPayments() async => pending;
+
+  List<TripPayment> pending = const [];
 }
 
 /// Tiempo real en memoria: las pruebas empujan eventos con [emit].

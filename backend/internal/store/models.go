@@ -360,6 +360,49 @@ func (ns NullFareProposalStatus) Value() (driver.Value, error) {
 	return string(ns.FareProposalStatus), nil
 }
 
+type LedgerEntryKind string
+
+const (
+	LedgerEntryKindTripCredit LedgerEntryKind = "trip_credit"
+	LedgerEntryKindVoidDebit  LedgerEntryKind = "void_debit"
+	LedgerEntryKindPayout     LedgerEntryKind = "payout"
+)
+
+func (e *LedgerEntryKind) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = LedgerEntryKind(s)
+	case string:
+		*e = LedgerEntryKind(s)
+	default:
+		return fmt.Errorf("unsupported scan type for LedgerEntryKind: %T", src)
+	}
+	return nil
+}
+
+type NullLedgerEntryKind struct {
+	LedgerEntryKind LedgerEntryKind
+	Valid           bool // Valid is true if LedgerEntryKind is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullLedgerEntryKind) Scan(value interface{}) error {
+	if value == nil {
+		ns.LedgerEntryKind, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.LedgerEntryKind.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullLedgerEntryKind) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.LedgerEntryKind), nil
+}
+
 type PaymentMethod string
 
 const (
@@ -495,6 +538,96 @@ func (ns NullTripCancelReason) Value() (driver.Value, error) {
 	return string(ns.TripCancelReason), nil
 }
 
+type TripPaymentMethod string
+
+const (
+	TripPaymentMethodBold TripPaymentMethod = "bold"
+	TripPaymentMethodCash TripPaymentMethod = "cash"
+)
+
+func (e *TripPaymentMethod) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = TripPaymentMethod(s)
+	case string:
+		*e = TripPaymentMethod(s)
+	default:
+		return fmt.Errorf("unsupported scan type for TripPaymentMethod: %T", src)
+	}
+	return nil
+}
+
+type NullTripPaymentMethod struct {
+	TripPaymentMethod TripPaymentMethod
+	Valid             bool // Valid is true if TripPaymentMethod is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullTripPaymentMethod) Scan(value interface{}) error {
+	if value == nil {
+		ns.TripPaymentMethod, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.TripPaymentMethod.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullTripPaymentMethod) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.TripPaymentMethod), nil
+}
+
+type TripPaymentStatus string
+
+const (
+	TripPaymentStatusPending        TripPaymentStatus = "pending"
+	TripPaymentStatusBoldInProgress TripPaymentStatus = "bold_in_progress"
+	TripPaymentStatusCashReported   TripPaymentStatus = "cash_reported"
+	TripPaymentStatusPaid           TripPaymentStatus = "paid"
+	TripPaymentStatusUnpaid         TripPaymentStatus = "unpaid"
+	TripPaymentStatusDisputed       TripPaymentStatus = "disputed"
+	TripPaymentStatusNeedsReview    TripPaymentStatus = "needs_review"
+	TripPaymentStatusVoided         TripPaymentStatus = "voided"
+)
+
+func (e *TripPaymentStatus) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = TripPaymentStatus(s)
+	case string:
+		*e = TripPaymentStatus(s)
+	default:
+		return fmt.Errorf("unsupported scan type for TripPaymentStatus: %T", src)
+	}
+	return nil
+}
+
+type NullTripPaymentStatus struct {
+	TripPaymentStatus TripPaymentStatus
+	Valid             bool // Valid is true if TripPaymentStatus is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullTripPaymentStatus) Scan(value interface{}) error {
+	if value == nil {
+		ns.TripPaymentStatus, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.TripPaymentStatus.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullTripPaymentStatus) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.TripPaymentStatus), nil
+}
+
 type TripStatus string
 
 const (
@@ -627,6 +760,8 @@ type Driver struct {
 	VehicleModel          pgtype.Text
 	VehicleColor          pgtype.Text
 	VehicleYear           pgtype.Int2
+	AcceptsCash           bool
+	AcceptsBold           bool
 }
 
 type DriverDocument struct {
@@ -643,6 +778,29 @@ type DriverDocument struct {
 	SubmittedAt  pgtype.Timestamptz
 	ReviewedBy   uuid.NullUUID
 	ReviewedAt   pgtype.Timestamptz
+}
+
+type DriverLedgerEntry struct {
+	ID            uuid.UUID
+	DriverID      uuid.UUID
+	Kind          LedgerEntryKind
+	AmountMinor   int64
+	Currency      string
+	TripPaymentID uuid.NullUUID
+	PayoutID      uuid.NullUUID
+	CreatedBy     uuid.NullUUID
+	CreatedAt     time.Time
+}
+
+type DriverPayout struct {
+	ID          uuid.UUID
+	DriverID    uuid.UUID
+	AmountMinor int64
+	Currency    string
+	Reference   string
+	Note        pgtype.Text
+	CreatedBy   uuid.UUID
+	CreatedAt   time.Time
 }
 
 type DriverUsageDaily struct {
@@ -772,6 +930,41 @@ type Trip struct {
 	StartedAt               pgtype.Timestamptz
 	CompletedAt             pgtype.Timestamptz
 	CancelledAt             pgtype.Timestamptz
+}
+
+type TripPayment struct {
+	ID                      uuid.UUID
+	TripID                  uuid.UUID
+	DriverID                uuid.UUID
+	PassengerID             uuid.UUID
+	AmountMinor             int64
+	Currency                string
+	DriverAmountMinor       int64
+	PlatformCommissionMinor int64
+	AcceptsCash             bool
+	AcceptsBold             bool
+	Status                  TripPaymentStatus
+	Method                  NullTripPaymentMethod
+	BoldLinkID              pgtype.Text
+	CheckoutUrl             pgtype.Text
+	LinkCreatedAt           pgtype.Timestamptz
+	BoldPaymentID           pgtype.Text
+	PaymentMethodDetail     pgtype.Text
+	CashReportedAt          pgtype.Timestamptz
+	CashConfirmedAt         pgtype.Timestamptz
+	DisputedAt              pgtype.Timestamptz
+	UnpaidMarkedAt          pgtype.Timestamptz
+	PaidAt                  pgtype.Timestamptz
+	RemindedAt              pgtype.Timestamptz
+	ReviewNote              pgtype.Text
+	ResolvedBy              uuid.NullUUID
+	ResolutionNote          pgtype.Text
+	ResolvedAt              pgtype.Timestamptz
+	VoidedBy                uuid.NullUUID
+	VoidReason              pgtype.Text
+	VoidedAt                pgtype.Timestamptz
+	CreatedAt               time.Time
+	UpdatedAt               time.Time
 }
 
 type User struct {

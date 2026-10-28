@@ -9,12 +9,15 @@ import 'package:kyq_ui/kyq_ui.dart';
 import '../chosen_drivers/chosen_drivers_cubit.dart';
 import '../chosen_drivers/chosen_drivers_page.dart';
 import '../chosen_drivers/scan_page.dart';
+import '../payments/pending_payments_cubit.dart';
 import '../realtime/realtime_events.dart';
 import '../request/location_source.dart';
 import '../request/request_cubit.dart';
 import '../request/request_page.dart';
+import '../trip/checkout_launcher.dart';
 import '../trip/trip_cubit.dart';
 import '../trip/trip_page.dart';
+import '../trip/trip_payment_cubit.dart';
 
 /// URL del backend. En el emulador de Android, 10.0.2.2 es el localhost del PC.
 const apiBaseUrl = String.fromEnvironment('KYQ_API_URL', defaultValue: 'http://10.0.2.2:8080');
@@ -52,6 +55,7 @@ class KyqRiderApp extends StatefulWidget {
     this.realtime = const NoRealtimeEvents(),
     this.location = const GeolocatorLocationSource(),
     this.ptt = PttController.live,
+    this.checkout = const CustomTabCheckout(),
   });
 
   final KyqApiClient api;
@@ -61,6 +65,9 @@ class KyqRiderApp extends StatefulWidget {
 
   /// Walkie-talkie de cada viaje; las pruebas pasan falsos.
   final PttControllerFactory ptt;
+
+  /// Checkout de Bold para pagar el viaje (004); las pruebas pasan un falso.
+  final CheckoutLauncher checkout;
 
   @override
   State<KyqRiderApp> createState() => _KyqRiderAppState();
@@ -73,9 +80,17 @@ class _KyqRiderAppState extends State<KyqRiderApp> {
     routes: [
       GoRoute(
         path: '/',
-        builder: (context, state) => BlocProvider(
-          create: (context) =>
-              ChosenDriversCubit(context.read<KyqApiClient>(), realtime: context.read<RealtimeEvents>())..load(),
+        builder: (context, state) => MultiBlocProvider(
+          providers: [
+            BlocProvider(
+              create: (context) =>
+                  ChosenDriversCubit(context.read<KyqApiClient>(), realtime: context.read<RealtimeEvents>())..load(),
+            ),
+            BlocProvider(
+              create: (context) =>
+                  PendingPaymentsCubit(context.read<KyqApiClient>(), realtime: context.read<RealtimeEvents>())..start(),
+            ),
+          ],
           child: const ChosenDriversPage(),
         ),
         routes: [
@@ -111,11 +126,26 @@ class _KyqRiderAppState extends State<KyqRiderApp> {
                     create: (context) =>
                         widget.ptt(context.read<KyqApiClient>(), tripId, context.read<TripCubit>().pttClosed),
                   ),
+                  // Pago del viaje (004): se carga al completarse y se sigue en vivo.
+                  BlocProvider(
+                    create: (context) => TripPaymentCubit(
+                      api: context.read<KyqApiClient>(),
+                      tripId: tripId,
+                      checkout: widget.checkout,
+                      realtime: context.read<RealtimeEvents>(),
+                    ),
+                  ),
                 ],
                 child: Builder(
-                  builder: (context) => TripPage(
-                    driverName: state.uri.queryParameters['name'] ?? 'tu conductor',
-                    ptt: context.read<PttController>(),
+                  builder: (context) => BlocListener<TripCubit, TripState>(
+                    listenWhen: (a, b) =>
+                        a.trip?.status != TripStatus.completed && b.trip?.status == TripStatus.completed,
+                    listener: (context, _) => context.read<TripPaymentCubit>().load(),
+                    child: TripPage(
+                      driverName: state.uri.queryParameters['name'] ?? 'tu conductor',
+                      ptt: context.read<PttController>(),
+                      payments: true,
+                    ),
                   ),
                 ),
               );

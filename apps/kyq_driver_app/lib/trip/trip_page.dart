@@ -6,6 +6,7 @@ import 'package:kyq_ptt/kyq_ptt.dart';
 import 'package:kyq_ui/kyq_ui.dart';
 
 import '../presence/presence_cubit.dart';
+import '../trip_payments/trip_payment_card.dart';
 import 'trip_active_view.dart';
 import 'trip_cubit.dart';
 import 'trip_pending_views.dart';
@@ -13,11 +14,13 @@ import 'trip_summary_page.dart';
 
 /// Pantalla del viaje del conductor: negociación, recogida, viaje y resumen (T058–T060).
 ///
-/// Con [ptt], el walkie-talkie queda abajo desde ACCEPTED hasta que cierra el canal (T074).
+/// Con [ptt], el walkie-talkie queda abajo desde ACCEPTED hasta que cierra el canal (T074). Con
+/// [payments] (004), el resumen muestra el pago del viaje; necesita un `TripPaymentCubit` arriba.
 class TripPage extends StatelessWidget {
-  const TripPage({super.key, this.ptt});
+  const TripPage({super.key, this.ptt, this.payments = false});
 
   final PttController? ptt;
+  final bool payments;
 
   static String title(TripStatus status) => switch (status) {
     TripStatus.requested => 'Oferta de viaje',
@@ -92,6 +95,7 @@ class TripPage extends StatelessWidget {
       TripStatus.inProgress => TripActiveView(trip: trip, busy: state.busy),
       TripStatus.completed || TripStatus.cancelled => TripSummaryView(
         trip: trip,
+        payment: payments ? const TripPaymentCard() : null,
         onDone: () {
           context.read<PresenceCubit>().load();
           context.go('/');

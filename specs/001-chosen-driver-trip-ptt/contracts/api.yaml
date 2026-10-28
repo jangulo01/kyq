@@ -16,6 +16,9 @@ info:
     - `proposals`, `cancel`, `ptt/token`, `ptt/floor`: cualquiera de las dos partes.
     - Acción válida para el rol pero no para el estado actual: `409`.
     Rutas `/v1/driver/*` exigen rol `driver`; `/v1/admin/*` exigen rol `admin` (`403` si no).
+    Pago del viaje (004, `/v1/trips/{tripId}/payment*`): solo pasajero `bold`, `refresh` y
+    `cash`; solo conductor `cash-received`, `cash-dispute` y `unpaid` (`403 forbidden` a la otra
+    parte); `409 invalid_state` si el estado del pago no lo permite.
 servers:
   - url: http://localhost:8080
 security:
@@ -885,6 +888,305 @@ paths:
               schema: { type: array, items: { $ref: '#/components/schemas/DriverCost' } }
         '400': { $ref: '#/components/responses/Error' }
 
+  # --- 004: pago del viaje con Bold o en efectivo ---------------------------------------------
+  /v1/trips/{tripId}/payment:
+    get:
+      summary: Pago del viaje (pasajero o conductor del viaje)
+      parameters: [ { $ref: '#/components/parameters/TripId' } ]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TripPayment' }
+        '404':
+          description: '`not_found`: no es parte del viaje o el viaje no tiene pago (no completado o anterior a 004)'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /v1/trips/{tripId}/payment/bold:
+    post:
+      summary: El pasajero inicia el pago con Bold y recibe la URL de checkout (FR-003)
+      description: |
+        Crea un enlace de Bold por la tarifa acordada (caduca a los 30 min). Si ya hay un enlace
+        vigente, lo devuelve sin crear otro. Abrir `checkout_url` en una Custom Tab.
+      parameters: [ { $ref: '#/components/parameters/TripId' } ]
+      responses:
+        '200':
+          description: Pago `bold_in_progress` con `checkout_url`
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TripPayment' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409':
+          description: '`invalid_state` o `method_not_accepted`'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '503':
+          description: '`bold_unavailable`: Bold desactivado o sin respuesta'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /v1/trips/{tripId}/payment/refresh:
+    post:
+      summary: Consulta a Bold el estado del enlace ahora (al volver del checkout)
+      parameters: [ { $ref: '#/components/parameters/TripId' } ]
+      responses:
+        '200':
+          description: Pago actualizado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TripPayment' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+
+  /v1/trips/{tripId}/payment/cash:
+    post:
+      summary: El pasajero reporta "Pagué en efectivo" (FR-004)
+      parameters: [ { $ref: '#/components/parameters/TripId' } ]
+      responses:
+        '200':
+          description: Pago `cash_reported`
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TripPayment' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409':
+          description: '`invalid_state`, `method_not_accepted` o `bold_in_progress` (hay un enlace vigente)'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /v1/trips/{tripId}/payment/cash-received:
+    post:
+      summary: El conductor confirma "Recibí el efectivo" (FR-005)
+      parameters: [ { $ref: '#/components/parameters/TripId' } ]
+      responses:
+        '200':
+          description: Pago `paid` en efectivo
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TripPayment' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+
+  /v1/trips/{tripId}/payment/cash-dispute:
+    post:
+      summary: El conductor responde "No recibí el efectivo" a un reporte del pasajero (FR-005)
+      parameters: [ { $ref: '#/components/parameters/TripId' } ]
+      responses:
+        '200':
+          description: Pago `disputed`
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TripPayment' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+
+  /v1/trips/{tripId}/payment/unpaid:
+    post:
+      summary: El conductor marca "No me pagó" un viaje sin reporte (FR-006)
+      parameters: [ { $ref: '#/components/parameters/TripId' } ]
+      responses:
+        '200':
+          description: Pago `unpaid`
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TripPayment' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+
+  /v1/trip-payments/pending:
+    get:
+      summary: Viajes del pasajero sin pagar (pendiente, no pagado o Bold en curso), recientes primero (FR-016)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/TripPayment' } }
+        '403': { $ref: '#/components/responses/Error' }
+
+  /v1/driver/payment-methods:
+    get:
+      summary: Medios de pago que acepta el conductor (FR-018)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PaymentMethods' }
+        '403': { $ref: '#/components/responses/Error' }
+    put:
+      summary: Cambia los medios aceptados; al menos uno
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [accepts_cash, accepts_bold]
+              properties:
+                accepts_cash: { type: boolean }
+                accepts_bold: { type: boolean }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PaymentMethods' }
+        '400':
+          description: '`no_method`: debe aceptar al menos uno'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+
+  /v1/driver/settlement:
+    get:
+      summary: Saldo por girar, libro y pagos de viajes recientes del conductor (FR-013)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DriverSettlement' }
+        '403': { $ref: '#/components/responses/Error' }
+
+  /v1/admin/trip-payments:
+    get:
+      summary: Pagos de viajes por estado, recientes primero (máx. 200) (FR-017)
+      parameters:
+        - name: status
+          in: query
+          description: '`issues` = unpaid, disputed y needs_review'
+          schema:
+            type: string
+            enum: [pending, bold_in_progress, cash_reported, paid, unpaid, disputed, needs_review, voided, issues]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/AdminTripPayment' } }
+        '400': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+
+  /v1/admin/trip-payments/{tripPaymentId}/resolve:
+    post:
+      summary: Resuelve una disputa o un no pagado (pagado en efectivo o no pagado) con nota (FR-017)
+      parameters: [ { $ref: '#/components/parameters/TripPaymentId' } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [outcome, note]
+              properties:
+                outcome: { type: string, enum: [paid, unpaid] }
+                note: { type: string, maxLength: 200 }
+      responses:
+        '200':
+          description: Pago resuelto
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdminTripPayment' }
+        '400':
+          description: '`note_required` o `invalid_outcome`'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+
+  /v1/admin/trip-payments/{tripPaymentId}/void:
+    post:
+      summary: Anula un pago con Bold reembolsado en Bold y debita el abono (FR-014)
+      parameters: [ { $ref: '#/components/parameters/TripPaymentId' } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, required: [reason], properties: { reason: { type: string, maxLength: 200 } } }
+      responses:
+        '200':
+          description: Pago anulado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdminTripPayment' }
+        '400': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409':
+          description: '`invalid_state`: solo pagos con Bold pagados o en revisión'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /v1/admin/settlements:
+    get:
+      summary: Saldo por girar de cada conductor y moneda; con saldo primero (FR-012)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/SettlementRow' } }
+
+  /v1/admin/drivers/{driverId}/settlement:
+    get:
+      summary: Libro y pagos de viajes de un conductor
+      parameters: [ { $ref: '#/components/parameters/DriverId' } ]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DriverSettlement' }
+        '404': { $ref: '#/components/responses/Error' }
+
+  /v1/admin/drivers/{driverId}/payouts:
+    post:
+      summary: Registra un giro hecho por fuera (transferencia) que no supere el saldo (FR-012)
+      parameters: [ { $ref: '#/components/parameters/DriverId' } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [amount_minor, currency, reference]
+              properties:
+                amount_minor: { type: integer, minimum: 1 }
+                currency: { type: string }
+                reference: { type: string, maxLength: 80 }
+                note: { type: string, maxLength: 200 }
+      responses:
+        '201':
+          description: Giro registrado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Payout' }
+        '400':
+          description: '`invalid_payout`'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409':
+          description: '`exceeds_balance`: el valor supera el saldo por girar'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
 components:
   securitySchemes:
     bearer: { type: http, scheme: bearer, bearerFormat: JWT }
@@ -894,6 +1196,7 @@ components:
     DriverId: { name: driverId, in: path, required: true, schema: { type: string, format: uuid } }
     DocumentId: { name: documentId, in: path, required: true, schema: { type: string, format: uuid } }
     PaymentId: { name: paymentId, in: path, required: true, schema: { type: string, format: uuid } }
+    TripPaymentId: { name: tripPaymentId, in: path, required: true, schema: { type: string, format: uuid } }
 
   requestBodies:
     Phone:
@@ -1242,3 +1545,100 @@ components:
             driver_id: { type: string, format: uuid }
             display_name: { type: string }
             negative_margin: { type: boolean }
+
+    # --- 004 ---------------------------------------------------------------------------------
+    TripPaymentStatus:
+      type: string
+      enum: [pending, bold_in_progress, cash_reported, paid, unpaid, disputed, needs_review, voided]
+    TripPayment:
+      type: object
+      properties:
+        id: { type: string, format: uuid, description: También es la referencia en Bold }
+        trip_id: { type: string, format: uuid }
+        driver_id: { type: string, format: uuid }
+        passenger_id: { type: string, format: uuid }
+        driver_name: { type: string }
+        passenger_name: { type: string }
+        amount_minor: { type: integer, description: Tarifa acordada }
+        currency: { type: string }
+        driver_amount_minor: { type: integer, description: 'Siempre igual a amount_minor (RN-KYQ-001)' }
+        platform_commission_minor: { type: integer, const: 0 }
+        status: { $ref: '#/components/schemas/TripPaymentStatus' }
+        method: { type: [string, 'null'], description: '`bold` o `cash`: con qué se pagó o se intenta pagar' }
+        accepted_methods:
+          type: array
+          description: 'Medios que el pasajero puede usar: los del conductor al completar (Bold solo si Kyq lo tiene activo)'
+          items: { type: string, enum: [bold, cash] }
+        checkout_url: { type: [string, 'null'], description: Solo en bold_in_progress }
+        payment_method_detail: { type: [string, 'null'], description: 'CREDIT_CARD, PSE, NEQUI…' }
+        cash_reported_at: { type: [string, 'null'], format: date-time }
+        cash_confirmed_at: { type: [string, 'null'], format: date-time }
+        disputed_at: { type: [string, 'null'], format: date-time }
+        unpaid_marked_at: { type: [string, 'null'], format: date-time }
+        paid_at: { type: [string, 'null'], format: date-time }
+        voided_at: { type: [string, 'null'], format: date-time }
+        created_at: { type: string, format: date-time, description: Momento en que se completó el viaje }
+    AdminTripPayment:
+      allOf:
+        - $ref: '#/components/schemas/TripPayment'
+        - type: object
+          properties:
+            review_note: { type: [string, 'null'], description: 'Valor distinto o segundo cobro de Bold' }
+            resolution_note: { type: [string, 'null'] }
+            resolved_by: { type: [string, 'null'], format: uuid }
+            resolved_at: { type: [string, 'null'], format: date-time }
+            void_reason: { type: [string, 'null'] }
+            voided_by: { type: [string, 'null'], format: uuid }
+    PaymentMethods:
+      type: object
+      properties:
+        accepts_cash: { type: boolean }
+        accepts_bold: { type: boolean }
+        bold_available: { type: boolean, description: 'Bold está configurado en Kyq' }
+    LedgerEntry:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        kind: { type: string, enum: [trip_credit, void_debit, payout] }
+        amount_minor: { type: integer, description: 'Con signo: abono > 0; débito y giro < 0' }
+        currency: { type: string }
+        trip_payment_id: { type: [string, 'null'], format: uuid }
+        trip_id: { type: [string, 'null'], format: uuid }
+        payout_id: { type: [string, 'null'], format: uuid }
+        reference: { type: [string, 'null'], description: Referencia del giro }
+        created_at: { type: string, format: date-time }
+    Balance:
+      type: object
+      properties:
+        currency: { type: string }
+        credited_minor: { type: integer, description: Abonos por pagos con Bold }
+        debited_minor: { type: integer, description: Débitos por anulaciones (positivo) }
+        paid_out_minor: { type: integer, description: Girado al conductor (positivo) }
+        balance_minor: { type: integer, description: Por girar = abonado − debitado − girado }
+    DriverSettlement:
+      type: object
+      properties:
+        balances: { type: array, items: { $ref: '#/components/schemas/Balance' } }
+        entries: { type: array, items: { $ref: '#/components/schemas/LedgerEntry' }, description: 'Recientes primero (máx. 200)' }
+        payments: { type: array, items: { $ref: '#/components/schemas/TripPayment' }, description: 'Pagos de viajes recientes (máx. 50)' }
+    SettlementRow:
+      allOf:
+        - $ref: '#/components/schemas/Balance'
+        - type: object
+          properties:
+            driver_id: { type: string, format: uuid }
+            display_name: { type: string }
+            phone_e164: { type: string }
+            vehicle_plate: { type: string }
+            last_payout_at: { type: [string, 'null'], format: date-time }
+    Payout:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        driver_id: { type: string, format: uuid }
+        amount_minor: { type: integer }
+        currency: { type: string }
+        reference: { type: string }
+        note: { type: [string, 'null'] }
+        created_by: { type: string, format: uuid }
+        created_at: { type: string, format: date-time }

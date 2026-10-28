@@ -27,6 +27,7 @@ import (
 	"github.com/kyq/backend/internal/storage"
 	"github.com/kyq/backend/internal/store"
 	"github.com/kyq/backend/internal/testdb"
+	"github.com/kyq/backend/internal/trippay"
 	"github.com/kyq/backend/internal/trips"
 )
 
@@ -97,13 +98,16 @@ func TestIntegrationNoPhoneNumbersReachTheOtherParty(t *testing.T) {
 
 	pub := &wire{}
 	tokens := auth.NewTokenIssuer([]byte("test-secret-test-secret-test-secret!"), nil)
-	tripService := &trips.Service{Store: st, Routes: fixedRoute{}, Publisher: pub, CityCode: "bogota"}
+	// 004: el pago del viaje tampoco expone teléfonos a la otra parte.
+	tripPay := &trippay.Service{Store: st, Notify: &notify.Service{Store: st, Publisher: pub}, Publisher: pub}
+	tripService := &trips.Service{Store: st, Routes: fixedRoute{}, Publisher: pub, CityCode: "bogota", Payments: tripPay}
 	server := httpapi.NewRouter(httpapi.Deps{
 		Tokens:   tokens,
 		Affils:   &affiliations.Handlers{Service: affiliations.NewService(affiliations.NewPgRepo(st.Queries))},
 		Drivers:  &drivers.Handlers{Store: st},
 		Presence: &drivers.Presence{Store: st, Routes: fixedRoute{}, Publisher: pub},
 		Trips:    &trips.Handlers{Service: tripService},
+		TripPay:  &trippay.Handlers{Service: tripPay},
 		KYC:      &kyc.Handlers{Service: &kyc.Service{Store: st, Objects: objects, Notify: &notify.Service{Store: st, Publisher: pub}}},
 		PTT: &ptt.Handlers{Service: &ptt.Service{
 			Store: st, LiveKit: ptt.LiveKit{APIKey: "devkey", APISecret: "secret"}, Rooms: noRooms{}, Publisher: pub,
@@ -161,6 +165,13 @@ func TestIntegrationNoPhoneNumbersReachTheOtherParty(t *testing.T) {
 	for _, step := range []string{"arrive", "start", "complete"} {
 		call(http.MethodPost, base+"/"+step, asDriver, nil)
 	}
+	call(http.MethodGet, "/v1/trip-payments/pending", asPassenger, nil)
+	call(http.MethodPost, base+"/payment/cash", asPassenger, nil)
+	call(http.MethodPost, base+"/payment/cash-received", asDriver, nil)
+	for _, tok := range []string{asDriver, asPassenger} {
+		call(http.MethodGet, base+"/payment", tok, nil)
+	}
+	call(http.MethodGet, "/v1/driver/settlement", asDriver, nil)
 
 	require.NotEmpty(t, pub.events)
 	for _, seen := range append(bodies, pub.events...) {

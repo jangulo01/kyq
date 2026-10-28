@@ -106,6 +106,40 @@ void main() {
     );
   });
 
+  test('trip_payment.updated y trip_payment.reminder (004)', () {
+    final updated =
+        RealtimeEvent.fromEnvelope(
+              envelope('trip_payment.updated', {
+                'trip_id': 't1',
+                'payment_id': 'tp1',
+                'status': 'cash_reported',
+                'method': 'cash',
+              }),
+            )
+            as TripPaymentUpdated;
+    expect(updated.tripId, 't1');
+    expect(updated.status, 'cash_reported');
+    expect(updated.method, 'cash');
+    expect(
+      RealtimeEvent.fromEnvelope(
+        envelope('trip_payment.updated', {'trip_id': 't1', 'payment_id': 'tp1', 'status': 'pending', 'method': null}),
+      ),
+      isA<TripPaymentUpdated>().having((e) => e.method, 'method', isNull),
+    );
+    final reminder =
+        RealtimeEvent.fromEnvelope(
+              envelope('trip_payment.reminder', {
+                'trip_id': 't1',
+                'payment_id': 'tp1',
+                'amount_minor': 1800000,
+                'currency': 'COP',
+              }),
+            )
+            as TripPaymentReminder;
+    expect(reminder.amountMinor, 1800000);
+    expect(reminder.currency, 'COP');
+  });
+
   test('tipos nuevos no rompen la app', () {
     expect(RealtimeEvent.fromEnvelope(envelope('futuro.evento', {'x': 1})), isA<UnknownEvent>());
   });

@@ -10,10 +10,11 @@ const _blockLabels = {'subscription_suspended': 'Suscripción suspendida', 'kyc_
 
 String _date(DateTime d) => '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
 
-/// Secciones del panel (T023, T037, T040), en la barra superior de la lista de conductores.
+/// Secciones del panel (T023, T037, T040; 004 T029), en la barra superior de la lista de conductores.
 const adminSections = [
   (path: '/kyc', label: 'Validación', icon: Icons.fact_check_outlined),
   (path: '/billing', label: 'Suscripciones', icon: Icons.receipt_long_outlined),
+  (path: '/trip-payments', label: 'Pagos de viajes', icon: Icons.account_balance_wallet_outlined),
   (path: '/costs', label: 'Costos', icon: Icons.query_stats),
   (path: '/fares', label: 'Tarifas', icon: Icons.payments),
 ];
