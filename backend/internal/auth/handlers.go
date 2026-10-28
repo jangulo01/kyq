@@ -83,6 +83,9 @@ func writeAuthError(w http.ResponseWriter, r *http.Request, err error) {
 	case errors.Is(err, ErrPhoneHasOtherRole):
 		httpx.WriteError(w, http.StatusConflict, "phone_has_other_role",
 			"ese teléfono ya tiene una cuenta con otro rol; usa otro número")
+	case errors.Is(err, ErrAccountSuspended):
+		httpx.WriteError(w, http.StatusForbidden, "account_suspended",
+			"tu cuenta está suspendida; comunícate con el soporte de Kyq")
 	case errors.Is(err, ErrRateLimited):
 		httpx.WriteError(w, http.StatusTooManyRequests, "rate_limited", "demasiados códigos solicitados; espera una hora")
 	case errors.Is(err, ErrInvalidCode):

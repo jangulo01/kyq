@@ -75,7 +75,11 @@ func TestIntegrationCostRoutes(t *testing.T) {
 		require.NoError(t, st.CreateDriver(ctx, store.CreateDriverParams{UserID: d, QrToken: "qr-" + d.String()}))
 		require.NoError(t, st.AddDriverUsage(ctx, store.AddDriverUsageParams{DriverID: d, Day: day(3), VoiceParticipantSeconds: 7200, RealtimeEvents: 3000, RouteRequests: 200}))
 	}
-	_, err := st.InsertPayment(ctx, store.InsertPaymentParams{
+	// El panel solo lista conductores que ya existían ese mes (007, research R5); el reloj de la
+	// prueba es fijo, así que las cuentas se fechan antes de octubre.
+	_, err := st.Pool.Exec(ctx, `UPDATE users SET created_at = $1`, day(1))
+	require.NoError(t, err)
+	_, err = st.InsertPayment(ctx, store.InsertPaymentParams{
 		ID: uuid.New(), DriverID: paying, AmountMinor: 5_000_000, Currency: "COP", Method: store.PaymentMethodManual,
 		Status: store.PaymentStatusCreated, CreatedBy: admin, CreatedAt: day(2),
 	})

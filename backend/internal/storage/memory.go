@@ -60,6 +60,9 @@ func (m *Memory) Stat(_ context.Context, key string) (ObjectInfo, error) {
 	return ObjectInfo{Size: int64(len(o.data)), ContentType: o.contentType}, nil
 }
 
+// Ping always succeeds: the memory store is always there.
+func (m *Memory) Ping(context.Context) error { return nil }
+
 func (m *Memory) Remove(_ context.Context, key string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()

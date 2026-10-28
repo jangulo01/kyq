@@ -6,6 +6,9 @@ abstract final class Channels {
   static String user(String userId) => 'user:$userId';
   static String driverPresence(String driverId) => 'driver_presence:$driverId';
   static String trip(String tripId) => 'trip:$tripId';
+
+  /// Torre de control del panel (007): solo admins.
+  static const adminTower = 'admin:tower';
 }
 
 /// Evento recibido por un canal. [occurredAt] viene del sobre común.
@@ -89,6 +92,7 @@ sealed class RealtimeEvent {
         title: data['title'] as String? ?? '',
         body: data['body'] as String? ?? '',
       ),
+      'tower.changed' => TowerChanged(at),
       _ => UnknownEvent(at, type: type, data: data),
     };
   }
@@ -257,6 +261,12 @@ final class NoticeCreated extends RealtimeEvent {
   final String kind;
   final String title;
   final String body;
+}
+
+/// Algo cambió en la torre de control (007): el panel vuelve a pedir la instantánea. No lleva
+/// datos.
+final class TowerChanged extends RealtimeEvent {
+  const TowerChanged(super.occurredAt);
 }
 
 final class UnknownEvent extends RealtimeEvent {

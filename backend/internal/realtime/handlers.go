@@ -42,7 +42,7 @@ func (h *Handlers) subscription(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	p, _ := auth.FromContext(r.Context())
-	if err := h.Authorizer.Authorize(r.Context(), p.UserID, body.Channel); err != nil {
+	if err := h.Authorizer.AuthorizeRole(r.Context(), p.UserID, p.Role, body.Channel); err != nil {
 		if errors.Is(err, ErrForbiddenChannel) {
 			httpx.WriteError(w, http.StatusForbidden, "forbidden_channel", "no puedes suscribirte a este canal")
 			return

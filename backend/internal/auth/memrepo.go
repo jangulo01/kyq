@@ -48,6 +48,15 @@ func (m *MemRepo) CreateUser(_ context.Context, u User) (User, error) {
 	return u, nil
 }
 
+// SetSuspended marks a user as suspended or active (007), for tests.
+func (m *MemRepo) SetSuspended(id uuid.UUID, suspended bool) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	u := m.users[id]
+	u.Suspended = suspended
+	m.users[id] = u
+}
+
 func (m *MemRepo) CreateDriver(ctx context.Context, u User) (User, error) {
 	u.Role = RoleDriver
 	return m.CreateUser(ctx, u)

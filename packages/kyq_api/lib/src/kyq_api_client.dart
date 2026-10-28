@@ -2,6 +2,7 @@ import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 
+import 'admin_models.dart';
 import 'models.dart';
 import 'onboarding_models.dart';
 import 'preconsult_models.dart';
@@ -554,6 +555,79 @@ class KyqApiClient {
       () => _dio.get<dynamic>('/v1/admin/costs', queryParameters: {'month': formatApiMonth(month)}),
     );
     return _list(res.data, 'drivers').map(CostBreakdown.fromJson).toList();
+  }
+
+  // Admin: torre de control, finanzas, fidelización, moderación y salud (007)
+
+  /// Instantánea de la torre agregada en hexágonos H3 de [resolution] (6 a 9).
+  Future<TowerSnapshot> adminTower({int resolution = 8}) async {
+    final res = await _send(
+      () => _dio.get<Map<String, dynamic>>('/v1/admin/tower', queryParameters: {'res': resolution}),
+    );
+    return TowerSnapshot.fromJson(res.data!);
+  }
+
+  /// [months] meses (1 a 24) que terminan en [to] (por defecto, el actual).
+  Future<FinanceReport> adminFinance({DateTime? to, int months = 6}) async {
+    final res = await _send(
+      () => _dio.get<Map<String, dynamic>>(
+        '/v1/admin/finance',
+        queryParameters: {'months': months, if (to != null) 'to': formatApiMonth(to)},
+      ),
+    );
+    return FinanceReport.fromJson(res.data!);
+  }
+
+  /// Indicadores de fidelización de los días [from] a [to] (incluidos); por defecto, las
+  /// últimas 12 semanas.
+  Future<CrmReport> adminCrm({DateTime? from, DateTime? to}) async {
+    final res = await _send(
+      () => _dio.get<Map<String, dynamic>>(
+        '/v1/admin/crm',
+        queryParameters: {if (from != null) 'from': formatApiDate(from), if (to != null) 'to': formatApiDate(to)},
+      ),
+    );
+    return CrmReport.fromJson(res.data!);
+  }
+
+  /// Busca usuarios por parte del nombre o del teléfono; [suspended] filtra por estado.
+  Future<List<ModeratedUser>> adminUsers({String? query, UserRole? role, bool? suspended}) async {
+    final q = query?.trim();
+    final res = await _send(
+      () => _dio.get<dynamic>(
+        '/v1/admin/users',
+        queryParameters: {
+          if (q != null && q.isNotEmpty) 'q': q,
+          'role': ?role?.name,
+          if (suspended != null) 'status': suspended ? 'suspended' : 'active',
+        },
+      ),
+    );
+    return _list(res.data, 'users').map(ModeratedUser.fromJson).toList();
+  }
+
+  Future<ModeratedUser> adminSuspendUser(String userId, String reason) async {
+    final res = await _send(
+      () => _dio.post<Map<String, dynamic>>('/v1/admin/users/$userId/suspend', data: {'reason': reason}),
+    );
+    return ModeratedUser.fromJson(res.data!);
+  }
+
+  Future<ModeratedUser> adminReactivateUser(String userId, String reason) async {
+    final res = await _send(
+      () => _dio.post<Map<String, dynamic>>('/v1/admin/users/$userId/reactivate', data: {'reason': reason}),
+    );
+    return ModeratedUser.fromJson(res.data!);
+  }
+
+  Future<List<ModerationAction>> adminModerationHistory(String userId) async {
+    final res = await _send(() => _dio.get<dynamic>('/v1/admin/users/$userId/moderation'));
+    return _list(res.data, 'actions').map(ModerationAction.fromJson).toList();
+  }
+
+  Future<HealthReport> adminHealth() async {
+    final res = await _send(() => _dio.get<Map<String, dynamic>>('/v1/admin/health'));
+    return HealthReport.fromJson(res.data!);
   }
 
   Future<Response<T>> _send<T>(Future<Response<T>> Function() request) async {

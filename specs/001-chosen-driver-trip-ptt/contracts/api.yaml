@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
-  title: Kyq API (MVP 001 + 002 alta, KYC y suscripción + 005 PTT extra)
-  version: 0.2.0
+  title: Kyq API (MVP 001 + etapas 002–007)
+  version: 0.3.0
   description: |
     API REST del MVP Conductor Elegido + Viaje + PTT. Todas las rutas salvo /v1/auth/* exigen
     `Authorization: Bearer <access_token>`. Errores con cuerpo `Error`.
@@ -60,6 +60,11 @@ paths:
         '200': { $ref: '#/components/responses/Tokens' }
         '400': { $ref: '#/components/responses/Error' }
         '401': { $ref: '#/components/responses/Error' }
+        '403':
+          description: '`account_suspended` (007): la cuenta está suspendida por un administrador'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
         '409':
           description: '`phone_has_other_role`: el teléfono ya existe con otro rol'
           content:
@@ -81,6 +86,11 @@ paths:
       responses:
         '200': { $ref: '#/components/responses/Tokens' }
         '401': { $ref: '#/components/responses/Error' }
+        '403':
+          description: '`account_suspended` (007)'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
 
   /v1/realtime/token:
     post:
@@ -99,7 +109,7 @@ paths:
               type: object
               required: [channel]
               properties:
-                channel: { type: string, example: 'driver_presence:0192...' }
+                channel: { type: string, example: 'driver_presence:0192...', description: '`admin:tower` (007) solo para admins' }
       responses:
         '200': { $ref: '#/components/responses/RealtimeToken' }
         '403': { $ref: '#/components/responses/Error' }
@@ -136,7 +146,8 @@ paths:
                   presence: { $ref: '#/components/schemas/Presence' }
         '409':
           description: |
-            Bloqueado; `code` = subscription_suspended | kyc_expired | trip_in_progress. Con
+            Bloqueado; `code` = subscription_suspended | kyc_expired | trip_in_progress |
+            account_suspended (007, cuenta suspendida por un administrador). Con
             `kyc_expired`, `message` nombra el documento (p. ej. "SOAT vencido: envía el nuevo").
           content:
             application/json:
@@ -1035,6 +1046,136 @@ paths:
         '204': { description: Liberado }
         '404': { $ref: '#/components/responses/Error' }
         '503': { description: '`ptt_unavailable`: el turno sigue y caduca solo' }
+  /v1/admin/tower:
+    get:
+      summary: Instantánea de la torre de control agregada en hexágonos H3 (FR-001–FR-004)
+      parameters:
+        - name: res
+          in: query
+          description: Resolución H3 (6 a 9); 8 por defecto
+          schema: { type: integer, minimum: 6, maximum: 9, default: 8 }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TowerSnapshot' }
+        '400': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+  /v1/admin/finance:
+    get:
+      summary: Suscripciones frente a infraestructura por mes (FR-007–FR-009)
+      parameters:
+        - name: to
+          in: query
+          description: Último mes (AAAA-MM); por defecto el actual
+          schema: { type: string, pattern: '^[0-9]{4}-(0[1-9]|1[0-2])$' }
+        - name: months
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 24, default: 6 }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FinanceReport' }
+        '400': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+  /v1/admin/crm:
+    get:
+      summary: Indicadores de fidelización del periodo (FR-010–FR-013)
+      parameters:
+        - name: from
+          in: query
+          description: Primer día (AAAA-MM-DD); por defecto 12 semanas antes de `to`
+          schema: { type: string, format: date }
+        - name: to
+          in: query
+          description: Último día incluido (AAAA-MM-DD); por defecto hoy
+          schema: { type: string, format: date }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CrmReport' }
+        '400': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+  /v1/admin/users:
+    get:
+      summary: Busca usuarios para moderar (FR-014); máximo 50, más recientes primero
+      parameters:
+        - { name: q, in: query, description: 'Parte del nombre o del teléfono', schema: { type: string, maxLength: 60 } }
+        - { name: role, in: query, schema: { type: string, enum: [passenger, driver, admin] } }
+        - { name: status, in: query, schema: { type: string, enum: [active, suspended] } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/ModeratedUser' } }
+        '400': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+  /v1/admin/users/{userId}/suspend:
+    post:
+      summary: Suspende a un pasajero o conductor con motivo (FR-015, FR-016)
+      parameters: [{ $ref: '#/components/parameters/UserId' }]
+      requestBody: { $ref: '#/components/requestBodies/ModerationReason' }
+      responses:
+        '200':
+          description: Usuario suspendido
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ModeratedUser' }
+        '400': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409':
+          description: '`already_suspended` o `cannot_moderate_admin`'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+  /v1/admin/users/{userId}/reactivate:
+    post:
+      summary: Reactiva a un usuario suspendido con motivo (FR-015)
+      parameters: [{ $ref: '#/components/parameters/UserId' }]
+      requestBody: { $ref: '#/components/requestBodies/ModerationReason' }
+      responses:
+        '200':
+          description: Usuario reactivado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ModeratedUser' }
+        '400': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409':
+          description: '`not_suspended`'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+  /v1/admin/users/{userId}/moderation:
+    get:
+      summary: Historial de moderación del usuario, más reciente primero (FR-017)
+      parameters: [{ $ref: '#/components/parameters/UserId' }]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/ModerationAction' } }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+  /v1/admin/health:
+    get:
+      summary: Estado y latencia de las dependencias (FR-018–FR-020)
+      responses:
+        '200':
+          description: OK (también cuando hay dependencias caídas; ver `status`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/HealthReport' }
+        '403': { $ref: '#/components/responses/Error' }
 
 components:
   securitySchemes:
@@ -1047,6 +1188,7 @@ components:
     PaymentId: { name: paymentId, in: path, required: true, schema: { type: string, format: uuid } }
     PassengerId: { name: passengerId, in: path, required: true, schema: { type: string, format: uuid } }
     PreconsultId: { name: preconsultId, in: path, required: true, schema: { type: string, format: uuid } }
+    UserId: { name: userId, in: path, required: true, schema: { type: string, format: uuid } }
 
   requestBodies:
     Phone:
@@ -1063,6 +1205,15 @@ components:
       content:
         application/json:
           schema: { $ref: '#/components/schemas/RouteRequest' }
+    ModerationReason:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [reason]
+            properties:
+              reason: { type: string, description: '3 a 500 caracteres tras recortar espacios' }
 
   responses:
     Error:
@@ -1411,6 +1562,8 @@ components:
             driver_id: { type: string, format: uuid }
             display_name: { type: string }
             negative_margin: { type: boolean }
+
+    # --- 007 ---------------------------------------------------------------------------------
     PttCredentials:
       type: object
       required: [url, token, room]
@@ -1438,3 +1591,194 @@ components:
         close_reason:
           type: [string, 'null']
           enum: [ended_by_passenger, ended_by_driver, disabled, missed, driver_unavailable, expired, null]
+    TowerTotals:
+      type: object
+      required: [online, free, busy, without_location, stale, active_trips, requests, unserved_requests]
+      properties:
+        online: { type: integer }
+        free: { type: integer }
+        busy: { type: integer }
+        without_location: { type: integer, description: 'ONLINE sin ninguna ubicación aún' }
+        stale: { type: integer, description: 'ONLINE con ubicación de hace más de stale_after_seconds' }
+        active_trips: { type: integer }
+        requests: { type: integer, description: 'Solicitudes de la ventana (última hora)' }
+        unserved_requests: { type: integer }
+    TowerCell:
+      type: object
+      required: [cell, center, boundary, free_drivers, busy_drivers, active_trips, requests, unserved_requests, pressure, level]
+      properties:
+        cell: { type: string, description: 'Índice H3 en hexadecimal', example: '8866e42b9bfffff' }
+        center: { $ref: '#/components/schemas/Point' }
+        boundary:
+          type: array
+          description: 'Vértices en sentido antihorario, sin cerrar el anillo'
+          items: { $ref: '#/components/schemas/Point' }
+        free_drivers: { type: integer }
+        busy_drivers: { type: integer }
+        active_trips: { type: integer }
+        requests: { type: integer }
+        unserved_requests: { type: integer }
+        pressure: { type: [number, 'null'], description: 'Solicitudes por conductor libre; null sin libres' }
+        level: { type: string, enum: [none, balanced, high, no_supply] }
+    TowerDriver:
+      type: object
+      required: [driver_id, display_name, presence, lat, lng, location_at, stale, cell]
+      properties:
+        driver_id: { type: string, format: uuid }
+        display_name: { type: string }
+        presence: { type: string, enum: [free, busy] }
+        lat: { type: number }
+        lng: { type: number }
+        location_at: { type: string, format: date-time }
+        stale: { type: boolean }
+        cell: { type: string }
+    TowerSnapshot:
+      type: object
+      required: [generated_at, resolution, window_minutes, stale_after_seconds, totals, cells, drivers]
+      properties:
+        generated_at: { type: string, format: date-time }
+        resolution: { type: integer }
+        window_minutes: { type: integer }
+        stale_after_seconds: { type: integer }
+        totals: { $ref: '#/components/schemas/TowerTotals' }
+        cells: { type: array, items: { $ref: '#/components/schemas/TowerCell' } }
+        drivers: { type: array, items: { $ref: '#/components/schemas/TowerDriver' } }
+    FinanceConceptCost:
+      type: object
+      required: [concept, cost_minor]
+      properties:
+        concept: { type: string, enum: [voice_minute, realtime_event, route_request, fixed_monthly] }
+        cost_minor: { type: number }
+    FinanceMonth:
+      type: object
+      required: [month, revenue_minor, infra_cost_minor, margin_minor, margin_pct, drivers, active_drivers,
+                 paying_drivers, negative_margin_drivers, cost_per_active_driver_minor,
+                 revenue_per_paying_driver_minor, cost_by_concept, rates_missing]
+      properties:
+        month: { type: string, example: '2026-10' }
+        revenue_minor: { type: integer }
+        infra_cost_minor: { type: number }
+        margin_minor: { type: number }
+        margin_pct: { type: [number, 'null'], description: 'Margen / ingresos × 100; null sin ingresos' }
+        drivers: { type: integer, description: 'Conductores existentes al cierre del mes' }
+        active_drivers: { type: integer }
+        paying_drivers: { type: integer }
+        negative_margin_drivers: { type: integer }
+        cost_per_active_driver_minor: { type: [number, 'null'] }
+        revenue_per_paying_driver_minor: { type: [number, 'null'] }
+        cost_by_concept: { type: array, items: { $ref: '#/components/schemas/FinanceConceptCost' } }
+        rates_missing: { type: boolean, description: 'Sin ninguna tarifa de costo vigente en el mes' }
+    FinanceReport:
+      type: object
+      required: [currency, months, totals]
+      properties:
+        currency: { type: string }
+        months: { type: array, items: { $ref: '#/components/schemas/FinanceMonth' } }
+        totals:
+          type: object
+          required: [revenue_minor, infra_cost_minor, margin_minor, margin_pct]
+          properties:
+            revenue_minor: { type: integer }
+            infra_cost_minor: { type: number }
+            margin_minor: { type: number }
+            margin_pct: { type: [number, 'null'] }
+    CrmWeek:
+      type: object
+      required: [week_start, created, removed, active_end]
+      properties:
+        week_start: { type: string, format: date }
+        created: { type: integer }
+        removed: { type: integer }
+        active_end: { type: integer }
+    CrmReport:
+      type: object
+      required: [from, to, affiliations, repeat, sc008, churned_drivers, inactive_chosen_drivers]
+      properties:
+        from: { type: string, format: date }
+        to: { type: string, format: date }
+        affiliations:
+          type: object
+          required: [active_now, active_at_start, created, removed, net, churn_rate, weekly]
+          properties:
+            active_now: { type: integer }
+            active_at_start: { type: integer }
+            created: { type: integer }
+            removed: { type: integer }
+            net: { type: integer }
+            churn_rate: { type: [number, 'null'], description: 'Bajas / (activas al inicio + nuevas)' }
+            weekly: { type: array, items: { $ref: '#/components/schemas/CrmWeek' } }
+        repeat:
+          type: object
+          required: [pairs, repeat_pairs, repeat_rate, completed_trips, avg_trips_per_pair]
+          properties:
+            pairs: { type: integer }
+            repeat_pairs: { type: integer }
+            repeat_rate: { type: [number, 'null'] }
+            completed_trips: { type: integer }
+            avg_trips_per_pair: { type: [number, 'null'] }
+        sc008:
+          type: object
+          required: [matured, with_request_30d, rate, target, met, pending]
+          properties:
+            matured: { type: integer, description: 'Afiliaciones del periodo con 30 días cumplidos' }
+            with_request_30d: { type: integer }
+            rate: { type: [number, 'null'] }
+            target: { type: number }
+            met: { type: [boolean, 'null'] }
+            pending: { type: integer, description: 'Afiliaciones del periodo de menos de 30 días' }
+        churned_drivers:
+          type: array
+          items:
+            type: object
+            required: [driver_id, display_name, removed, active_now]
+            properties:
+              driver_id: { type: string, format: uuid }
+              display_name: { type: string }
+              removed: { type: integer }
+              active_now: { type: integer }
+        inactive_chosen_drivers:
+          type: array
+          items:
+            type: object
+            required: [driver_id, display_name, active_affiliations, last_completed_at]
+            properties:
+              driver_id: { type: string, format: uuid }
+              display_name: { type: string }
+              active_affiliations: { type: integer }
+              last_completed_at: { type: [string, 'null'], format: date-time }
+    ModeratedUser:
+      type: object
+      required: [user_id, display_name, phone_e164, role, created_at, suspended_at, suspension_reason]
+      properties:
+        user_id: { type: string, format: uuid }
+        display_name: { type: string }
+        phone_e164: { type: string }
+        role: { type: string, enum: [passenger, driver, admin] }
+        created_at: { type: string, format: date-time }
+        suspended_at: { type: [string, 'null'], format: date-time }
+        suspension_reason: { type: [string, 'null'] }
+    ModerationAction:
+      type: object
+      required: [id, action, reason, actor_id, actor_name, created_at]
+      properties:
+        id: { type: string, format: uuid }
+        action: { type: string, enum: [suspend, reactivate] }
+        reason: { type: string }
+        actor_id: { type: string, format: uuid }
+        actor_name: { type: string }
+        created_at: { type: string, format: date-time }
+    HealthCheck:
+      type: object
+      required: [name, status, latency_ms, detail]
+      properties:
+        name: { type: string, enum: [database, centrifugo, livekit, osrm, storage, bold] }
+        status: { type: string, enum: [ok, down, disabled] }
+        latency_ms: { type: [integer, 'null'] }
+        detail: { type: string }
+    HealthReport:
+      type: object
+      required: [status, checked_at, checks]
+      properties:
+        status: { type: string, enum: [ok, degraded, down] }
+        checked_at: { type: string, format: date-time }
+        checks: { type: array, items: { $ref: '#/components/schemas/HealthCheck' } }

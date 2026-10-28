@@ -360,6 +360,48 @@ func (ns NullFareProposalStatus) Value() (driver.Value, error) {
 	return string(ns.FareProposalStatus), nil
 }
 
+type ModerationKind string
+
+const (
+	ModerationKindSuspend    ModerationKind = "suspend"
+	ModerationKindReactivate ModerationKind = "reactivate"
+)
+
+func (e *ModerationKind) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ModerationKind(s)
+	case string:
+		*e = ModerationKind(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ModerationKind: %T", src)
+	}
+	return nil
+}
+
+type NullModerationKind struct {
+	ModerationKind ModerationKind
+	Valid          bool // Valid is true if ModerationKind is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullModerationKind) Scan(value interface{}) error {
+	if value == nil {
+		ns.ModerationKind, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ModerationKind.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullModerationKind) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ModerationKind), nil
+}
+
 type PaymentMethod string
 
 const (
@@ -677,6 +719,15 @@ type FareTable struct {
 	UpdatedAt      time.Time
 }
 
+type ModerationAction struct {
+	ID        uuid.UUID
+	UserID    uuid.UUID
+	Action    ModerationKind
+	Reason    string
+	ActorID   uuid.UUID
+	CreatedAt time.Time
+}
+
 type Notice struct {
 	ID        uuid.UUID
 	DriverID  uuid.UUID
@@ -793,9 +844,11 @@ type Trip struct {
 }
 
 type User struct {
-	ID          uuid.UUID
-	PhoneE164   string
-	Role        UserRole
-	DisplayName string
-	CreatedAt   time.Time
+	ID               uuid.UUID
+	PhoneE164        string
+	Role             UserRole
+	DisplayName      string
+	CreatedAt        time.Time
+	SuspendedAt      pgtype.Timestamptz
+	SuspensionReason pgtype.Text
 }

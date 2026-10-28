@@ -84,7 +84,17 @@ void main() {
     // Ventana estrecha: las secciones de 002 están en el menú.
     await tester.tap(find.byKey(const Key('nav.menu')));
     await tester.pumpAndSettle();
-    for (final label in ['Validación', 'Suscripciones', 'Costos', 'Tarifas']) {
+    for (final label in [
+      'Torre',
+      'Finanzas',
+      'Fidelización',
+      'Usuarios',
+      'Salud',
+      'Validación',
+      'Suscripciones',
+      'Costos',
+      'Tarifas',
+    ]) {
       expect(find.text(label), findsOneWidget);
     }
   });
@@ -107,7 +117,7 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    for (final path in ['/kyc', '/billing', '/costs', '/fares']) {
+    for (final path in ['/tower', '/finance', '/crm', '/users', '/health', '/kyc', '/billing', '/costs', '/fares']) {
       expect(find.byKey(Key('nav$path')), findsOneWidget);
     }
     expect(find.text('Pagos'), findsOneWidget);

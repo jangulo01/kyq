@@ -17,7 +17,7 @@ type PgRepo struct {
 func NewPgRepo(st *store.Store) *PgRepo { return &PgRepo{st: st, q: st.Queries} }
 
 func toUser(u store.User) User {
-	return User{ID: u.ID, Phone: u.PhoneE164, Role: string(u.Role), DisplayName: u.DisplayName}
+	return User{ID: u.ID, Phone: u.PhoneE164, Role: string(u.Role), DisplayName: u.DisplayName, Suspended: u.SuspendedAt.Valid}
 }
 
 func (r *PgRepo) GetUserByPhone(ctx context.Context, phone string) (User, error) {

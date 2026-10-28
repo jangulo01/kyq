@@ -18,19 +18,35 @@
 
   <meta charset="UTF-8">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
-  <meta name="description" content="A new Flutter project.">
+  <meta name="description" content="Kyq Admin: panel de administración y torre de control.">
 
   <!-- iOS meta tags & icons -->
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="apple-mobile-web-app-title" content="kyq_admin_web">
+  <meta name="apple-mobile-web-app-title" content="Kyq Admin">
   <link rel="apple-touch-icon" href="icons/Icon-192.png">
 
   <!-- Favicon -->
   <link rel="icon" type="image/png" href="favicon.png"/>
 
-  <title>kyq_admin_web</title>
+  <title>Kyq Admin</title>
   <link rel="manifest" href="manifest.json">
+
+  <!--
+    Mapa de la torre de control (007, research R4). El estilo propio apunta a pmtiles://, que
+    MapLibre GL JS no lee sin el protocolo de pmtiles; por eso la página carga MapLibre (la versión
+    contra la que está escrito maplibre_gl 0.27.1), registra el protocolo y publica el global
+    `maplibregl`. La app usa MapLibreJsSource.preloaded(). Versiones exactas, no rangos.
+  -->
+  <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@6.4.1/dist/maplibre-gl.css">
+  <script src="https://unpkg.com/pmtiles@4.4.1/dist/pmtiles.js"></script>
+  <script type="module">
+    const maplibregl = await import('https://unpkg.com/maplibre-gl@6.4.1/dist/maplibre-gl.mjs');
+    if (globalThis.pmtiles) {
+      maplibregl.addProtocol('pmtiles', new pmtiles.Protocol().tile);
+    }
+    globalThis.maplibregl = maplibregl;
+  </script>
 </head>
 <body>
   <!--

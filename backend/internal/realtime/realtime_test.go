@@ -47,6 +47,20 @@ func TestAuthorize(t *testing.T) {
 	assert.ErrorIs(t, empty.Authorize(ctx, me, "trip:"+trip.String()), ErrForbiddenChannel, "sin verificador se deniega")
 }
 
+// 007: el canal de la torre solo para admins; el resto de canales sigue la regla de Authorize.
+func TestAuthorizeRoleAdminTower(t *testing.T) {
+	ctx := context.Background()
+	me := uuid.New()
+	a := Authorizer{}
+	assert.NoError(t, a.AuthorizeRole(ctx, me, "admin", AdminTowerChannel))
+	for _, role := range []string{"passenger", "driver", ""} {
+		assert.ErrorIs(t, a.AuthorizeRole(ctx, me, role, AdminTowerChannel), ErrForbiddenChannel, role)
+	}
+	assert.ErrorIs(t, a.AuthorizeRole(ctx, me, "admin", "admin:otro"), ErrForbiddenChannel)
+	assert.NoError(t, a.AuthorizeRole(ctx, me, "passenger", "user:"+me.String()))
+	assert.ErrorIs(t, a.AuthorizeRole(ctx, me, "admin", "user:"+uuid.NewString()), ErrForbiddenChannel)
+}
+
 func TestPublish(t *testing.T) {
 	var got struct {
 		Channel string `json:"channel"`

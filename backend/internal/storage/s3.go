@@ -86,6 +86,21 @@ func newClient(endpoint string, o S3Options) (*minio.Client, error) {
 	})
 }
 
+// ErrBucketMissing means the storage answers but the documents bucket does not exist.
+var ErrBucketMissing = errors.New("s3 bucket missing")
+
+// Ping checks that the storage answers and the bucket exists (007, Healthline).
+func (s *S3) Ping(ctx context.Context) error {
+	ok, err := s.api.BucketExists(ctx, s.bucket)
+	if err != nil {
+		return fmt.Errorf("s3 bucket exists: %w", err)
+	}
+	if !ok {
+		return ErrBucketMissing
+	}
+	return nil
+}
+
 // EnsureBucket creates the bucket when missing. Buckets are private by default.
 func (s *S3) EnsureBucket(ctx context.Context) error {
 	ok, err := s.api.BucketExists(ctx, s.bucket)

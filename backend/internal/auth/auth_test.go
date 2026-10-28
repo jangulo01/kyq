@@ -248,3 +248,24 @@ func TestVerifyOTPDriverSignUpAndOneRolePerPhone(t *testing.T) {
 	assert.Equal(t, http.StatusConflict, rec.Code)
 	assert.Contains(t, rec.Body.String(), "phone_has_other_role")
 }
+
+// 007 (FR-016): un usuario suspendido no obtiene sesión ni por OTP ni por refresco; al
+// reactivarlo vuelve a entrar.
+func TestSuspendedUserGetsNoSession(t *testing.T) {
+	svc, repo, _, _ := newTestService()
+	ctx := context.Background()
+	first, err := svc.VerifyOTP(ctx, "+573001234567", devCode, "Ana", "")
+	require.NoError(t, err)
+	user, err := repo.GetUserByPhone(ctx, "+573001234567")
+	require.NoError(t, err)
+
+	repo.SetSuspended(user.ID, true)
+	_, err = svc.Refresh(ctx, first.RefreshToken)
+	assert.ErrorIs(t, err, ErrAccountSuspended)
+	_, err = svc.VerifyOTP(ctx, "+573001234567", devCode, "", "")
+	assert.ErrorIs(t, err, ErrAccountSuspended)
+
+	repo.SetSuspended(user.ID, false)
+	_, err = svc.VerifyOTP(ctx, "+573001234567", devCode, "", "")
+	assert.NoError(t, err)
+}

@@ -143,6 +143,7 @@ func (h *CostHandlers) Register(mux *http.ServeMux, authMW func(http.Handler) ht
 	mux.Handle("GET /v1/admin/cost-rates", admin(h.listRates))
 	mux.Handle("PUT /v1/admin/cost-rates", admin(h.putRate))
 	mux.Handle("GET /v1/admin/costs", admin(h.adminCosts))
+	mux.Handle("GET /v1/admin/finance", admin(h.finance))
 }
 
 var monthPattern = regexp.MustCompile(`^[0-9]{4}-(0[1-9]|1[0-2])$`)
@@ -259,28 +260,16 @@ func (h *CostHandlers) adminCosts(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	all, currency, err := h.breakdowns(r.Context(), month, uuid.NullUUID{})
+	// Mismas filas que suma Finanzas (007, FR-008): solo conductores que ya existían ese mes.
+	drivers, ids, names, _, err := h.monthDrivers(r.Context(), month)
 	if err != nil {
 		httpx.InternalError(w, r, err)
 		return
 	}
-	names, err := h.Store.ListDriverNames(r.Context())
-	if err != nil {
-		httpx.InternalError(w, r, err)
-		return
-	}
-	rates, err := h.rates(r.Context())
-	if err != nil {
-		httpx.InternalError(w, r, err)
-		return
-	}
-	out := make([]DriverCost, 0, len(names))
-	for _, n := range names {
-		b, ok := all[n.DriverID]
-		if !ok {
-			b = ComputeCosts(month, currency, rates, nil, 0, h.now())
-		}
-		out = append(out, DriverCost{DriverID: n.DriverID, DisplayName: n.DisplayName, Breakdown: b, NegativeMargin: b.MarginMinor < 0})
+	out := make([]DriverCost, len(ids))
+	for i, id := range ids {
+		b := drivers[i].Breakdown
+		out[i] = DriverCost{DriverID: id, DisplayName: names[id], Breakdown: b, NegativeMargin: b.MarginMinor < 0}
 	}
 	httpx.WriteJSON(w, http.StatusOK, out)
 }

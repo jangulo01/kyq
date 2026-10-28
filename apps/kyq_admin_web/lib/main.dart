@@ -7,6 +7,6 @@ void main() {
   WidgetsFlutterBinding.ensureInitialized();
   runBootstrapped(() {
     final deps = bootstrap();
-    runApp(KyqAdminApp(api: deps.api, auth: deps.auth));
+    runApp(KyqAdminApp(api: deps.api, auth: deps.auth, towerEvents: deps.towerEvents));
   });
 }

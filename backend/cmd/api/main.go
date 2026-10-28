@@ -16,8 +16,11 @@ import (
 	"github.com/kyq/backend/internal/auth"
 	"github.com/kyq/backend/internal/billing"
 	"github.com/kyq/backend/internal/config"
+	"github.com/kyq/backend/internal/control"
+	"github.com/kyq/backend/internal/crm"
 	"github.com/kyq/backend/internal/drivers"
 	"github.com/kyq/backend/internal/fares"
+	"github.com/kyq/backend/internal/health"
 	"github.com/kyq/backend/internal/httpapi"
 	"github.com/kyq/backend/internal/kyc"
 	"github.com/kyq/backend/internal/notify"
@@ -125,6 +128,19 @@ func run(logger *slog.Logger) error {
 		logger.Warn("KYQ_BOLD_ENV vacío: pagos con Bold desactivados")
 	}
 	go billingService.RunSweeper(ctx, 10*time.Second, time.Minute)
+	// 007: aviso en vivo de la torre (como mucho uno cada 3 s y solo si algo cambió).
+	towerNotifier := &control.Notifier{Source: st.Queries, Publisher: publisher, Logger: logger}
+	go towerNotifier.Run(ctx, 3*time.Second)
+	probeClient := &http.Client{Timeout: health.Timeout}
+	cityLat, cityLng := health.CityCenter(cfg.CityCode)
+	checker := &health.Checker{Probes: []health.Named{
+		{Name: health.Database, Probe: health.DatabaseProbe(st.Pool)},
+		{Name: health.Centrifugo, Probe: health.CentrifugoProbe(probeClient, cfg.CentrifugoAPIURL, cfg.CentrifugoAPIKey)},
+		{Name: health.LiveKit, Probe: health.LiveKitProbe(probeClient, apiURL)},
+		{Name: health.OSRM, Probe: health.OSRMProbe(probeClient, cfg.OSRMURL, cityLat, cityLng)},
+		{Name: health.Storage, Probe: health.StorageProbe(objects)},
+		{Name: health.Bold, Probe: health.BoldProbe(probeClient, cfg.BoldEnabled(), cfg.BoldAPIURL, cfg.BoldIdentityKey)},
+	}}
 	handler := httpapi.NewRouter(httpapi.Deps{
 		Logger: logger,
 		Tokens: tokens,
@@ -144,6 +160,9 @@ func run(logger *slog.Logger) error {
 		Billing:  &billing.Handlers{Service: billingService, WebhookEnabled: cfg.BoldEnabled()},
 		Notices:  &notify.Handlers{Service: notices},
 		Costs:    &telemetry.CostHandlers{Store: st, CityCode: cfg.CityCode},
+		Tower:    &control.Handlers{Store: st},
+		CRM:      &crm.Handlers{Store: st, Moderation: &crm.Moderation{Store: st, Publisher: publisher, Logger: logger}},
+		Health:   &health.Handlers{Checker: checker},
 		LiveKitWebhook: &telemetry.LiveKitWebhook{
 			APIKey: cfg.LiveKitAPIKey, APISecret: cfg.LiveKitAPISecret, Store: st, Usage: usage,
 		},
