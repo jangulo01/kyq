@@ -7,6 +7,7 @@ export 'src/controller/playback_queue.dart';
 export 'src/controller/radio_cubit.dart';
 export 'src/services.dart';
 export 'src/deps.dart';
+export 'src/keep_alive.dart';
 export 'src/mount.dart';
 export 'src/referrer.dart';
 export 'src/ui/add_contact.dart';

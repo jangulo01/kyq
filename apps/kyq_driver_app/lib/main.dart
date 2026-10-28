@@ -8,7 +8,7 @@ import 'background/foreground_service.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  ForegroundOnlineService.configure();
+  PlatformForegroundHost.configure();
   runBootstrapped(() async {
     final domains = await loadDomains(
       fallback: const KyqDomain(apiUrl: apiBaseUrl, realtimeUrl: realtimeUrl),

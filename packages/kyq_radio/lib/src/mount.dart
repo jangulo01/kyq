@@ -7,6 +7,7 @@ import 'package:kyq_realtime/kyq_realtime.dart';
 
 import 'controller/radio_cubit.dart';
 import 'deps.dart';
+import 'keep_alive.dart';
 import 'referrer.dart';
 import 'services.dart';
 
@@ -26,6 +27,7 @@ class RadioMount {
     this.referrer = const NoRadioReferrer(),
     this.open,
     this.pickPoint,
+    this.keepAlive = const NoRadioKeepAlive(),
   });
 
   final RadioApi api;
@@ -49,6 +51,13 @@ class RadioMount {
 
   /// Punto en el mapa de la app (ver [RadioDeps.pickPoint]).
   final Future<RadioPoint?> Function(BuildContext context, RadioPoint? near)? pickPoint;
+
+  /// Aviso fijo "Radio encendida" con "Apagar radio" (FR-026).
+  final RadioKeepAlive keepAlive;
+
+  StreamSubscription<RadioState>? _stateSub;
+  StreamSubscription<void>? _offSub;
+  bool _keptAlive = false;
 
   /// Cubit y dependencias del usuario con sesión; null antes de conocerlo.
   final scope = ValueNotifier<({RadioCubit cubit, RadioDeps deps})?>(null);
@@ -82,8 +91,19 @@ class RadioMount {
         pickPoint: pickPoint,
       ),
     );
+    _stateSub = cubit.stream.listen(_syncKeepAlive);
+    _offSub = keepAlive.turnOffRequests.listen((_) => unawaited(cubit.setRadioOn(false)));
     unawaited(cubit.load());
     unawaited(_openPending(applied));
+  }
+
+  /// El aviso sigue a la radio: encendida y con acceso, aviso; apagada o sin acceso, nada.
+  void _syncKeepAlive(RadioState s) {
+    final me = s.me;
+    final on = me != null && me.radioOn && me.access != RadioAccess.none;
+    if (on == _keptAlive) return;
+    _keptAlive = on;
+    unawaited(keepAlive.setRadioOn(on));
   }
 
   Future<void> _openPending(List<String> applied) async {
@@ -99,9 +119,19 @@ class RadioMount {
 
   /// Apaga la radio al cerrar la sesión.
   Future<void> stop() async {
+    // Todo se suelta antes de la primera espera: start() llama a stop() sin esperarlo y lo nuevo
+    // no debe tocarse.
     final old = scope.value;
+    final stateSub = _stateSub, offSub = _offSub, wasKept = _keptAlive;
     scope.value = null;
-    await old?.cubit.close();
+    _stateSub = _offSub = null;
+    _keptAlive = false;
+    // Cerrar primero: el cubit apaga sus temporizadores antes de cualquier espera.
+    final closing = old?.cubit.close();
+    await stateSub?.cancel();
+    await offSub?.cancel();
+    if (wasKept) await keepAlive.setRadioOn(false);
+    await closing;
   }
 
   /// [RadioScope] de las rutas `/radio`: espera a conocer al usuario.

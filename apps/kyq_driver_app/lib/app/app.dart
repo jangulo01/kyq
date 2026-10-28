@@ -146,6 +146,7 @@ class _KyqDriverAppState extends State<KyqDriverApp> {
     location: PositionRadioLocation(widget.services.positions),
     onShareLink: shareWithPlatform,
     referrer: widget.services.radioReferrer,
+    keepAlive: widget.services.radioKeepAlive,
     open: (location) => _router.push(location),
   );
   // 011: conversaciones a las que llevaron invitaciones por teléfono al registrarse.

@@ -19,6 +19,7 @@ import '../payments/pending_payments_cubit.dart';
 import '../places/saved_places.dart';
 import '../preconsult/preconsult_cubit.dart';
 import '../preconsult/preconsult_page.dart';
+import '../radio/radio_foreground.dart';
 import '../realtime/realtime_events.dart';
 import '../request/location_source.dart';
 import '../request/request_cubit.dart';
@@ -88,6 +89,7 @@ class KyqRiderApp extends StatefulWidget {
     this.radioPlayer = JustAudioMessagePlayer.new,
     this.radioApi,
     this.radioReferrer = const PlayRadioReferrer(),
+    this.radioKeepAlive,
   });
 
   final KyqApiClient api;
@@ -126,6 +128,9 @@ class KyqRiderApp extends StatefulWidget {
   /// Invitación con la que se instaló la app (Play Install Referrer, R9).
   final RadioReferrer radioReferrer;
 
+  /// Aviso fijo "Radio encendida" (FR-026); null usa el servicio en primer plano de Android.
+  final RadioKeepAlive? radioKeepAlive;
+
   @override
   State<KyqRiderApp> createState() => _KyqRiderAppState();
 }
@@ -144,6 +149,7 @@ class _KyqRiderAppState extends State<KyqRiderApp> {
     onRequestTrip: (context, c) =>
         context.push(Uri(path: '/request/${c.peerId}', queryParameters: {'name': c.title}).toString()),
     referrer: widget.radioReferrer,
+    keepAlive: widget.radioKeepAlive ?? PlatformRadioKeepAlive(),
     open: (location) => _router.push(location),
     pickPoint: (context, near) => Navigator.of(context).push<RadioPoint>(
       MaterialPageRoute(

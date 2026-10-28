@@ -52,6 +52,7 @@ Future<FakeRadioApi> _pump(WidgetTester tester, {RadioReferrer referrer = const 
       radioPlayer: FakeMessagePlayer.new,
       radioApi: radio,
       radioReferrer: referrer,
+      radioKeepAlive: const NoRadioKeepAlive(),
     ),
   );
   await tester.pumpAndSettle();
@@ -87,6 +88,7 @@ void main() {
         radioPlayer: FakeMessagePlayer.new,
         radioApi: radio,
         radioReferrer: const NoRadioReferrer(),
+        radioKeepAlive: const NoRadioKeepAlive(),
       ),
     );
     await tester.pumpAndSettle();

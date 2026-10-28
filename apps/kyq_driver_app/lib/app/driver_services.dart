@@ -37,23 +37,29 @@ class DriverServices {
     this.radioPlayer = JustAudioMessagePlayer.new,
     this.radioApi,
     this.radioReferrer = const PlayRadioReferrer(),
+    this.radioKeepAlive = const NoRadioKeepAlive(),
   });
 
-  factory DriverServices.platform(DriverEventSource events) => DriverServices(
-    events: events,
-    permissions: PlatformOnlinePermissions(),
-    onlineService: ForegroundOnlineService(),
-    positions: GeolocatorPositionSource(),
-    ptt: PttController.live,
-    photos: PlatformPhotoSource(),
-    scanner: const MlKitDocumentScanner(),
-    checkout: const CustomTabCheckout(),
-    preconsultPtt: PttController.livePreconsult,
-    handsFree: const MethodChannelHandsFree(),
-    handsFreePrefs: const SharedPrefsHandsFreeStore(),
-    overlayPermission: const PlatformOverlayPermission(),
-    safety: platformSafety(),
-  );
+  factory DriverServices.platform(DriverEventSource events) {
+    // 011: ONLINE y "Radio encendida" comparten el servicio en primer plano.
+    final keepAlive = KeepAlive(PlatformForegroundHost());
+    return DriverServices(
+      events: events,
+      permissions: PlatformOnlinePermissions(),
+      onlineService: keepAlive.online,
+      radioKeepAlive: keepAlive,
+      positions: GeolocatorPositionSource(),
+      ptt: PttController.live,
+      photos: PlatformPhotoSource(),
+      scanner: const MlKitDocumentScanner(),
+      checkout: const CustomTabCheckout(),
+      preconsultPtt: PttController.livePreconsult,
+      handsFree: const MethodChannelHandsFree(),
+      handsFreePrefs: const SharedPrefsHandsFreeStore(),
+      overlayPermission: const PlatformOverlayPermission(),
+      safety: platformSafety(),
+    );
+  }
 
   final DriverEventSource events;
   final OnlinePermissions permissions;
@@ -101,6 +107,9 @@ class DriverServices {
 
   /// Invitación con la que se instaló la app (Play Install Referrer, 011).
   final RadioReferrer radioReferrer;
+
+  /// Aviso fijo "Radio encendida" con "Apagar radio" (011, FR-026).
+  final RadioKeepAlive radioKeepAlive;
 }
 
 /// Sala LiveKit real para el megáfono (009).

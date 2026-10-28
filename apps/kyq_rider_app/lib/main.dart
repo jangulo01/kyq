@@ -4,9 +4,11 @@ import 'package:kyq_ui/kyq_ui.dart';
 
 import 'app/app.dart';
 import 'app/bootstrap.dart';
+import 'radio/radio_foreground.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
+  PlatformRadioKeepAlive.configure();
   runBootstrapped(() async {
     final domains = await loadDomains(
       fallback: const KyqDomain(apiUrl: apiBaseUrl, realtimeUrl: realtimeUrl),

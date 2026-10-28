@@ -80,4 +80,36 @@ void main() {
     expect(opened, ['/radio/c/c9'], reason: 'la conversación gana al referrer');
     await mount.dispose();
   });
+
+  test('el aviso "Radio encendida" sigue a la radio y "Apagar radio" la apaga (FR-026)', () async {
+    final keep = _KeepAlive();
+    final api = FakeRadioApi(me: fakeMe(radioOn: true));
+    final mount = RadioMount(
+      api: api,
+      events: (_) => const Stream.empty(),
+      factory: _cubit,
+      newPlayer: FakeMessagePlayer.new,
+      keepAlive: keep,
+    );
+    mount.start('me');
+    await pumpEventQueue();
+    expect(keep.states, [true]);
+    keep.off.add(null);
+    await pumpEventQueue();
+    expect(api.me.radioOn, isFalse);
+    expect(keep.states, [true, false]);
+    await mount.dispose();
+    expect(keep.states, [true, false], reason: 'ya estaba apagada');
+  });
+}
+
+class _KeepAlive implements RadioKeepAlive {
+  final states = <bool>[];
+  final off = StreamController<void>.broadcast();
+
+  @override
+  Future<void> setRadioOn(bool on) async => states.add(on);
+
+  @override
+  Stream<void> get turnOffRequests => off.stream;
 }
