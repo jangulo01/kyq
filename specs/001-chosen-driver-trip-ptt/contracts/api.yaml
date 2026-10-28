@@ -2670,6 +2670,9 @@ paths:
                   enum:
                   - hold
                   - toggle
+                timezone:
+                  type: string
+                  description: Zona horaria IANA de los horarios de silencio (FR-021), p. ej. America/Lima
       responses:
         '200':
           content:
@@ -4972,6 +4975,8 @@ components:
           enum:
           - hold
           - toggle
+        timezone:
+          type: string
         consent_required:
           type: boolean
         retention_days:

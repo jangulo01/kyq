@@ -13,6 +13,7 @@ export 'src/ui/add_contact.dart';
 export 'src/ui/channels.dart';
 export 'src/ui/conversation_page.dart';
 export 'src/ui/history.dart';
+export 'src/ui/quiet_hours.dart';
 export 'src/ui/radio_page.dart';
 export 'src/ui/routes.dart';
 export 'src/ui/settings_page.dart';

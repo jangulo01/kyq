@@ -2720,9 +2720,10 @@ SET status = coalesce($1::radio_presence_status, status),
     status_before_quiet = CASE WHEN $1::radio_presence_status IS NULL THEN status_before_quiet END,
     radio_on = coalesce($2::boolean, radio_on),
     push_mode = coalesce($3::text, push_mode),
-    last_seen_at = CASE WHEN $2::boolean THEN $4::timestamptz ELSE last_seen_at END,
-    updated_at = $4::timestamptz
-WHERE user_id = $5
+    timezone = coalesce($4::text, timezone),
+    last_seen_at = CASE WHEN $2::boolean THEN $5::timestamptz ELSE last_seen_at END,
+    updated_at = $5::timestamptz
+WHERE user_id = $6
 RETURNING user_id, status, status_before_quiet, radio_on, last_seen_at, push_mode, timezone, clients_enabled, updated_at
 `
 
@@ -2730,6 +2731,7 @@ type UpdateRadioPresenceParams struct {
 	Status   NullRadioPresenceStatus
 	RadioOn  pgtype.Bool
 	PushMode pgtype.Text
+	Timezone pgtype.Text
 	Now      time.Time
 	UserID   uuid.UUID
 }
@@ -2739,6 +2741,7 @@ func (q *Queries) UpdateRadioPresence(ctx context.Context, arg UpdateRadioPresen
 		arg.Status,
 		arg.RadioOn,
 		arg.PushMode,
+		arg.Timezone,
 		arg.Now,
 		arg.UserID,
 	)

@@ -2,6 +2,7 @@ package radio
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -25,7 +26,7 @@ func (s *Service) Me(ctx context.Context, userID uuid.UUID) (Me, error) {
 func (s *Service) meView(ctx context.Context, userID uuid.UUID, d Decision, sub Subject, st Settings, p store.RadioPresence) (Me, error) {
 	out := Me{
 		Access: d.Level, TrialDaysLeft: d.TrialDaysLeft, Status: string(p.Status), RadioOn: p.RadioOn,
-		PushMode: p.PushMode, RetentionDays: st.RetentionDays,
+		PushMode: p.PushMode, Timezone: p.Timezone, RetentionDays: st.RetentionDays,
 	}
 	if d.Reason != "" {
 		r := d.Reason
@@ -52,6 +53,8 @@ type MeUpdate struct {
 	Status   *string `json:"status"`
 	RadioOn  *bool   `json:"radio_on"`
 	PushMode *string `json:"push_mode"`
+	// Timezone (IANA, p. ej. America/Lima) para los horarios de silencio (FR-021).
+	Timezone *string `json:"timezone"`
 }
 
 // UpdateMe applies MeUpdate and tells contacts and channels the new presence (FR-019).
@@ -77,6 +80,12 @@ func (s *Service) UpdateMe(ctx context.Context, userID uuid.UUID, in MeUpdate) (
 	}
 	if in.RadioOn != nil {
 		params.RadioOn.Bool, params.RadioOn.Valid = *in.RadioOn, true
+	}
+	if in.Timezone != nil {
+		if _, err := time.LoadLocation(*in.Timezone); err != nil || *in.Timezone == "" || *in.Timezone == "Local" {
+			return Me{}, ErrInvalid
+		}
+		params.Timezone = text(*in.Timezone)
 	}
 	if _, err := s.Store.EnsureRadioPresence(ctx, store.EnsureRadioPresenceParams{UserID: userID, UpdatedAt: params.Now}); err != nil {
 		return Me{}, err

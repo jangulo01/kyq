@@ -4,6 +4,7 @@ import 'package:kyq_api/kyq_api.dart';
 
 import '../controller/radio_cubit.dart';
 import '../deps.dart';
+import 'quiet_hours.dart';
 
 /// Ajustes de Radio: cómo se usa el botón grande (FR-007) y, en Kyq Conductor, "Radio con mis
 /// clientes" con los clientes silenciados o bloqueados (FR-003).
@@ -69,6 +70,7 @@ class RadioSettingsPage extends StatelessWidget {
                       if ((me.clientsEnabled ?? false) && clients.isEmpty)
                         const ListTile(title: Text('Aún no tienes clientes que te hayan guardado.')),
                     ],
+                    const QuietHoursSection(),
                     ...extra,
                   ],
                 ),

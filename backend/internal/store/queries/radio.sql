@@ -49,6 +49,7 @@ SET status = coalesce(sqlc.narg(status)::radio_presence_status, status),
     status_before_quiet = CASE WHEN sqlc.narg(status)::radio_presence_status IS NULL THEN status_before_quiet END,
     radio_on = coalesce(sqlc.narg(radio_on)::boolean, radio_on),
     push_mode = coalesce(sqlc.narg(push_mode)::text, push_mode),
+    timezone = coalesce(sqlc.narg(timezone)::text, timezone),
     last_seen_at = CASE WHEN sqlc.narg(radio_on)::boolean THEN sqlc.arg(now)::timestamptz ELSE last_seen_at END,
     updated_at = sqlc.arg(now)::timestamptz
 WHERE user_id = sqlc.arg(user_id)

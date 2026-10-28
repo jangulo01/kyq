@@ -70,9 +70,9 @@
 
 ## Phase 9: US5 Estados y alertas (P2)
 
-- [ ] T035 [US5] `radio/presence.go`: `GET/PUT /v1/radio/me`, latido de 30 s y Desconectado a 90 s, `radio.presence` a contactos y canales, horarios de silencio con barrido de 1 min y zona horaria; pruebas con reloj falso (FR-019–FR-021)
-- [ ] T036 [US5] Alerta de llamada: `POST …/messages` `kind=alert` (texto ≤ 80, 3 por emisor y destino en 10 min), evento `radio.alert`; en `kyq_radio` timbre y vibración en bucle hasta 60 s o al abrir, también en Ocupado; pruebas (FR-022)
-- [ ] T037 [US5] `kyq_radio`: selector de estado en la barra superior, colores y formas de Kyq por estado, horarios de silencio; Ocupado no suena; pruebas de widget
+- [X] T035 [US5] `radio/presence.go`: `GET/PUT /v1/radio/me`, latido de 30 s y Desconectado a 90 s, `radio.presence` a contactos y canales, horarios de silencio con barrido de 1 min y zona horaria; pruebas con reloj falso (FR-019–FR-021)
+- [X] T036 [US5] Alerta de llamada: `POST …/messages` `kind=alert` (texto ≤ 80, 3 por emisor y destino en 10 min), evento `radio.alert`; en `kyq_radio` timbre y vibración en bucle hasta 60 s o al abrir, también en Ocupado; pruebas (FR-022)
+- [X] T037 [US5] `kyq_radio`: selector de estado en la barra superior, colores y formas de Kyq por estado, horarios de silencio; Ocupado no suena; pruebas de widget
 
 ## Phase 10: US6 Texto, foto y ubicación (P2)
 

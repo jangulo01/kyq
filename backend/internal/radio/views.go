@@ -24,6 +24,7 @@ type Me struct {
 	Status          string  `json:"status"`
 	RadioOn         bool    `json:"radio_on"`
 	PushMode        string  `json:"push_mode"`
+	Timezone        string  `json:"timezone"`
 	ConsentRequired bool    `json:"consent_required"`
 	RetentionDays   int     `json:"retention_days"`
 	ClientsEnabled  *bool   `json:"clients_enabled"`
