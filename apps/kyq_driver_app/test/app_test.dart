@@ -73,6 +73,7 @@ void main() {
       tester,
       clients: [DriverClient(passengerId: 'p1', displayName: 'Ana', affiliatedAt: DateTime.utc(2026, 10, 27))],
     );
+    await tester.scrollUntilVisible(find.text('Mis clientes'), 200);
     await tester.tap(find.text('Mis clientes'));
     await tester.pumpAndSettle();
     expect(find.text('Ana'), findsOneWidget);

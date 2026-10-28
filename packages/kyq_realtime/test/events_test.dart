@@ -388,4 +388,52 @@ void main() {
     expect(offer.reservation, isTrue);
     expect(offer.clientNote, 'Portería 2');
   });
+
+  test('011: eventos de Radio', () {
+    final msg =
+        RealtimeEvent.fromEnvelope(
+              envelope('radio.message', {
+                'message': {'id': 'm1', 'conversation_id': 'c1', 'kind': 'voice'},
+                'silent': true,
+              }),
+            )
+            as RadioMessageEvent;
+    expect(msg.kind, RadioEventKind.message);
+    expect(msg.conversationId, 'c1');
+    expect(msg.silent, isTrue);
+    final alert =
+        RealtimeEvent.fromEnvelope(
+              envelope('radio.alert', {
+                'message': {'conversation_id': 'c1'},
+                'silent': false,
+              }),
+            )
+            as RadioMessageEvent;
+    expect(alert.kind, RadioEventKind.alert);
+    expect(
+      (RealtimeEvent.fromEnvelope(envelope('radio.emergency', {'message': <String, dynamic>{}})) as RadioMessageEvent)
+          .kind,
+      RadioEventKind.emergency,
+    );
+    expect(
+      RealtimeEvent.fromEnvelope(envelope('radio.presence', {'user_id': 'u1', 'status': 'busy', 'quiet_hours': true})),
+      isA<RadioPresenceChanged>().having((e) => e.status, 'status', 'busy').having((e) => e.quietHours, 'q', isTrue),
+    );
+    expect(
+      RealtimeEvent.fromEnvelope(
+        envelope('radio.member', {'conversation_id': 'c1', 'user_id': 'u1', 'change': 'room_rotated'}),
+      ),
+      isA<RadioMemberChanged>().having((e) => e.change, 'change', 'room_rotated'),
+    );
+    expect(
+      RealtimeEvent.fromEnvelope(
+        envelope('radio.invite', {'conversation_id': 'c1', 'user_id': 'u2', 'display_name': 'Jonathan'}),
+      ),
+      isA<RadioInviteAccepted>().having((e) => e.displayName, 'name', 'Jonathan'),
+    );
+    expect(
+      RealtimeEvent.fromEnvelope(envelope('radio.settings', {'retention_days': 7})),
+      isA<RadioSettingsChanged>().having((e) => e.data['retention_days'], 'retention', 7),
+    );
+  });
 }

@@ -1,5 +1,5 @@
 // Eventos de specs/001-chosen-driver-trip-ptt/contracts/realtime.md, `notice.created` de 002,
-// `preconsult.*` de 005, los `sos.*` de 003 y `trip_payment.*` de 004.
+// `preconsult.*` de 005, los `sos.*` de 003, `trip_payment.*` de 004 y `radio.*` de 011.
 
 /// Nombres de canal autorizados por el backend.
 abstract final class Channels {
@@ -200,6 +200,38 @@ sealed class RealtimeEvent {
         status: data['status'] as String? ?? '',
         message: data['message'] as String? ?? '',
       ),
+      // 011 Radio Kyq: el mensaje va como mapa del contrato (Message); kyq_api lo decodifica.
+      'radio.message' || 'radio.alert' || 'radio.emergency' => RadioMessageEvent(
+        at,
+        kind: switch (type) {
+          'radio.alert' => RadioEventKind.alert,
+          'radio.emergency' => RadioEventKind.emergency,
+          _ => RadioEventKind.message,
+        },
+        message: (data['message'] as Map?)?.cast<String, dynamic>() ?? const {},
+        silent: data['silent'] as bool? ?? false,
+      ),
+      'radio.presence' => RadioPresenceChanged(
+        at,
+        userId: data['user_id'] as String,
+        status: data['status'] as String? ?? 'offline',
+        quietHours: data['quiet_hours'] as bool?,
+      ),
+      'radio.member' => RadioMemberChanged(
+        at,
+        conversationId: data['conversation_id'] as String,
+        userId: data['user_id'] as String? ?? '',
+        change: data['change'] as String? ?? '',
+        displayName: data['display_name'] as String?,
+        role: data['role'] as String?,
+      ),
+      'radio.invite' => RadioInviteAccepted(
+        at,
+        conversationId: data['conversation_id'] as String,
+        userId: data['user_id'] as String? ?? '',
+        displayName: data['display_name'] as String? ?? '',
+      ),
+      'radio.settings' => RadioSettingsChanged(at, data: data),
       _ => UnknownEvent(at, type: type, data: data),
     };
   }
@@ -624,6 +656,70 @@ final class ReservationNotice extends RealtimeEvent {
   final String reservationId;
   final String status;
   final String message;
+}
+
+/// 011: qué tipo de aviso de Radio llegó.
+enum RadioEventKind { message, alert, emergency }
+
+/// 011: `radio.message`, `radio.alert` o `radio.emergency`. [silent] dice que no debe sonar para
+/// este receptor (Ocupado, "Escuchar" apagado o cliente silenciado); la emergencia siempre suena.
+final class RadioMessageEvent extends RealtimeEvent {
+  const RadioMessageEvent(super.occurredAt, {required this.kind, required this.message, required this.silent});
+
+  final RadioEventKind kind;
+  final Map<String, dynamic> message;
+  final bool silent;
+
+  String get conversationId => message['conversation_id'] as String? ?? '';
+}
+
+/// 011: un contacto o miembro cambió de estado (`available`, `busy`, `listen_only`, `offline`).
+/// [quietHours] solo llega al propio usuario cuando un horario de silencio lo cambia.
+final class RadioPresenceChanged extends RealtimeEvent {
+  const RadioPresenceChanged(super.occurredAt, {required this.userId, required this.status, this.quietHours});
+
+  final String userId;
+  final String status;
+  final bool? quietHours;
+}
+
+/// 011: altas, solicitudes, moderación, rotación de sala (`room_rotated`) o conversación borrada.
+final class RadioMemberChanged extends RealtimeEvent {
+  const RadioMemberChanged(
+    super.occurredAt, {
+    required this.conversationId,
+    required this.userId,
+    required this.change,
+    this.displayName,
+    this.role,
+  });
+
+  final String conversationId;
+  final String userId;
+  final String change;
+  final String? displayName;
+  final String? role;
+}
+
+/// 011: alguien aceptó la invitación de contacto.
+final class RadioInviteAccepted extends RealtimeEvent {
+  const RadioInviteAccepted(
+    super.occurredAt, {
+    required this.conversationId,
+    required this.userId,
+    required this.displayName,
+  });
+
+  final String conversationId;
+  final String userId;
+  final String displayName;
+}
+
+/// 011: el panel cambió la configuración de Radio.
+final class RadioSettingsChanged extends RealtimeEvent {
+  const RadioSettingsChanged(super.occurredAt, {required this.data});
+
+  final Map<String, dynamic> data;
 }
 
 final class UnknownEvent extends RealtimeEvent {

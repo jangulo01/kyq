@@ -38,6 +38,13 @@
                 <category android:name="android.intent.category.BROWSABLE"/>
                 <data android:scheme="kyq" android:host="affiliate"/>
             </intent-filter>
+            <!-- 011: invitación de Radio de un conductor (kyq://radio/{code}). -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="kyq" android:host="radio"/>
+            </intent-filter>
         </activity>
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->

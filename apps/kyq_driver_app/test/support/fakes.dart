@@ -14,6 +14,8 @@ import 'package:kyq_driver_app/realtime/driver_events.dart';
 import 'package:kyq_driver_app/subscription/checkout_launcher.dart';
 import 'package:kyq_ptt/kyq_ptt.dart';
 import 'package:kyq_ptt/testing.dart';
+import 'package:kyq_radio/kyq_radio.dart';
+import 'package:kyq_radio/testing.dart';
 import 'package:kyq_realtime/kyq_realtime.dart';
 import 'package:kyq_ui/kyq_ui.dart';
 import 'package:mocktail/mocktail.dart';
@@ -183,6 +185,7 @@ DriverServices fakeServices({
   FakeHandsFreePrefs? handsFreePrefs,
   FakeOverlayPermission? overlay,
   SafetyPlatform? safety,
+  FakeRadioApi? radioApi,
 }) => DriverServices(
   events: events ?? FakeEventSource(),
   permissions: permissions ?? FakePermissions(),
@@ -198,6 +201,20 @@ DriverServices fakeServices({
   overlayPermission: overlay ?? FakeOverlayPermission(),
   safety: safety ?? fakeSafety(),
   megaphoneRoom: FakeVoice.new,
+  radio: fakeRadio,
+  radioPlayer: FakeMessagePlayer.new,
+  radioApi: radioApi ?? FakeRadioApi(),
+);
+
+/// Radio (011) con salas, tonos y audio falsos.
+RadioCubit fakeRadio(RadioApi api, String userId, Stream<RealtimeEvent> events) => RadioCubit(
+  api: api,
+  myUserId: userId,
+  events: events,
+  rooms: () => FakeListeningRoom(identity: userId),
+  tones: FakeTonePlayer(),
+  focus: FakeAudioFocus(),
+  player: FakeMessagePlayer(),
 );
 
 /// GPS, menú de compartir y marcador falsos del kit de seguridad (003).

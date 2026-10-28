@@ -5,6 +5,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:kyq_api/kyq_api.dart';
 import 'package:kyq_ptt/kyq_ptt.dart';
+import 'package:kyq_radio/kyq_radio.dart';
 import 'package:kyq_realtime/kyq_realtime.dart';
 import 'package:kyq_ui/kyq_ui.dart';
 
@@ -36,6 +37,7 @@ import '../preconsult/preconsult_page.dart';
 import '../preconsult/preconsult_settings_cubit.dart';
 import '../preconsult/preconsult_settings_page.dart';
 import '../presence/presence_cubit.dart';
+import '../radio/radio_mount.dart';
 import '../realtime/driver_events.dart';
 import '../subscription/subscription_cubit.dart';
 import '../subscription/subscription_page.dart';
@@ -135,6 +137,16 @@ class _KyqDriverAppState extends State<KyqDriverApp> {
     ptt: widget.services.preconsultPtt,
     handsFree: _handsFree,
   );
+  // 011: Radio Kyq; arranca al conocer la cuenta y escucha aunque se cambie de pantalla.
+  late final RadioMount _radio = RadioMount(
+    api: widget.services.radioApi ?? widget.api,
+    events: _events.stream,
+    factory: widget.services.radio,
+    newPlayer: widget.services.radioPlayer,
+    location: PositionRadioLocation(widget.services.positions),
+    onShareLink: shareWithPlatform,
+  );
+  late final StreamSubscription<PresenceState> _presenceSub;
   late final AppLifecycleListener _lifecycle;
   late final StreamSubscription<AuthState> _authSub;
   late final StreamSubscription<OnboardingStatus?> _onboardingSub;
@@ -146,7 +158,8 @@ class _KyqDriverAppState extends State<KyqDriverApp> {
     withSupport: true,
     subtitle: 'Soy conductor',
     newAccountHint: 'Crearemos tu cuenta de conductor. Luego te pediremos tu vehículo y tus documentos.',
-    guard: (context, state) => _onboardingRedirect(state.matchedLocation),
+    // 011: kyq://radio/{code} y …/r/{code} abren la invitación de Radio.
+    guard: (context, state) => radioDeepLinkRedirect(state.uri) ?? _onboardingRedirect(state.matchedLocation),
     routes: [
       GoRoute(path: '/onboarding/vehicle', builder: (context, state) => const VehiclePage()),
       GoRoute(
@@ -179,6 +192,7 @@ class _KyqDriverAppState extends State<KyqDriverApp> {
         builder: (context, state) => const HomePage(),
         routes: [
           GoRoute(path: 'qr', builder: (context, state) => const MyQrPage()),
+          radioRoute(scope: _radio.wrap),
           GoRoute(
             path: 'clients',
             builder: (context, state) => const ClientsPage(),
@@ -323,6 +337,9 @@ class _KyqDriverAppState extends State<KyqDriverApp> {
   void initState() {
     super.initState();
     _authSub = widget.auth.stream.listen(_onAuth);
+    _presenceSub = _presence.stream.listen((s) {
+      if (s.me case final me?) _radio.start(me.driverId);
+    });
     _lifecycle = AppLifecycleListener(onStateChange: _onLifecycle);
     unawaited(_handsFreeSettings.load());
     // Sin refreshListenable: refrescar el router reconstruye las páginas apiladas (un viaje, una
@@ -345,6 +362,7 @@ class _KyqDriverAppState extends State<KyqDriverApp> {
         if (_presence.state.me != null) unawaited(_presence.reset());
         _onboarding.reset();
         _notices.reset();
+        unawaited(_radio.stop());
       default:
         break;
     }
@@ -397,6 +415,8 @@ class _KyqDriverAppState extends State<KyqDriverApp> {
   @override
   void dispose() {
     _authSub.cancel();
+    _presenceSub.cancel();
+    unawaited(_radio.dispose());
     _router.dispose();
     _onboardingSub.cancel();
     _offers.close();

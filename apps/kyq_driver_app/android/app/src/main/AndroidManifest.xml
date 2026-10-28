@@ -45,6 +45,13 @@
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
+            <!-- 011: invitación de Radio; la página pública /r/{code} abre kyq://radio/{code}. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="kyq" android:host="radio"/>
+            </intent-filter>
         </activity>
         <!-- Servicio de flutter_foreground_task mientras el conductor está ONLINE. -->
         <service

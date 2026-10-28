@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:kyq_api/kyq_api.dart';
+import 'package:kyq_radio/kyq_radio.dart';
 import 'package:kyq_ui/kyq_ui.dart';
 
 import '../notices/notices_cubit.dart';
@@ -96,6 +97,16 @@ class HomePage extends StatelessWidget {
               },
             ),
             const SizedBox(height: 16),
+            Card(
+              child: ListTile(
+                key: const Key('home.radio'),
+                leading: const Icon(Icons.settings_input_antenna),
+                title: const Text('Radio'),
+                subtitle: const Text('Habla con tus compañeros y tus canales cuando quieras'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => context.push(RadioRoutes.list),
+              ),
+            ),
             Card(
               child: ListTile(
                 key: const Key('home.documents'),

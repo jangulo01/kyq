@@ -1,5 +1,6 @@
 import 'package:kyq_api/kyq_api.dart';
 import 'package:kyq_ptt/kyq_ptt.dart';
+import 'package:kyq_radio/kyq_radio.dart';
 import 'package:kyq_ui/kyq_ui.dart';
 
 import '../background/foreground_service.dart';
@@ -32,6 +33,9 @@ class DriverServices {
     this.cooperativePtt = PttController.cooperative,
     this.megaphoneRoom = liveKitRoom,
     required this.safety,
+    this.radio = liveRadioCubit,
+    this.radioPlayer = JustAudioMessagePlayer.new,
+    this.radioApi,
   });
 
   factory DriverServices.platform(DriverEventSource events) => DriverServices(
@@ -84,6 +88,15 @@ class DriverServices {
 
   /// Sala de solo escucha de los comunicados de Kyq (009); las pruebas pasan una falsa.
   final VoiceRoom Function() megaphoneRoom;
+
+  /// Radio Kyq (011): salas, tonos y audio reales; las pruebas pasan un cubit con falsos.
+  final RadioCubitFactory radio;
+
+  /// Reproductor de los mensajes guardados de cada conversación de Radio.
+  final MessagePlayer Function() radioPlayer;
+
+  /// API de Radio; null usa la de la app. Las pruebas pasan una en memoria.
+  final RadioApi? radioApi;
 }
 
 /// Sala LiveKit real para el megáfono (009).

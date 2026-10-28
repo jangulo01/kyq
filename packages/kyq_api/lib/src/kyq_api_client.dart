@@ -10,6 +10,7 @@ import 'native_models.dart';
 import 'onboarding_models.dart';
 import 'ops_models.dart';
 import 'preconsult_models.dart';
+import 'radio_models.dart';
 import 'safety_models.dart';
 import 'token_store.dart';
 import 'trip_payment_models.dart';
@@ -50,7 +51,7 @@ abstract interface class SafetyApi {
 }
 
 /// Cliente de la API Kyq. Añade el token de acceso y lo renueva una vez ante un 401.
-class KyqApiClient implements SafetyApi {
+class KyqApiClient implements SafetyApi, RadioApi {
   KyqApiClient({
     required String baseUrl,
     required TokenStore tokenStore,
@@ -1411,6 +1412,313 @@ class KyqApiClient implements SafetyApi {
     final res = await _send(() => _dio.get<Map<String, dynamic>>('/v1/domains'));
     return SignedDomainList.fromJson(res.data!);
   }
+
+  // 011 Radio Kyq
+
+  @override
+  Future<RadioMe> radioMe() async {
+    final res = await _send(() => _dio.get<Map<String, dynamic>>('/v1/radio/me'));
+    return RadioMe.fromJson(res.data!);
+  }
+
+  @override
+  Future<RadioMe> updateRadioMe({RadioPresence? status, bool? radioOn, RadioPushMode? pushMode}) async {
+    final res = await _send(
+      () => _dio.put<Map<String, dynamic>>(
+        '/v1/radio/me',
+        data: {
+          if (status != null) 'status': _presenceName(status),
+          'radio_on': ?radioOn,
+          if (pushMode != null) 'push_mode': pushMode.name,
+        },
+      ),
+    );
+    return RadioMe.fromJson(res.data!);
+  }
+
+  static String _presenceName(RadioPresence p) => p == RadioPresence.listenOnly ? 'listen_only' : p.name;
+
+  @override
+  Future<void> acceptRadioConsent() => _send(() => _dio.post<void>('/v1/radio/me/consent'));
+
+  @override
+  Future<void> radioHeartbeat() => _send(() => _dio.post<void>('/v1/radio/me/heartbeat'));
+
+  @override
+  Future<List<RadioQuietHours>> radioQuietHours() async {
+    final res = await _send(() => _dio.get<List<dynamic>>('/v1/radio/me/quiet-hours'));
+    return [for (final e in res.data!) RadioQuietHours.fromJson(e as Map<String, dynamic>)];
+  }
+
+  @override
+  Future<void> setRadioQuietHours(List<RadioQuietHours> rules) =>
+      _send(() => _dio.put<void>('/v1/radio/me/quiet-hours', data: [for (final r in rules) r.toJson()]));
+
+  @override
+  Future<List<RadioConversation>> radioConversations() async {
+    final res = await _send(() => _dio.get<List<dynamic>>('/v1/radio/conversations'));
+    return [for (final e in res.data!) RadioConversation.fromJson(e as Map<String, dynamic>)];
+  }
+
+  @override
+  Future<RadioConversationDetail> radioConversation(String id) async {
+    final res = await _send(() => _dio.get<Map<String, dynamic>>('/v1/radio/conversations/$id'));
+    return RadioConversationDetail.fromJson(res.data!);
+  }
+
+  @override
+  Future<void> deleteRadioConversation(String id) => _send(() => _dio.delete<void>('/v1/radio/conversations/$id'));
+
+  @override
+  Future<void> setRadioListening(String id, bool listening) =>
+      _send(() => _dio.put<void>('/v1/radio/conversations/$id/listening', data: {'listening': listening}));
+
+  @override
+  Future<RadioCredentials> radioToken(String conversationId) async {
+    final res = await _send(() => _dio.post<Map<String, dynamic>>('/v1/radio/conversations/$conversationId/ptt/token'));
+    return RadioCredentials.fromJson(res.data!);
+  }
+
+  @override
+  Future<RadioFloor> takeRadioFloor(String conversationId) async {
+    final res = await _send(() => _dio.post<Map<String, dynamic>>('/v1/radio/conversations/$conversationId/ptt/floor'));
+    return RadioFloor.fromJson(res.data!);
+  }
+
+  @override
+  Future<void> releaseRadioFloor(String conversationId) =>
+      _send(() => _dio.delete<void>('/v1/radio/conversations/$conversationId/ptt/floor'));
+
+  @override
+  Future<List<RadioMessage>> radioMessages(String conversationId, {String? before, int limit = 50}) async {
+    final res = await _send(
+      () => _dio.get<List<dynamic>>(
+        '/v1/radio/conversations/$conversationId/messages',
+        queryParameters: {'before': ?before, 'limit': limit},
+      ),
+    );
+    return [for (final e in res.data!) RadioMessage.fromJson(e as Map<String, dynamic>)];
+  }
+
+  Future<RadioMessage> _sendRadio(String conversationId, Map<String, Object?> body) async {
+    final res = await _send(
+      () => _dio.post<Map<String, dynamic>>('/v1/radio/conversations/$conversationId/messages', data: body),
+    );
+    return RadioMessage.fromJson(res.data!);
+  }
+
+  @override
+  Future<RadioMessage> sendRadioText(String conversationId, String body) =>
+      _sendRadio(conversationId, {'kind': 'text', 'body': body});
+
+  @override
+  Future<RadioMessage> sendRadioLocation(String conversationId, double lat, double lng, {String? label}) =>
+      _sendRadio(conversationId, {'kind': 'location', 'lat': lat, 'lng': lng, 'body': ?label});
+
+  @override
+  Future<RadioMessage> sendRadioAlert(String conversationId, {String? body}) =>
+      _sendRadio(conversationId, {'kind': 'alert', 'body': ?body});
+
+  @override
+  Future<RadioPhotoUpload> reserveRadioPhoto(String conversationId) async {
+    final res = await _send(() => _dio.post<Map<String, dynamic>>('/v1/radio/conversations/$conversationId/photos'));
+    return RadioPhotoUpload.fromJson(res.data!);
+  }
+
+  @override
+  Future<void> uploadRadioPhoto(String uploadUrl, List<int> jpeg) => uploadPhoto(uploadUrl, Uint8List.fromList(jpeg));
+
+  @override
+  Future<void> confirmRadioPhoto(String messageId) =>
+      _send(() => _dio.post<void>('/v1/radio/messages/$messageId/photo-uploaded'));
+
+  @override
+  Future<String> radioMediaUrl(String messageId) async {
+    final res = await _send(() => _dio.get<Map<String, dynamic>>('/v1/radio/messages/$messageId/media'));
+    return res.data!['url'] as String;
+  }
+
+  @override
+  Future<void> setRadioReceipt(String messageId, {bool? heard, bool? saved}) =>
+      _send(() => _dio.put<void>('/v1/radio/messages/$messageId/receipt', data: {'heard': ?heard, 'saved': ?saved}));
+
+  @override
+  Future<void> reportRadioMessage(String messageId, {String reason = ''}) =>
+      _send(() => _dio.post<void>('/v1/radio/messages/$messageId/report', data: {'reason': reason}));
+
+  @override
+  Future<RadioEmergency> radioEmergency(String conversationId, {required double lat, required double lng}) async {
+    final res = await _send(
+      () => _dio.post<Map<String, dynamic>>(
+        '/v1/radio/conversations/$conversationId/emergency',
+        data: {'lat': lat, 'lng': lng},
+      ),
+    );
+    return RadioEmergency.fromJson(res.data!);
+  }
+
+  @override
+  Future<RadioInvite?> inviteRadioContact({String? phoneE164}) async {
+    final res = await _send(
+      () => _dio.post<Map<String, dynamic>>('/v1/radio/contacts/invites', data: {'phone_e164': ?phoneE164}),
+    );
+    final data = res.data;
+    return res.statusCode == 202 || data == null ? null : RadioInvite.fromJson(data);
+  }
+
+  @override
+  Future<RadioInvitePreview> radioInvitePreview(String code) async {
+    final res = await _send(() => _dio.get<Map<String, dynamic>>('/v1/radio/invites/$code'));
+    return RadioInvitePreview.fromJson(res.data!);
+  }
+
+  @override
+  Future<RadioAcceptResult> acceptRadioInvite(String code) async {
+    final res = await _send(() => _dio.post<Map<String, dynamic>>('/v1/radio/invites/$code/accept'));
+    return RadioAcceptResult(RadioConversation.fromJson(res.data!), pending: res.statusCode == 202);
+  }
+
+  @override
+  Future<void> setRadioClients(bool enabled) =>
+      _send(() => _dio.put<void>('/v1/radio/clients', data: {'enabled': enabled}));
+
+  @override
+  Future<void> setRadioClient(String passengerId, {bool? muted, bool? blocked}) =>
+      _send(() => _dio.put<void>('/v1/radio/clients/$passengerId', data: {'muted': ?muted, 'blocked': ?blocked}));
+
+  @override
+  Future<RadioConversation> createRadioChannel({
+    required String name,
+    String? description,
+    String joinMode = 'approval',
+    RadioRole? passengerRoleMax,
+  }) async {
+    final res = await _send(
+      () => _dio.post<Map<String, dynamic>>(
+        '/v1/radio/channels',
+        data: {
+          'name': name,
+          'description': ?description,
+          'join_mode': joinMode,
+          if (passengerRoleMax != null) 'passenger_role_max': passengerRoleMax.name,
+        },
+      ),
+    );
+    return RadioConversation.fromJson(res.data!);
+  }
+
+  @override
+  Future<RadioConversation> updateRadioChannel(
+    String id, {
+    String? name,
+    String? description,
+    String? joinMode,
+    RadioRole? passengerRoleMax,
+    bool setPassengerRole = false,
+  }) async {
+    final res = await _send(
+      () => _dio.patch<Map<String, dynamic>>(
+        '/v1/radio/channels/$id',
+        data: {
+          'name': ?name,
+          'description': ?description,
+          'join_mode': ?joinMode,
+          if (setPassengerRole) 'passenger_role_max': passengerRoleMax?.name,
+        },
+      ),
+    );
+    return RadioConversation.fromJson(res.data!);
+  }
+
+  @override
+  Future<RadioInvite> radioChannelInvite(String id) async {
+    final res = await _send(() => _dio.post<Map<String, dynamic>>('/v1/radio/channels/$id/invite'));
+    return RadioInvite.fromJson(res.data!);
+  }
+
+  @override
+  Future<void> moderateRadioMember(String conversationId, String userId, {String? action, RadioRole? role}) => _send(
+    () => _dio.put<void>(
+      '/v1/radio/channels/$conversationId/members/$userId',
+      data: {'action': ?action, if (role != null) 'role': role.name},
+    ),
+  );
+
+  @override
+  Future<void> leaveRadioChannel(String id) => _send(() => _dio.post<void>('/v1/radio/channels/$id/leave'));
+
+  // 011: panel de Radio (solo administradores)
+
+  Future<RadioSettings> radioSettings() async {
+    final res = await _send(() => _dio.get<Map<String, dynamic>>('/v1/admin/radio/settings'));
+    return RadioSettings.fromJson(res.data!);
+  }
+
+  Future<RadioSettings> updateRadioSettings({
+    String? trialPolicy,
+    int? trialDays,
+    String? passengersInChannels,
+    int? retentionDays,
+  }) async {
+    final res = await _send(
+      () => _dio.put<Map<String, dynamic>>(
+        '/v1/admin/radio/settings',
+        data: {
+          'trial_policy': ?trialPolicy,
+          'trial_days': ?trialDays,
+          'passengers_in_channels': ?passengersInChannels,
+          'retention_days': ?retentionDays,
+        },
+      ),
+    );
+    return RadioSettings.fromJson(res.data!);
+  }
+
+  Future<List<RadioBulkUpload>> radioBulkUploads() async {
+    final res = await _send(() => _dio.get<List<dynamic>>('/v1/admin/radio/bulk-uploads'));
+    return [for (final e in res.data!) RadioBulkUpload.fromJson(e as Map<String, dynamic>)];
+  }
+
+  /// Sube y valida el CSV sin enviar nada (FR-033).
+  Future<RadioBulkUploadDetail> uploadRadioBulk(String fileName, String csv) async {
+    final res = await _send(
+      () => _dio.post<Map<String, dynamic>>(
+        '/v1/admin/radio/bulk-uploads',
+        queryParameters: {'file_name': fileName},
+        data: csv,
+        options: Options(contentType: 'text/csv'),
+      ),
+    );
+    return RadioBulkUploadDetail.fromJson(res.data!);
+  }
+
+  Future<RadioBulkUploadDetail> radioBulkUpload(String id) async {
+    final res = await _send(() => _dio.get<Map<String, dynamic>>('/v1/admin/radio/bulk-uploads/$id'));
+    return RadioBulkUploadDetail.fromJson(res.data!);
+  }
+
+  /// Confirma y envía los SMS; con [onlyFailed] reenvía las fallidas (FR-034).
+  Future<void> sendRadioBulk(String id, {bool onlyFailed = false}) =>
+      _send(() => _dio.post<void>('/v1/admin/radio/bulk-uploads/$id/send', data: {'only_failed': onlyFailed}));
+
+  Future<List<RadioReport>> radioReports() async {
+    final res = await _send(() => _dio.get<List<dynamic>>('/v1/admin/radio/reports'));
+    return [for (final e in res.data!) RadioReport.fromJson(e as Map<String, dynamic>)];
+  }
+
+  /// Abre un reporte: el backend registra el acceso (FR-037).
+  Future<RadioReportDetail> radioReport(String id) async {
+    final res = await _send(() => _dio.get<Map<String, dynamic>>('/v1/admin/radio/reports/$id'));
+    return RadioReportDetail.fromJson(res.data!);
+  }
+
+  /// [decision]: dismissed, message_deleted, channel_suspended o user_suspended.
+  Future<void> resolveRadioReport(String id, String decision, {String? note}) =>
+      _send(() => _dio.post<void>('/v1/admin/radio/reports/$id/resolve', data: {'decision': decision, 'note': ?note}));
+
+  /// Suspende o reactiva un canal (US11-2).
+  Future<void> setRadioChannelSuspended(String id, bool suspended) =>
+      _send(() => _dio.put<void>('/v1/admin/radio/channels/$id', data: {'suspended': suspended}));
 
   Future<Response<T>> _send<T>(Future<Response<T>> Function() request) async {
     try {

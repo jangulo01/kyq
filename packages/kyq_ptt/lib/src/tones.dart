@@ -3,8 +3,9 @@ import 'dart:typed_data';
 
 import 'package:audioplayers/audioplayers.dart';
 
-/// Tonos del walkie-talkie: empiezo a hablar, termino, turno ocupado y consulta entrante (005).
-enum PttTone { start, end, busy, incoming }
+/// Tonos del walkie-talkie: empiezo a hablar, termino, turno ocupado, consulta entrante (005) y,
+/// en Radio Kyq (011), alerta de llamada y emergencia. Todos sintetizados: ninguno de terceros.
+enum PttTone { start, end, busy, incoming, alert, emergency }
 
 /// Tramo de un tono: frecuencia en Hz (0 = silencio) y duración en ms.
 typedef _Segment = (double hz, int ms);
@@ -18,6 +19,10 @@ const _segments = <PttTone, List<_Segment>>{
   PttTone.busy: [(480, 140), (0, 90), (480, 140), (0, 90), (480, 140)],
   // Dos notas ascendentes repetidas: un cliente te consulta por voz.
   PttTone.incoming: [(660, 90), (0, 40), (990, 120), (0, 120), (660, 90), (0, 40), (990, 120)],
+  // Timbre de la alerta de llamada (011): tres notas que suben, como tocar a la puerta.
+  PttTone.alert: [(740, 110), (0, 50), (880, 110), (0, 50), (1175, 160), (0, 250)],
+  // Emergencia (011): sirena corta alternando dos tonos agudos.
+  PttTone.emergency: [(1400, 160), (1000, 160), (1400, 160), (1000, 160), (0, 120)],
 };
 
 /// WAV PCM de 16 bits mono sintetizado en el momento, sin assets de terceros (T072).
