@@ -12,12 +12,25 @@ import 'package:kyq_realtime/kyq_realtime.dart';
 
 /// Radio montada en un router de prueba con API, salas, tonos y audio falsos.
 class RadioHarness {
-  RadioHarness(this.api, {this.myUserId = 'me', this.isDriver = true, this.onRequestTrip});
+  RadioHarness(
+    this.api, {
+    this.myUserId = 'me',
+    this.isDriver = true,
+    this.onRequestTrip,
+    this.photos,
+    this.location,
+    this.onEmergency,
+    this.pickPoint,
+  });
 
   final FakeRadioApi api;
   final String myUserId;
   final bool isDriver;
   final void Function(BuildContext context, RadioConversation conversation)? onRequestTrip;
+  final RadioPhotoPicker? photos;
+  final RadioLocation? location;
+  final Future<void> Function(BuildContext context, RadioConversation conversation)? onEmergency;
+  final Future<RadioPoint?> Function(BuildContext context, RadioPoint? near)? pickPoint;
   final events = StreamController<RealtimeEvent>.broadcast();
   final player = FakeMessagePlayer();
   final tones = FakeTonePlayer();
@@ -51,6 +64,10 @@ class RadioHarness {
           newPlayer: () => player,
           isDriver: isDriver,
           onRequestTrip: onRequestTrip,
+          photos: photos ?? FakeRadioPhotoPicker(),
+          location: location,
+          onEmergency: onEmergency,
+          pickPoint: pickPoint,
         ),
         child: BlocProvider.value(
           value: cubit..load(),

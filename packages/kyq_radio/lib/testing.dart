@@ -2,6 +2,7 @@
 library;
 
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:kyq_api/kyq_api.dart';
 
@@ -346,3 +347,27 @@ RadioMember fakeMember(
   bool passenger = false,
 }) =>
     RadioMember(userId: id, displayName: name, role: role, status: status, presence: presence, isPassenger: passenger);
+
+/// Cámara y galería falsas: devuelven [jpeg] (null: el usuario canceló).
+class FakeRadioPhotoPicker implements RadioPhotoPicker {
+  FakeRadioPhotoPicker([this.jpeg]);
+
+  Uint8List? jpeg;
+  final picked = <bool>[];
+
+  @override
+  Future<Uint8List?> pick({required bool camera}) async {
+    picked.add(camera);
+    return jpeg;
+  }
+}
+
+/// GPS falso: [point] o null sin permiso.
+class FakeRadioLocation implements RadioLocation {
+  FakeRadioLocation([this.point]);
+
+  RadioPoint? point;
+
+  @override
+  Future<RadioPoint?> current() async => point;
+}

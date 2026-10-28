@@ -140,6 +140,9 @@ func TestIntegration011RadioRoutesMatchContract(t *testing.T) {
 	c.call(http.MethodPost, "/v1/radio/conversations/"+convID+"/messages", s.jonTk, map[string]any{"kind": "alert"}, http.StatusTooManyRequests)
 	c.call(http.MethodPost, "/v1/radio/conversations/"+convID+"/messages", s.jonTk, map[string]any{"kind": "text", "body": ""}, http.StatusBadRequest)
 
+	// Foto (R6): reserva, subida directa al almacenamiento y confirmación.
+	photo := c.call(http.MethodPost, "/v1/radio/conversations/"+convID+"/photos", s.jonTk, nil, http.StatusCreated)
+	c.call(http.MethodPost, "/v1/radio/messages/"+photo["message_id"].(string)+"/photo-uploaded", s.jonTk, nil, http.StatusConflict)
 	c.call(http.MethodGet, "/v1/radio/conversations/"+convID+"/messages?limit=10", s.carlosTk, nil, http.StatusOK)
 	msgID := text["id"].(string)
 	c.call(http.MethodPut, "/v1/radio/messages/"+msgID+"/receipt", s.carlosTk, map[string]any{"heard": true, "saved": true}, http.StatusNoContent)

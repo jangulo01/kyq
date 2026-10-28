@@ -18,6 +18,7 @@ class RadioDeps {
     this.onEmergency,
     this.onRequestTrip,
     this.onShareLink,
+    this.pickPoint,
   });
 
   final RadioApi api;
@@ -42,6 +43,9 @@ class RadioDeps {
 
   /// Compartir un enlace de invitación con el menú del sistema; null copia al portapapeles.
   final Future<void> Function(String text)? onShareLink;
+
+  /// "Elegir un punto en el mapa" (FR-023) con el mapa de la app; null solo comparte la actual.
+  final Future<RadioPoint?> Function(BuildContext context, RadioPoint? near)? pickPoint;
 }
 
 /// Rutas de Radio montadas en `/radio` de cada app.

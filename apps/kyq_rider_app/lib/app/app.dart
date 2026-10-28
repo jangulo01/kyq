@@ -143,6 +143,13 @@ class _KyqRiderAppState extends State<KyqRiderApp> {
     location: _RiderRadioLocation(widget.location),
     onRequestTrip: (context, c) =>
         context.push(Uri(path: '/request/${c.peerId}', queryParameters: {'name': c.title}).toString()),
+    referrer: widget.radioReferrer,
+    open: (location) => _router.push(location),
+    pickPoint: (context, near) => Navigator.of(context).push<RadioPoint>(
+      MaterialPageRoute(
+        builder: (_) => _RadioPointPage(map: widget.map, near: near),
+      ),
+    ),
   );
   late final StreamSubscription<AuthState> _authSub;
 
@@ -365,5 +372,52 @@ class _RiderRadioLocation implements RadioLocation {
     } on LocationUnavailable {
       return null;
     }
+  }
+}
+
+/// Punto para "Elegir un punto en el mapa" de Radio (FR-023) con el mapa del inicio.
+class _RadioPointPage extends StatefulWidget {
+  const _RadioPointPage({required this.map, this.near});
+
+  final TripMapBuilder map;
+  final RadioPoint? near;
+
+  @override
+  State<_RadioPointPage> createState() => _RadioPointPageState();
+}
+
+class _RadioPointPageState extends State<_RadioPointPage> {
+  GeoPoint? _point;
+
+  @override
+  Widget build(BuildContext context) {
+    final near = widget.near;
+    return Scaffold(
+      appBar: AppBar(title: const Text('Elige el punto')),
+      body: Stack(
+        children: [
+          Positioned.fill(
+            child: widget.map(
+              TripMapMarkers(
+                pickup: _point ?? (near == null ? null : GeoPoint(lat: near.lat, lng: near.lng)),
+              ),
+              (p) => setState(() => _point = p),
+            ),
+          ),
+          Positioned(
+            left: 16,
+            right: 16,
+            bottom: 24,
+            child: FilledButton(
+              key: const Key('radio.point.send'),
+              onPressed: _point == null
+                  ? null
+                  : () => Navigator.pop<RadioPoint>(context, (lat: _point!.lat, lng: _point!.lng)),
+              child: Text(_point == null ? 'Toca el mapa para elegir' : 'Enviar este punto'),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }

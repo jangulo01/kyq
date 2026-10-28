@@ -38,6 +38,8 @@ func (h *Handlers) Register(mux *http.ServeMux, authMW func(http.Handler) http.H
 	mux.Handle("DELETE /v1/radio/conversations/{conversationId}/ptt/floor", user(h.releaseFloor))
 	mux.Handle("GET /v1/radio/conversations/{conversationId}/messages", user(h.history))
 	mux.Handle("POST /v1/radio/conversations/{conversationId}/messages", user(h.send))
+	mux.Handle("POST /v1/radio/conversations/{conversationId}/photos", user(h.reservePhoto))
+	mux.Handle("POST /v1/radio/messages/{messageId}/photo-uploaded", user(h.photoUploaded))
 	mux.Handle("GET /v1/radio/messages/{messageId}/media", user(h.media))
 	mux.Handle("PUT /v1/radio/messages/{messageId}/receipt", user(h.receipt))
 	mux.Handle("POST /v1/radio/contacts/invites", driver(h.inviteContact))
@@ -378,6 +380,23 @@ func (h *Handlers) sendBulk(w http.ResponseWriter, r *http.Request) {
 	respond(w, r, http.StatusAccepted, nil, h.Service.SendBulk(r.Context(), id, in.OnlyFailed))
 }
 
+func (h *Handlers) reservePhoto(w http.ResponseWriter, r *http.Request) {
+	id, ok := pathID(w, r, "conversationId")
+	if !ok {
+		return
+	}
+	out, err := h.Service.ReservePhoto(r.Context(), principal(r), id)
+	respond(w, r, http.StatusCreated, out, err)
+}
+
+func (h *Handlers) photoUploaded(w http.ResponseWriter, r *http.Request) {
+	id, ok := pathID(w, r, "messageId")
+	if !ok {
+		return
+	}
+	respond(w, r, http.StatusNoContent, nil, h.Service.PhotoUploaded(r.Context(), principal(r), id))
+}
+
 func (h *Handlers) setClients(w http.ResponseWriter, r *http.Request) {
 	var in struct {
 		Enabled *bool `json:"enabled"`
@@ -464,6 +483,7 @@ func writeError(w http.ResponseWriter, r *http.Request, err error) {
 		{ErrInviteWrongApp, http.StatusConflict, "invite_wrong_app", "esta invitación es para la otra app de Kyq"},
 		{ErrPassengersClosed, http.StatusForbidden, "passengers_not_allowed", "este canal no admite pasajeros"},
 		{ErrNoMedia, http.StatusNotFound, "no_media", "este mensaje no tiene audio ni foto"},
+		{ErrPhotoInvalid, http.StatusConflict, "photo_invalid", "la foto debe ser JPEG de máximo 2 MB; vuelve a enviarla"},
 		{ErrBulkTooLarge, http.StatusRequestEntityTooLarge, "bulk_too_large", "el archivo tiene más de 2 000 filas"},
 		{ErrBulkState, http.StatusConflict, "bulk_state", "esa carga ya se está enviando o no tiene filas por enviar"},
 		{ErrUnavailable, http.StatusServiceUnavailable, "voice_unavailable", "el servidor de voz no responde; inténtalo de nuevo"},

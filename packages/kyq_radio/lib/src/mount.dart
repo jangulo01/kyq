@@ -25,6 +25,7 @@ class RadioMount {
     this.onShareLink,
     this.referrer = const NoRadioReferrer(),
     this.open,
+    this.pickPoint,
   });
 
   final RadioApi api;
@@ -45,6 +46,9 @@ class RadioMount {
   /// Abre una ruta de Radio en la app (la invitación de la instalación o la conversación a la que
   /// llevó una invitación por teléfono al registrarse).
   final void Function(String location)? open;
+
+  /// Punto en el mapa de la app (ver [RadioDeps.pickPoint]).
+  final Future<RadioPoint?> Function(BuildContext context, RadioPoint? near)? pickPoint;
 
   /// Cubit y dependencias del usuario con sesión; null antes de conocerlo.
   final scope = ValueNotifier<({RadioCubit cubit, RadioDeps deps})?>(null);
@@ -75,6 +79,7 @@ class RadioMount {
         location: location,
         photos: photos,
         onShareLink: onShareLink,
+        pickPoint: pickPoint,
       ),
     );
     unawaited(cubit.load());

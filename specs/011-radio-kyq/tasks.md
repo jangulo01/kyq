@@ -76,8 +76,8 @@
 
 ## Phase 10: US6 Texto, foto y ubicación (P2)
 
-- [ ] T038 [US6] Backend: `kind=text|location` y fotos (`POST …/photos` con `PresignPut`, `photo-uploaded`); pruebas
-- [ ] T039 [US6] `kyq_radio`: caja de texto, cámara/galería con compresión ≤ 1280 px sin EXIF, ubicación actual o punto en el mapa, abrir en Waze/Google Maps, miniaturas y pantalla completa; pruebas de widget (FR-023)
+- [X] T038 [US6] Backend: `kind=text|location` y fotos (`POST …/photos` con `PresignPut`, `photo-uploaded`); pruebas
+- [X] T039 [US6] `kyq_radio`: caja de texto, cámara/galería con compresión ≤ 1280 px sin EXIF, ubicación actual o punto en el mapa, abrir en Waze/Google Maps, miniaturas y pantalla completa; pruebas de widget (FR-023)
 
 ## Phase 11: US8 Manos libres y US9 Emergencia (P2)
 

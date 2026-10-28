@@ -21,7 +21,51 @@ RadioCubit _fakeRadio(RadioApi api, String userId, Stream<RealtimeEvent> events)
   player: FakeMessagePlayer(),
 );
 
+class _Referrer implements RadioReferrer {
+  String? code = 'ABCDEFGHIJ';
+
+  @override
+  Future<String?> take() async {
+    final c = code;
+    code = null;
+    return c;
+  }
+}
+
+Future<FakeRadioApi> _pump(WidgetTester tester, {RadioReferrer referrer = const NoRadioReferrer()}) async {
+  final api = MockApi();
+  when(
+    () => api.currentSession(),
+  ).thenAnswer((_) async => Tokens(accessToken: fakeAccessToken('p1'), refreshToken: 'r', role: UserRole.passenger));
+  when(() => api.chosenDrivers()).thenAnswer((_) async => const []);
+  final radio = FakeRadioApi(
+    conversations: [fakeContact('c1', title: 'Carlos').copyWith(kind: RadioConversationKind.client)],
+  );
+  final auth = AuthCubit(api, allowedRoles: {UserRole.passenger}, wrongRoleMessage: '')..start();
+  await tester.pumpWidget(
+    KyqRiderApp(
+      api: api,
+      auth: auth,
+      realtime: FakeRealtime(),
+      location: FakeLocation(),
+      radio: _fakeRadio,
+      radioPlayer: FakeMessagePlayer.new,
+      radioApi: radio,
+      radioReferrer: referrer,
+    ),
+  );
+  await tester.pumpAndSettle();
+  return radio;
+}
+
 void main() {
+  testWidgets('instalada desde un enlace: abre la invitación tras entrar (Install Referrer, SC-004)', (tester) async {
+    final radio = await _pump(tester, referrer: _Referrer());
+    radio.preview = const RadioInvitePreview(kind: 'contact', inviterName: 'Carlos', inviteeKind: 'passenger');
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('radio.invite.accept')), findsOneWidget);
+  });
+
   testWidgets('Radio desde Conductores Elegidos: el conductor y "Pedir viaje" (T028)', (tester) async {
     final api = MockApi();
     when(

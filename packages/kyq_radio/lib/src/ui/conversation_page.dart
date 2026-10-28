@@ -94,6 +94,13 @@ class _ConversationPageState extends State<ConversationPage> {
                 title: const Text('Enviar mi ubicación'),
                 onTap: () => Navigator.pop(context, 'location'),
               ),
+            if (deps.pickPoint != null)
+              ListTile(
+                key: const Key('radio.attach.point'),
+                leading: const Icon(Icons.add_location_alt_outlined),
+                title: const Text('Elegir un punto en el mapa'),
+                onTap: () => Navigator.pop(context, 'point'),
+              ),
             ListTile(
               key: const Key('radio.attach.alert'),
               leading: const Icon(Icons.notifications_active_outlined),
@@ -121,6 +128,11 @@ class _ConversationPageState extends State<ConversationPage> {
           return;
         }
         await cubit.sendLocation(here);
+      case 'point':
+        final near = await deps.location?.current();
+        if (!context.mounted) return;
+        final point = await deps.pickPoint!(context, near);
+        if (point != null) await cubit.sendLocation(point);
       case 'alert':
         final ctl = TextEditingController();
         final ok = await showDialog<bool>(
