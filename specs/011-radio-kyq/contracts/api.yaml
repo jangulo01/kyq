@@ -1,0 +1,537 @@
+openapi: 3.1.0
+info:
+  title: Kyq API — 011 Radio Kyq (rutas nuevas y cambiadas)
+  version: 0.6.0
+  description: |
+    Rutas de 011. En T002 se fusionan en el contrato principal
+    `specs/001-chosen-driver-trip-ptt/contracts/api.yaml` (contra el que corren las pruebas de
+    contrato `backend/internal/contracttest/radio_test.go`) y este archivo queda como vista con
+    `$ref`, igual que 009.
+
+    Reglas comunes: toda ruta `/v1/radio/*` exige sesión; responde `403 radio_access_denied`
+    si `radio.Access` es `none` y `403 radio_listen_only` al intentar transmitir con `listen`;
+    nunca devuelve teléfonos. `404 not_found` si el usuario no participa en la conversación.
+
+    Cambios en rutas existentes:
+    - `POST /v1/auth/otp/verify`: aplica las invitaciones pendientes con ese teléfono y devuelve
+      `radio_invites_applied` (lista de ids de conversación).
+    - `GET /v1/admin/usage`: añade `radio_voice_minutes`, `radio_messages`, `radio_storage_mb`.
+    - Consola SOS de 003: `SOSAlert.trip_id` puede ser null y añade `raised_from` (`trip`|`radio`).
+
+    Tiempo real (Centrifugo, se documenta en contracts/realtime.md de 001):
+    - `user:{id}`: `radio.message` (mensaje nuevo o listo), `radio.presence`, `radio.alert`,
+      `radio.emergency`, `radio.member` (alta, baja, rol), `radio.invite` (contacto pedido o
+      aceptado), `radio.settings` (cambio de política que afecta al usuario).
+    - Sala LiveKit `radio-*`: datos `floor.taken {user_id, message_id}` y `floor.released`.
+paths:
+  /v1/radio/me:
+    get:
+      summary: Estado de radio del usuario, acceso efectivo y aceptación pendiente (FR-005, FR-013)
+      responses:
+        '200':
+          content: { application/json: { schema: { $ref: '#/components/schemas/RadioMe' } } }
+    put:
+      summary: Cambia estado, radio encendida o modo de botón (FR-007, FR-019)
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status: { $ref: '#/components/schemas/PresenceStatus' }
+                radio_on: { type: boolean }
+                push_mode: { type: string, enum: [hold, toggle] }
+      responses:
+        '200':
+          content: { application/json: { schema: { $ref: '#/components/schemas/RadioMe' } } }
+  /v1/radio/me/consent:
+    post:
+      summary: Acepta el aviso de registro con la retención vigente (FR-013)
+      responses: { '204': { description: Aceptado } }
+  /v1/radio/me/heartbeat:
+    post:
+      summary: Latido de presencia cada 30 s con la radio encendida (R5)
+      responses: { '204': { description: OK } }
+  /v1/radio/me/quiet-hours:
+    get:
+      summary: Horarios de silencio (FR-021)
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/QuietHours' } }
+    put:
+      summary: Reemplaza los horarios de silencio
+      requestBody:
+        content:
+          application/json:
+            schema: { type: array, maxItems: 10, items: { $ref: '#/components/schemas/QuietHours' } }
+      responses: { '204': { description: Guardado } }
+  /v1/radio/conversations:
+    get:
+      summary: Lista única de contactos, clientes, canales y cooperativa (FR-001)
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/Conversation' } }
+  /v1/radio/conversations/{conversationId}:
+    get:
+      summary: Detalle de la conversación con miembros visibles
+      parameters: [ { $ref: '#/components/parameters/ConversationId' } ]
+      responses:
+        '200':
+          content: { application/json: { schema: { $ref: '#/components/schemas/ConversationDetail' } } }
+    delete:
+      summary: Borra un contacto (FR-002) o el canal si es el dueño (US4-7)
+      parameters: [ { $ref: '#/components/parameters/ConversationId' } ]
+      responses: { '204': { description: Borrado }, '403': { description: '`not_owner`' } }
+  /v1/radio/conversations/{conversationId}/listening:
+    put:
+      summary: Interruptor "Escuchar" (FR-024); `409 listening_limit` con 10 encendidas
+      parameters: [ { $ref: '#/components/parameters/ConversationId' } ]
+      requestBody:
+        content: { application/json: { schema: { type: object, required: [listening], properties: { listening: { type: boolean } } } } }
+      responses: { '204': { description: OK }, '409': { description: '`listening_limit`' } }
+  /v1/radio/conversations/{conversationId}/ptt/token:
+    post:
+      summary: Credenciales LiveKit de la sala (solo recibir; 1 min, renovable) (R1)
+      parameters: [ { $ref: '#/components/parameters/ConversationId' } ]
+      responses:
+        '200':
+          content: { application/json: { schema: { $ref: '#/components/schemas/Credentials' } } }
+  /v1/radio/conversations/{conversationId}/ptt/floor:
+    post:
+      summary: Pide el turno; crea el mensaje de voz en `recording` (FR-006)
+      description: '`409 floor_busy` con quién lo tiene; `403 radio_listen_only`, `member_muted`, `blocked`.'
+      parameters: [ { $ref: '#/components/parameters/ConversationId' } ]
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [message_id, expires_at]
+                properties:
+                  message_id: { type: string, format: uuid }
+                  expires_at: { type: string, format: date-time }
+        '409': { description: '`floor_busy`' }
+    delete:
+      summary: Suelta el turno
+      parameters: [ { $ref: '#/components/parameters/ConversationId' } ]
+      responses: { '204': { description: Liberado } }
+  /v1/radio/conversations/{conversationId}/messages:
+    get:
+      summary: Historial paginado hacia atrás (FR-010, FR-011)
+      parameters:
+        - { $ref: '#/components/parameters/ConversationId' }
+        - { name: before, in: query, schema: { type: string, format: uuid } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 50 } }
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/Message' } }
+    post:
+      summary: Envía texto, ubicación o alerta (FR-022, FR-023); `429 rate_limited`
+      parameters: [ { $ref: '#/components/parameters/ConversationId' } ]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [kind]
+              properties:
+                kind: { type: string, enum: [text, location, alert] }
+                body: { type: string, maxLength: 500 }
+                lat: { type: number }
+                lng: { type: number }
+      responses:
+        '201':
+          content: { application/json: { schema: { $ref: '#/components/schemas/Message' } } }
+        '429': { description: '`rate_limited`' }
+  /v1/radio/conversations/{conversationId}/photos:
+    post:
+      summary: Reserva un mensaje de foto y devuelve URL de subida prefirmada (R6)
+      parameters: [ { $ref: '#/components/parameters/ConversationId' } ]
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message_id: { type: string, format: uuid }
+                  upload_url: { type: string, format: uri }
+                  content_type: { type: string, const: image/jpeg }
+  /v1/radio/messages/{messageId}/photo-uploaded:
+    post:
+      summary: Confirma la subida; el mensaje pasa a `ready` y se avisa
+      parameters: [ { $ref: '#/components/parameters/MessageId' } ]
+      responses: { '204': { description: OK } }
+  /v1/radio/messages/{messageId}/media:
+    get:
+      summary: URL prefirmada de 10 min del audio o la foto (FR-010)
+      parameters: [ { $ref: '#/components/parameters/MessageId' } ]
+      responses:
+        '200':
+          content: { application/json: { schema: { type: object, properties: { url: { type: string, format: uri } } } } }
+  /v1/radio/messages/{messageId}/receipt:
+    put:
+      summary: Marca escuchado/leído o guardado (FR-011, FR-012); `409 saved_limit`
+      parameters: [ { $ref: '#/components/parameters/MessageId' } ]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                heard: { type: boolean }
+                saved: { type: boolean }
+      responses: { '204': { description: OK }, '409': { description: '`saved_limit`' } }
+  /v1/radio/messages/{messageId}/report:
+    post:
+      summary: Reporta un mensaje (FR-036)
+      parameters: [ { $ref: '#/components/parameters/MessageId' } ]
+      requestBody:
+        content: { application/json: { schema: { type: object, properties: { reason: { type: string, maxLength: 200 } } } } }
+      responses: { '204': { description: Reportado } }
+  /v1/radio/conversations/{conversationId}/emergency:
+    post:
+      summary: Emergencia desde Radio (FR-030, FR-031); con viaje en curso abre el SOS del viaje
+      parameters: [ { $ref: '#/components/parameters/ConversationId' } ]
+      requestBody:
+        content: { application/json: { schema: { type: object, required: [lat, lng], properties: { lat: { type: number }, lng: { type: number } } } } }
+      responses:
+        '201':
+          content: { application/json: { schema: { type: object, properties: { alert_id: { type: string, format: uuid }, trip_id: { type: [string, 'null'], format: uuid } } } } }
+  /v1/radio/contacts/invites:
+    post:
+      summary: Crea una invitación de contacto (QR/enlace) o la envía a un teléfono (FR-002)
+      description: Con teléfono responde siempre 202 sin revelar si existe una cuenta.
+      requestBody:
+        content: { application/json: { schema: { type: object, properties: { phone_e164: { type: string } } } } }
+      responses:
+        '201':
+          content: { application/json: { schema: { $ref: '#/components/schemas/Invite' } } }
+        '202': { description: SMS en cola }
+  /v1/radio/clients:
+    put:
+      summary: '"Radio con mis clientes" del conductor (FR-003)'
+      requestBody:
+        content: { application/json: { schema: { type: object, required: [enabled], properties: { enabled: { type: boolean } } } } }
+      responses: { '204': { description: OK } }
+  /v1/radio/clients/{passengerId}:
+    put:
+      summary: Silencia o bloquea a un cliente (FR-003)
+      parameters: [ { name: passengerId, in: path, required: true, schema: { type: string, format: uuid } } ]
+      requestBody:
+        content: { application/json: { schema: { type: object, properties: { muted: { type: boolean }, blocked: { type: boolean } } } } }
+      responses: { '204': { description: OK } }
+  /v1/radio/channels:
+    post:
+      summary: Crea un canal (FR-015); `409 channel_name_taken`, `409 channel_limit`
+      requestBody:
+        content: { application/json: { schema: { $ref: '#/components/schemas/ChannelInput' } } }
+      responses:
+        '201':
+          content: { application/json: { schema: { $ref: '#/components/schemas/Conversation' } } }
+  /v1/radio/channels/{conversationId}:
+    patch:
+      summary: Edita nombre, descripción, foto, modo de entrada o rol máximo de pasajeros (dueño)
+      parameters: [ { $ref: '#/components/parameters/ConversationId' } ]
+      requestBody:
+        content: { application/json: { schema: { $ref: '#/components/schemas/ChannelInput' } } }
+      responses:
+        '200':
+          content: { application/json: { schema: { $ref: '#/components/schemas/Conversation' } } }
+  /v1/radio/channels/{conversationId}/invite:
+    post:
+      summary: Enlace y QR del canal (dueño o moderador)
+      parameters: [ { $ref: '#/components/parameters/ConversationId' } ]
+      responses:
+        '201':
+          content: { application/json: { schema: { $ref: '#/components/schemas/Invite' } } }
+  /v1/radio/channels/{conversationId}/members/{userId}:
+    put:
+      summary: Aprueba, rechaza, silencia, expulsa, bloquea o cambia rol (FR-016)
+      parameters:
+        - { $ref: '#/components/parameters/ConversationId' }
+        - { name: userId, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                action: { type: string, enum: [approve, reject, mute, unmute, remove, block, unblock] }
+                role: { $ref: '#/components/schemas/Role' }
+      responses: { '204': { description: OK }, '403': { description: '`not_moderator`' } }
+  /v1/radio/channels/{conversationId}/leave:
+    post:
+      summary: Sale del canal; `403 cooperative_channel` para el de cooperativa
+      parameters: [ { $ref: '#/components/parameters/ConversationId' } ]
+      responses: { '204': { description: OK } }
+  /v1/radio/invites/{code}:
+    get:
+      summary: Vista de la invitación (quién invita, a qué); pública sin datos personales
+      security: []
+      parameters: [ { $ref: '#/components/parameters/InviteCode' } ]
+      responses:
+        '200':
+          content: { application/json: { schema: { $ref: '#/components/schemas/InvitePreview' } } }
+        '410': { description: '`invite_expired`' }
+  /v1/radio/invites/{code}/accept:
+    post:
+      summary: Acepta un contacto o pide entrar a un canal (FR-032)
+      parameters: [ { $ref: '#/components/parameters/InviteCode' } ]
+      responses:
+        '200':
+          content: { application/json: { schema: { $ref: '#/components/schemas/Conversation' } } }
+        '202': { description: Pendiente de aprobación }
+  /r/{code}:
+    get:
+      summary: Página del enlace de invitación; abre `kyq://radio/{code}` o la tienda (R9)
+      security: []
+      parameters: [ { $ref: '#/components/parameters/InviteCode' } ]
+      responses: { '200': { description: Página, content: { text/html: { schema: { type: string } } } } }
+  /v1/admin/radio/settings:
+    get:
+      summary: Configuración de Radio con costo estimado por retención (FR-040)
+      responses:
+        '200':
+          content: { application/json: { schema: { $ref: '#/components/schemas/RadioSettings' } } }
+    put:
+      summary: Cambia la configuración; queda en la bitácora
+      requestBody:
+        content: { application/json: { schema: { $ref: '#/components/schemas/RadioSettingsInput' } } }
+      responses:
+        '200':
+          content: { application/json: { schema: { $ref: '#/components/schemas/RadioSettings' } } }
+  /v1/admin/radio/bulk-uploads:
+    get:
+      summary: Cargas masivas con totales (FR-034)
+      responses:
+        '200':
+          content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/BulkUpload' } } } }
+    post:
+      summary: Sube y valida un CSV sin enviar nada (FR-033); máx. 2 000 filas
+      requestBody:
+        content: { text/csv: { schema: { type: string } } }
+      responses:
+        '201':
+          content: { application/json: { schema: { $ref: '#/components/schemas/BulkUploadDetail' } } }
+  /v1/admin/radio/bulk-uploads/{bulkId}:
+    get:
+      summary: Estado por fila
+      parameters: [ { name: bulkId, in: path, required: true, schema: { type: string, format: uuid } } ]
+      responses:
+        '200':
+          content: { application/json: { schema: { $ref: '#/components/schemas/BulkUploadDetail' } } }
+  /v1/admin/radio/bulk-uploads/{bulkId}/send:
+    post:
+      summary: Confirma y envía los SMS; con `only_failed` reenvía las fallidas
+      parameters: [ { name: bulkId, in: path, required: true, schema: { type: string, format: uuid } } ]
+      requestBody:
+        content: { application/json: { schema: { type: object, properties: { only_failed: { type: boolean } } } } }
+      responses: { '202': { description: Envío en curso } }
+  /v1/admin/radio/reports:
+    get:
+      summary: Cola de reportes abiertos (FR-036)
+      responses:
+        '200':
+          content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Report' } } } }
+  /v1/admin/radio/reports/{reportId}:
+    get:
+      summary: Abre un reporte con el mensaje y su URL; registra el acceso (FR-037)
+      parameters: [ { name: reportId, in: path, required: true, schema: { type: string, format: uuid } } ]
+      responses:
+        '200':
+          content: { application/json: { schema: { $ref: '#/components/schemas/ReportDetail' } } }
+  /v1/admin/radio/reports/{reportId}/resolve:
+    post:
+      summary: Resuelve el reporte
+      parameters: [ { name: reportId, in: path, required: true, schema: { type: string, format: uuid } } ]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [decision]
+              properties:
+                decision: { type: string, enum: [dismissed, message_deleted, channel_suspended, user_suspended] }
+                note: { type: string, maxLength: 200 }
+      responses: { '204': { description: OK } }
+components:
+  parameters:
+    ConversationId: { name: conversationId, in: path, required: true, schema: { type: string, format: uuid } }
+    MessageId: { name: messageId, in: path, required: true, schema: { type: string, format: uuid } }
+    InviteCode: { name: code, in: path, required: true, schema: { type: string, pattern: '^[0-9A-Za-z]{10}$' } }
+  schemas:
+    PresenceStatus: { type: string, enum: [available, busy, listen_only, offline] }
+    Role: { type: string, enum: [owner, moderator, member, listener] }
+    RadioMe:
+      type: object
+      required: [access, status, radio_on, push_mode, consent_required]
+      properties:
+        access: { type: string, enum: [full, listen, none] }
+        access_reason: { type: [string, 'null'], enum: [suspended, no_subscription, trial_ended, null] }
+        trial_days_left: { type: [integer, 'null'] }
+        status: { $ref: '#/components/schemas/PresenceStatus' }
+        radio_on: { type: boolean }
+        push_mode: { type: string, enum: [hold, toggle] }
+        consent_required: { type: boolean }
+        retention_days: { type: integer }
+        clients_enabled: { type: [boolean, 'null'], description: Solo conductores }
+    QuietHours:
+      type: object
+      required: [weekdays, starts, ends, enabled]
+      properties:
+        weekdays: { type: array, items: { type: integer, minimum: 1, maximum: 7 } }
+        starts: { type: string, pattern: '^[0-2][0-9]:[0-5][0-9]$' }
+        ends: { type: string, pattern: '^[0-2][0-9]:[0-5][0-9]$' }
+        enabled: { type: boolean }
+    Conversation:
+      type: object
+      required: [id, kind, title, listening, unread_count, status]
+      properties:
+        id: { type: string, format: uuid }
+        kind: { type: string, enum: [direct, client, channel, cooperative] }
+        title: { type: string }
+        photo_url: { type: [string, 'null'] }
+        peer_status: { oneOf: [ { $ref: '#/components/schemas/PresenceStatus' }, { type: 'null' } ] }
+        online_count: { type: [integer, 'null'] }
+        my_role: { oneOf: [ { $ref: '#/components/schemas/Role' }, { type: 'null' } ] }
+        my_member_status: { type: string, enum: [pending, active, muted] }
+        listening: { type: boolean }
+        unread_count: { type: integer }
+        last_message_at: { type: [string, 'null'], format: date-time }
+        status: { type: string, enum: [active, suspended] }
+    ConversationDetail:
+      allOf:
+        - { $ref: '#/components/schemas/Conversation' }
+        - type: object
+          properties:
+            description: { type: [string, 'null'] }
+            join_mode: { type: [string, 'null'], enum: [open_link, approval, null] }
+            passenger_role_max: { oneOf: [ { $ref: '#/components/schemas/Role' }, { type: 'null' } ] }
+            members:
+              type: array
+              items:
+                type: object
+                properties:
+                  user_id: { type: string, format: uuid }
+                  display_name: { type: string }
+                  role: { $ref: '#/components/schemas/Role' }
+                  status: { type: string, enum: [pending, active, muted, blocked] }
+                  presence: { $ref: '#/components/schemas/PresenceStatus' }
+                  is_passenger: { type: boolean }
+    ChannelInput:
+      type: object
+      properties:
+        name: { type: string, minLength: 3, maxLength: 40 }
+        description: { type: string, maxLength: 200 }
+        join_mode: { type: string, enum: [open_link, approval] }
+        passenger_role_max: { oneOf: [ { $ref: '#/components/schemas/Role' }, { type: 'null' } ] }
+    Credentials:
+      type: object
+      required: [url, token, room, expires_at]
+      properties:
+        url: { type: string }
+        token: { type: string }
+        room: { type: string }
+        expires_at: { type: string, format: date-time }
+    Message:
+      type: object
+      required: [id, conversation_id, kind, status, created_at, heard, saved]
+      properties:
+        id: { type: string, format: uuid }
+        conversation_id: { type: string, format: uuid }
+        author_id: { type: [string, 'null'], format: uuid }
+        author_name: { type: string }
+        kind: { type: string, enum: [voice, text, photo, location, alert, emergency] }
+        status: { type: string, enum: [recording, ready] }
+        body: { type: [string, 'null'] }
+        lat: { type: [number, 'null'] }
+        lng: { type: [number, 'null'] }
+        duration_ms: { type: [integer, 'null'] }
+        created_at: { type: string, format: date-time }
+        expires_at: { type: [string, 'null'], format: date-time }
+        heard: { type: boolean }
+        saved: { type: boolean }
+    Invite:
+      type: object
+      required: [code, url, expires_at]
+      properties:
+        code: { type: string }
+        url: { type: string, format: uri }
+        expires_at: { type: string, format: date-time }
+    InvitePreview:
+      type: object
+      required: [kind, inviter_name]
+      properties:
+        kind: { type: string, enum: [contact, channel] }
+        inviter_name: { type: string }
+        channel_name: { type: [string, 'null'] }
+        invitee_kind: { type: string, enum: [driver, passenger] }
+    RadioSettingsInput:
+      type: object
+      properties:
+        trial_policy: { type: string, enum: [trial, subscription_only, listen_only] }
+        trial_days: { type: integer, minimum: 1, maximum: 90 }
+        passengers_in_channels: { type: string, enum: [none, listen_only, all_roles] }
+        retention_days: { type: integer, enum: [7, 30, 90] }
+    RadioSettings:
+      allOf:
+        - { $ref: '#/components/schemas/RadioSettingsInput' }
+        - type: object
+          properties:
+            updated_at: { type: string, format: date-time }
+            updated_by_name: { type: string }
+            estimated_monthly_cost_minor:
+              type: object
+              description: Costo estimado por retención (7, 30, 90) con los últimos 30 días
+              additionalProperties: { type: integer }
+    BulkUpload:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        file_name: { type: string }
+        status: { type: string, enum: [validated, sending, done] }
+        rows_total: { type: integer }
+        counts: { type: object, additionalProperties: { type: integer } }
+        created_at: { type: string, format: date-time }
+    BulkUploadDetail:
+      allOf:
+        - { $ref: '#/components/schemas/BulkUpload' }
+        - type: object
+          properties:
+            rows:
+              type: array
+              items:
+                type: object
+                properties:
+                  line: { type: integer }
+                  name: { type: string }
+                  phone_masked: { type: string, description: 'Ej.: +57 300 *** **12' }
+                  kind: { type: string, enum: [driver, passenger] }
+                  channel: { type: string }
+                  role: { $ref: '#/components/schemas/Role' }
+                  status: { type: string, enum: [pending, sent, failed, accepted, already_member, expired] }
+                  error: { type: [string, 'null'] }
+    Report:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        message_kind: { type: string }
+        conversation_title: { type: string }
+        reason: { type: string }
+        created_at: { type: string, format: date-time }
+    ReportDetail:
+      allOf:
+        - { $ref: '#/components/schemas/Report' }
+        - type: object
+          properties:
+            message: { $ref: '#/components/schemas/Message' }
+            media_url: { type: [string, 'null'], format: uri }
+            author_name: { type: string }
