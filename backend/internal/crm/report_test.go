@@ -128,10 +128,10 @@ func TestIntegrationCrmReport(t *testing.T) {
 		exec(`INSERT INTO affiliations (passenger_id, driver_id, source, created_at, removed_at) VALUES ($1, $2, 'qr_scan', $3, $4)`, p, d, created, removed)
 	}
 	trip := func(p, d uuid.UUID, created time.Time, status string) {
-		exec(`INSERT INTO trips (id, passenger_id, driver_id, city_code, currency, pickup_lat, pickup_lng, dropoff_lat,
+		exec(`INSERT INTO trips (id, passenger_id, driver_id, requested_driver_id, city_code, currency, pickup_lat, pickup_lng, dropoff_lat,
 		        dropoff_lng, route_distance_m, route_duration_s, suggested_fare_minor, status, created_at, completed_at,
 		        cancelled_at, cancel_reason)
-		      VALUES ($1, $2, $3, 'bogota', 'COP', 4.6, -74.08, 4.65, -74.05, 1000, 300, 800000, $4::trip_status, $5,
+		      VALUES ($1, $2, $3, $3, 'bogota', 'COP', 4.6, -74.08, 4.65, -74.05, 1000, 300, 800000, $4::trip_status, $5,
 		        CASE WHEN $4 = 'COMPLETED' THEN $5::timestamptz + interval '20 minutes' END,
 		        CASE WHEN $4 = 'CANCELLED' THEN $5::timestamptz + interval '1 minute' END,
 		        CASE WHEN $4 = 'CANCELLED' THEN 'offer_expired'::trip_cancel_reason END)`,

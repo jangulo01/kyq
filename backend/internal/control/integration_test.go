@@ -60,13 +60,13 @@ func TestIntegrationTowerSnapshot(t *testing.T) {
 	trip := func(passengerID, driverID uuid.UUID, p hexgrid.Point, status store.TripStatus, created time.Time, reason store.TripCancelReason) {
 		id := uuid.New()
 		require.NoError(t, st.InsertTrip(ctx, store.InsertTripParams{
-			ID: id, PassengerID: passengerID, DriverID: driverID, CityCode: "bogota", Currency: "COP",
+			ID: id, PassengerID: passengerID, DriverID: driverID, RequestedDriverID: driverID, CityCode: "bogota", Currency: "COP",
 			PickupLat: p.Lat, PickupLng: p.Lng, DropoffLat: p.Lat + 0.01, DropoffLng: p.Lng + 0.01,
 			RouteDistanceM: 1000, RouteDurationS: 300, SuggestedFareMinor: 800_000, Status: status, CreatedAt: created,
 		}))
 		if reason != "" {
 			require.NoError(t, st.UpdateTrip(ctx, store.UpdateTripParams{
-				ID: id, Status: status, CancelReason: store.NullTripCancelReason{TripCancelReason: reason, Valid: true},
+				ID: id, Status: status, DriverID: driverID, CancelReason: store.NullTripCancelReason{TripCancelReason: reason, Valid: true},
 				CancelledAt: pgtype.Timestamptz{Time: created.Add(time.Minute), Valid: true},
 			}))
 		}
