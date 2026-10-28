@@ -3,8 +3,8 @@ import 'dart:typed_data';
 
 import 'package:audioplayers/audioplayers.dart';
 
-/// Tonos del walkie-talkie: empiezo a hablar, termino y turno ocupado.
-enum PttTone { start, end, busy }
+/// Tonos del walkie-talkie: empiezo a hablar, termino, turno ocupado y consulta entrante (005).
+enum PttTone { start, end, busy, incoming }
 
 /// Tramo de un tono: frecuencia en Hz (0 = silencio) y duración en ms.
 typedef _Segment = (double hz, int ms);
@@ -16,6 +16,8 @@ const _segments = <PttTone, List<_Segment>>{
   PttTone.end: [(1320, 60), (0, 25), (880, 80)],
   // Tres pitidos graves, como la señal de ocupado.
   PttTone.busy: [(480, 140), (0, 90), (480, 140), (0, 90), (480, 140)],
+  // Dos notas ascendentes repetidas: un cliente te consulta por voz.
+  PttTone.incoming: [(660, 90), (0, 40), (990, 120), (0, 120), (660, 90), (0, 40), (990, 120)],
 };
 
 /// WAV PCM de 16 bits mono sintetizado en el momento, sin assets de terceros (T072).

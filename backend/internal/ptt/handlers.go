@@ -11,13 +11,15 @@ import (
 	"github.com/kyq/backend/internal/httpx"
 )
 
-// Handlers serves /v1/trips/{tripId}/ptt/*. Either party of the trip may call them.
+// Handlers serves /v1/trips/{tripId}/ptt/* (either party of the trip) and the preconsult
+// routes of 005 (preconsult_handlers.go).
 type Handlers struct{ Service *Service }
 
 func (h *Handlers) Register(mux *http.ServeMux, authMW func(http.Handler) http.Handler) {
 	mux.Handle("POST /v1/trips/{tripId}/ptt/token", authMW(http.HandlerFunc(h.token)))
 	mux.Handle("POST /v1/trips/{tripId}/ptt/floor", authMW(http.HandlerFunc(h.takeFloor)))
 	mux.Handle("DELETE /v1/trips/{tripId}/ptt/floor", authMW(http.HandlerFunc(h.releaseFloor)))
+	h.registerPreconsults(mux, authMW)
 }
 
 func ids(w http.ResponseWriter, r *http.Request) (user, trip uuid.UUID, ok bool) {

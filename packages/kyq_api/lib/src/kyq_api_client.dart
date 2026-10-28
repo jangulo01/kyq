@@ -4,6 +4,7 @@ import 'package:dio/dio.dart';
 
 import 'models.dart';
 import 'onboarding_models.dart';
+import 'preconsult_models.dart';
 import 'token_store.dart';
 
 /// Error de la API con el cuerpo `Error{code,message}` del contrato.
@@ -341,6 +342,68 @@ class KyqApiClient {
   }
 
   Future<void> releaseFloor(String tripId) => _send(() => _dio.delete<void>('/v1/trips/$tripId/ptt/floor'));
+
+  // Pre-consulta de voz (005, RN-KYQ-010)
+
+  /// Ajustes de consultas de voz del conductor.
+  Future<PreconsultSettings> preconsultSettings() async {
+    final res = await _send(() => _dio.get<Map<String, dynamic>>('/v1/driver/preconsults/settings'));
+    return PreconsultSettings.fromJson(res.data!);
+  }
+
+  /// Activa o desactiva las consultas; desactivarlas cierra la consulta abierta.
+  Future<PreconsultSettings> setAcceptsPreconsults(bool accepts) async {
+    final res = await _send(
+      () => _dio.put<Map<String, dynamic>>('/v1/driver/preconsults/settings', data: {'accepts_preconsults': accepts}),
+    );
+    return PreconsultSettings.fromJson(res.data!);
+  }
+
+  /// Silencia o reactiva las consultas de un cliente.
+  Future<void> setClientPreconsultsBlocked(String passengerId, {required bool blocked}) =>
+      _send(() => _dio.put<void>('/v1/driver/clients/$passengerId/preconsults', data: {'blocked': blocked}));
+
+  /// Bandeja del conductor: consultas de las últimas 24 h, la más reciente primero.
+  Future<List<Preconsult>> driverPreconsults() async {
+    final res = await _send(() => _dio.get<List<dynamic>>('/v1/driver/preconsults'));
+    return res.data!.map((e) => Preconsult.fromJson(e as Map<String, dynamic>)).toList();
+  }
+
+  /// Ids de los Conductores Elegidos que aceptan consultas de voz del pasajero.
+  Future<Set<String>> preconsultDrivers() async {
+    final res = await _send(() => _dio.get<Map<String, dynamic>>('/v1/preconsults/drivers'));
+    return {for (final id in res.data!['driver_ids'] as List<dynamic>) id as String};
+  }
+
+  /// Abre (o retoma) una consulta con [driverId]. Lanza [ApiException] con `preconsults_disabled`,
+  /// `driver_unavailable`, `preconsult_busy`, `preconsult_in_progress` o `rate_limited`.
+  Future<Preconsult> openPreconsult(String driverId) =>
+      _preconsult(() => _dio.post<Map<String, dynamic>>('/v1/preconsults', data: {'driver_id': driverId}));
+
+  Future<Preconsult> getPreconsult(String id) =>
+      _preconsult(() => _dio.get<Map<String, dynamic>>('/v1/preconsults/$id'));
+
+  Future<Preconsult> endPreconsult(String id) =>
+      _preconsult(() => _dio.post<Map<String, dynamic>>('/v1/preconsults/$id/end'));
+
+  /// Credenciales de la sala de la consulta. 410 si ya cerró.
+  Future<PttCredentials> preconsultToken(String id) async {
+    final res = await _send(() => _dio.post<Map<String, dynamic>>('/v1/preconsults/$id/ptt/token'));
+    return PttCredentials.fromJson(res.data!);
+  }
+
+  /// Turno de la consulta (15 s). 409 `ptt_busy` o `preconsult_waiting`, 410 si cerró.
+  Future<DateTime> requestPreconsultFloor(String id) async {
+    final res = await _send(() => _dio.post<Map<String, dynamic>>('/v1/preconsults/$id/ptt/floor'));
+    return DateTime.parse(res.data!['expires_at'] as String);
+  }
+
+  Future<void> releasePreconsultFloor(String id) => _send(() => _dio.delete<void>('/v1/preconsults/$id/ptt/floor'));
+
+  Future<Preconsult> _preconsult(Future<Response<Map<String, dynamic>>> Function() request) async {
+    final res = await _send(request);
+    return Preconsult.fromJson(res.data!);
+  }
 
   Future<Trip> _trip(Future<Response<dynamic>> Function() request) async {
     final res = await _send(request);

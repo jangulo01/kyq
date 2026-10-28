@@ -9,6 +9,8 @@ import 'package:kyq_ui/kyq_ui.dart';
 import '../chosen_drivers/chosen_drivers_cubit.dart';
 import '../chosen_drivers/chosen_drivers_page.dart';
 import '../chosen_drivers/scan_page.dart';
+import '../preconsult/preconsult_cubit.dart';
+import '../preconsult/preconsult_page.dart';
 import '../realtime/realtime_events.dart';
 import '../request/location_source.dart';
 import '../request/request_cubit.dart';
@@ -52,6 +54,7 @@ class KyqRiderApp extends StatefulWidget {
     this.realtime = const NoRealtimeEvents(),
     this.location = const GeolocatorLocationSource(),
     this.ptt = PttController.live,
+    this.preconsultPtt = PttController.livePreconsult,
   });
 
   final KyqApiClient api;
@@ -61,6 +64,9 @@ class KyqRiderApp extends StatefulWidget {
 
   /// Walkie-talkie de cada viaje; las pruebas pasan falsos.
   final PttControllerFactory ptt;
+
+  /// Walkie-talkie de cada consulta de voz (005, RN-KYQ-010); las pruebas pasan falsos.
+  final PttControllerFactory preconsultPtt;
 
   @override
   State<KyqRiderApp> createState() => _KyqRiderAppState();
@@ -80,6 +86,20 @@ class _KyqRiderAppState extends State<KyqRiderApp> {
         ),
         routes: [
           GoRoute(path: 'scan', builder: (context, state) => const ScanPage()),
+          GoRoute(
+            path: 'preconsult/:driverId',
+            builder: (context, state) => BlocProvider(
+              create: (context) => PreconsultCubit(
+                api: context.read<KyqApiClient>(),
+                realtime: context.read<RealtimeEvents>(),
+                ptt: widget.preconsultPtt,
+                driverId: state.pathParameters['driverId']!,
+                driverName: state.uri.queryParameters['name'] ?? 'tu conductor',
+                refreshEvery: const Duration(seconds: 3),
+              )..start(),
+              child: const PreconsultPage(),
+            ),
+          ),
           GoRoute(
             path: 'request/:driverId',
             builder: (context, state) => BlocProvider(

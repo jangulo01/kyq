@@ -6,6 +6,7 @@ import 'package:kyq_driver_app/app/driver_services.dart';
 import 'package:kyq_driver_app/background/foreground_service.dart';
 import 'package:kyq_driver_app/background/location_reporter.dart';
 import 'package:kyq_driver_app/background/online_permissions.dart';
+import 'package:kyq_driver_app/handsfree/platform_hands_free.dart';
 import 'package:kyq_driver_app/onboarding/photo_source.dart';
 import 'package:kyq_driver_app/realtime/driver_events.dart';
 import 'package:kyq_driver_app/subscription/checkout_launcher.dart';
@@ -27,6 +28,7 @@ const onboardingOk = Onboarding(status: OnboardingStatus.documentsOk);
 void stubOnboardingDefaults(MockApi api, {Onboarding onboarding = onboardingOk, List<Notice> notices = const []}) {
   when(() => api.driverOnboarding()).thenAnswer((_) async => onboarding);
   when(() => api.driverNotices()).thenAnswer((_) async => notices);
+  when(() => api.driverPreconsults()).thenAnswer((_) async => []);
 }
 
 /// PNG de 1×1 válido, para que las vistas previas se dibujen sin errores.
@@ -133,6 +135,10 @@ DriverServices fakeServices({
   PttControllerFactory? ptt,
   FakePhotoSource? photos,
   FakeCheckout? checkout,
+  PttControllerFactory? preconsultPtt,
+  FakeHandsFreePlatform? handsFree,
+  FakeHandsFreePrefs? handsFreePrefs,
+  FakeOverlayPermission? overlay,
 }) => DriverServices(
   events: events ?? FakeEventSource(),
   permissions: permissions ?? FakePermissions(),
@@ -141,7 +147,40 @@ DriverServices fakeServices({
   ptt: ptt ?? fakePttFactory([]),
   photos: photos ?? FakePhotoSource(),
   checkout: checkout ?? FakeCheckout(),
+  preconsultPtt: preconsultPtt ?? fakePttFactory([]),
+  handsFree: handsFree ?? FakeHandsFreePlatform(),
+  handsFreePrefs: handsFreePrefs ?? FakeHandsFreePrefs(),
+  overlayPermission: overlay ?? FakeOverlayPermission(),
 );
+
+/// Preferencias del manos libres en memoria.
+class FakeHandsFreePrefs implements HandsFreePrefsStore {
+  HandsFreePrefs prefs = (mediaButton: true, bubble: true);
+
+  @override
+  Future<HandsFreePrefs> load() async => prefs;
+
+  @override
+  Future<void> save(HandsFreePrefs value) async => prefs = value;
+}
+
+/// Permiso de superposición: [onRequest] es lo que "concede" el conductor en los ajustes.
+class FakeOverlayPermission implements OverlayPermission {
+  FakeOverlayPermission({this.granted = false, this.onRequest = true});
+
+  bool granted;
+  bool onRequest;
+  int requests = 0;
+
+  @override
+  Future<bool> isGranted() async => granted;
+
+  @override
+  Future<bool> request() async {
+    requests++;
+    return granted = onRequest;
+  }
+}
 
 final tripNow = DateTime.utc(2026, 10, 27, 12);
 

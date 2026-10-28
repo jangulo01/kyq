@@ -48,3 +48,34 @@ class KyqPttApi implements PttApi {
     }
   }
 }
+
+/// [PttApi] de una pre-consulta de voz (005, RN-KYQ-010): mismas reglas de turno que el viaje,
+/// con turnos de 15 s. `preconsult_waiting` (el conductor aún no se unió) llega como
+/// [ApiException] y el controlador lo muestra como error reintentable.
+class PreconsultPttApi implements PttApi {
+  PreconsultPttApi(this._api, this.preconsultId);
+
+  final KyqApiClient _api;
+  final String preconsultId;
+
+  @override
+  Future<PttCredentials> token() => _map(() => _api.preconsultToken(preconsultId));
+
+  @override
+  Future<DateTime> requestFloor() => _map(() => _api.requestPreconsultFloor(preconsultId));
+
+  @override
+  Future<void> releaseFloor() => _map(() => _api.releasePreconsultFloor(preconsultId));
+
+  Future<T> _map<T>(Future<T> Function() call) async {
+    try {
+      return await call();
+    } on ApiException catch (e) {
+      throw switch ((e.statusCode, e.code)) {
+        (409, 'ptt_busy') => const PttFloorBusy(),
+        (410, _) => const PttChannelClosed(),
+        _ => e,
+      };
+    }
+  }
+}

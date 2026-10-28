@@ -7,9 +7,15 @@ import 'package:kyq_realtime/kyq_realtime.dart';
 import '../realtime/realtime_events.dart';
 
 class ChosenDriversState {
-  const ChosenDriversState({this.drivers = const [], this.loading = false, this.error});
+  const ChosenDriversState({this.drivers = const [], this.loading = false, this.error, this.voiceDrivers = const {}});
 
   final List<ChosenDriver> drivers;
+
+  /// Conductores que aceptan consultas de voz de este pasajero (005, RN-KYQ-010).
+  final Set<String> voiceDrivers;
+
+  /// Se puede preguntar por voz: acepta consultas y está libre ahora.
+  bool canAskByVoice(ChosenDriver d) => d.presence == DriverPresence.free && voiceDrivers.contains(d.driverId);
   final bool loading;
   final String? error;
 }
@@ -25,28 +31,45 @@ class ChosenDriversCubit extends Cubit<ChosenDriversState> {
   final _presence = <String, StreamSubscription<RealtimeEvent>>{};
 
   Future<void> load() async {
-    emit(ChosenDriversState(drivers: state.drivers, loading: true));
+    emit(ChosenDriversState(drivers: state.drivers, loading: true, voiceDrivers: state.voiceDrivers));
     try {
-      final drivers = await _api.chosenDrivers();
+      final (drivers, voice) = await (_api.chosenDrivers(), _voiceDrivers()).wait;
       if (isClosed) return;
-      emit(ChosenDriversState(drivers: drivers));
+      emit(ChosenDriversState(drivers: drivers, voiceDrivers: voice));
       _syncPresence();
     } on ApiException {
       if (isClosed) return;
-      emit(ChosenDriversState(drivers: state.drivers, error: 'No pudimos cargar tus conductores.'));
+      emit(
+        ChosenDriversState(
+          drivers: state.drivers,
+          error: 'No pudimos cargar tus conductores.',
+          voiceDrivers: state.voiceDrivers,
+        ),
+      );
     }
   }
 
   Future<void> remove(String driverId) async {
     final before = state.drivers;
-    emit(ChosenDriversState(drivers: before.where((d) => d.driverId != driverId).toList()));
+    emit(
+      ChosenDriversState(
+        drivers: before.where((d) => d.driverId != driverId).toList(),
+        voiceDrivers: state.voiceDrivers,
+      ),
+    );
     _syncPresence();
     try {
       await _api.removeChosenDriver(driverId);
     } on ApiException catch (e) {
       // 404: ya no estaba en la lista; la vista ya es correcta.
       if (e.statusCode != 404 && !isClosed) {
-        emit(ChosenDriversState(drivers: before, error: 'No pudimos eliminar al conductor.'));
+        emit(
+          ChosenDriversState(
+            drivers: before,
+            error: 'No pudimos eliminar al conductor.',
+            voiceDrivers: state.voiceDrivers,
+          ),
+        );
         _syncPresence();
       }
     }
@@ -79,8 +102,18 @@ class ChosenDriversCubit extends Cubit<ChosenDriversState> {
                 : d,
         ],
         loading: state.loading,
+        voiceDrivers: state.voiceDrivers,
       ),
     );
+  }
+
+  /// Si falla, sin consultas de voz: no debe impedir ver la lista.
+  Future<Set<String>> _voiceDrivers() async {
+    try {
+      return await _api.preconsultDrivers();
+    } on Object {
+      return const {};
+    }
   }
 
   @override

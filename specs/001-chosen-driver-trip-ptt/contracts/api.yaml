@@ -1,6 +1,6 @@
 openapi: 3.1.0
 info:
-  title: Kyq API (MVP 001 + 002 alta, KYC y suscripción)
+  title: Kyq API (MVP 001 + 002 alta, KYC y suscripción + 005 PTT extra)
   version: 0.2.0
   description: |
     API REST del MVP Conductor Elegido + Viaje + PTT. Todas las rutas salvo /v1/auth/* exigen
@@ -885,6 +885,157 @@ paths:
               schema: { type: array, items: { $ref: '#/components/schemas/DriverCost' } }
         '400': { $ref: '#/components/responses/Error' }
 
+  /v1/driver/preconsults/settings:
+    get:
+      summary: Ajustes de consultas de voz del conductor (FR-001, FR-002)
+      responses:
+        '200': { $ref: '#/components/responses/PreconsultSettings' }
+        '403': { $ref: '#/components/responses/Error' }
+    put:
+      summary: Activa o desactiva las consultas de voz (FR-001)
+      description: Desactivarlas cierra en el acto la consulta abierta (`disabled`).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [accepts_preconsults]
+              properties:
+                accepts_preconsults: { type: boolean }
+      responses:
+        '200': { $ref: '#/components/responses/PreconsultSettings' }
+        '400': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+  /v1/driver/clients/{passengerId}/preconsults:
+    put:
+      summary: Silencia o reactiva las consultas de un cliente (FR-002)
+      description: Silenciar cierra en el acto la consulta abierta con ese cliente (`disabled`).
+      parameters: [ { $ref: '#/components/parameters/PassengerId' } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [blocked]
+              properties:
+                blocked: { type: boolean }
+      responses:
+        '204': { description: Guardado }
+        '400': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+  /v1/driver/preconsults:
+    get:
+      summary: Bandeja de consultas de las últimas 24 h, la más reciente primero (FR-010)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/Preconsult' } }
+        '403': { $ref: '#/components/responses/Error' }
+  /v1/preconsults/drivers:
+    get:
+      summary: Conductores Elegidos que aceptan consultas de voz del pasajero (FR-003)
+      description: |
+        Incluye a los conductores afiliados con las consultas activadas y que no silenciaron al
+        pasajero, sin importar su presencia (la app la combina con `driver.presence`).
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [driver_ids]
+                properties:
+                  driver_ids: { type: array, items: { type: string, format: uuid } }
+        '403': { $ref: '#/components/responses/Error' }
+  /v1/preconsults:
+    post:
+      summary: Abre una consulta de voz con un Conductor Elegido (RN-KYQ-010, FR-003, FR-007)
+      description: |
+        Solo pasajeros. Si ya tiene una abierta con ese conductor la devuelve (200).
+        Errores: `404 not_found` (sin afiliación activa), `403 preconsults_disabled` (consultas
+        desactivadas o cliente silenciado; mismo mensaje), `409 driver_unavailable` (no está
+        libre), `409 preconsult_busy` (atiende otra consulta), `409 preconsult_in_progress`
+        (el pasajero tiene otra abierta con otro conductor), `429 rate_limited` (3/h al mismo
+        conductor, 6/día en total).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [driver_id]
+              properties:
+                driver_id: { type: string, format: uuid }
+      responses:
+        '201': { $ref: '#/components/responses/Preconsult' }
+        '200': { $ref: '#/components/responses/Preconsult' }
+        '400': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '429': { $ref: '#/components/responses/Error' }
+  /v1/preconsults/{preconsultId}:
+    get:
+      summary: Estado de una consulta (cualquiera de las dos partes)
+      parameters: [ { $ref: '#/components/parameters/PreconsultId' } ]
+      responses:
+        '200': { $ref: '#/components/responses/Preconsult' }
+        '404': { $ref: '#/components/responses/Error' }
+  /v1/preconsults/{preconsultId}/end:
+    post:
+      summary: Termina la consulta (cualquiera de las dos partes, FR-006)
+      description: Idempotente; el cierre efectivo y `preconsult.closed` llegan con el barrido (≤ 1 s).
+      parameters: [ { $ref: '#/components/parameters/PreconsultId' } ]
+      responses:
+        '200': { $ref: '#/components/responses/Preconsult' }
+        '404': { $ref: '#/components/responses/Error' }
+  /v1/preconsults/{preconsultId}/ptt/token:
+    post:
+      summary: Credenciales de la sala de voz de la consulta (FR-004, FR-005)
+      description: |
+        Como `/v1/trips/{tripId}/ptt/token`. El primer token del conductor marca la consulta como
+        conectada y publica `preconsult.joined` al pasajero. `closes_at` es el cierre previsto.
+      parameters: [ { $ref: '#/components/parameters/PreconsultId' } ]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PttCredentials' }
+        '404': { $ref: '#/components/responses/Error' }
+        '410': { $ref: '#/components/responses/Error' }
+        '503': { $ref: '#/components/responses/Error' }
+  /v1/preconsults/{preconsultId}/ptt/floor:
+    post:
+      summary: Pide el turno de palabra de la consulta, 15 s como máximo (FR-004)
+      parameters: [ { $ref: '#/components/parameters/PreconsultId' } ]
+      responses:
+        '200':
+          description: Turno concedido
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  expires_at: { type: string, format: date-time }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { description: 'Habla la otra parte (`ptt_busy`) o el conductor aún no se conectó (`preconsult_waiting`)' }
+        '410': { description: Consulta cerrada }
+        '503': { description: '`ptt_unavailable`' }
+    delete:
+      summary: Libera el turno (sin efecto si el llamante no lo tiene)
+      parameters: [ { $ref: '#/components/parameters/PreconsultId' } ]
+      responses:
+        '204': { description: Liberado }
+        '404': { $ref: '#/components/responses/Error' }
+        '503': { description: '`ptt_unavailable`: el turno sigue y caduca solo' }
+
 components:
   securitySchemes:
     bearer: { type: http, scheme: bearer, bearerFormat: JWT }
@@ -894,6 +1045,8 @@ components:
     DriverId: { name: driverId, in: path, required: true, schema: { type: string, format: uuid } }
     DocumentId: { name: documentId, in: path, required: true, schema: { type: string, format: uuid } }
     PaymentId: { name: paymentId, in: path, required: true, schema: { type: string, format: uuid } }
+    PassengerId: { name: passengerId, in: path, required: true, schema: { type: string, format: uuid } }
+    PreconsultId: { name: preconsultId, in: path, required: true, schema: { type: string, format: uuid } }
 
   requestBodies:
     Phone:
@@ -940,6 +1093,22 @@ components:
       content:
         application/json:
           schema: { $ref: '#/components/schemas/Trip' }
+
+    Preconsult:
+      description: Consulta de voz
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Preconsult' }
+    PreconsultSettings:
+      description: Ajustes de consultas de voz
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [accepts_preconsults, blocked_passenger_ids]
+            properties:
+              accepts_preconsults: { type: boolean }
+              blocked_passenger_ids: { type: array, items: { type: string, format: uuid } }
 
   schemas:
     Error:
@@ -1242,3 +1411,30 @@ components:
             driver_id: { type: string, format: uuid }
             display_name: { type: string }
             negative_margin: { type: boolean }
+    PttCredentials:
+      type: object
+      required: [url, token, room]
+      properties:
+        url: { type: string }
+        token: { type: string }
+        room: { type: string, example: 'pre-0192...' }
+        closes_at: { type: [string, 'null'], format: date-time }
+    Preconsult:
+      type: object
+      required: [id, passenger_id, passenger_name, driver_id, driver_name, status, opened_at, join_deadline, closes_at]
+      properties:
+        id: { type: string, format: uuid }
+        passenger_id: { type: string, format: uuid }
+        passenger_name: { type: string }
+        driver_id: { type: string, format: uuid }
+        driver_name: { type: string }
+        status: { type: string, enum: [open, answered, unanswered, missed] }
+        opened_at: { type: string, format: date-time }
+        join_deadline: { type: string, format: date-time }
+        closes_at: { type: string, format: date-time }
+        joined_at: { type: [string, 'null'], format: date-time }
+        answered_at: { type: [string, 'null'], format: date-time }
+        closed_at: { type: [string, 'null'], format: date-time }
+        close_reason:
+          type: [string, 'null']
+          enum: [ended_by_passenger, ended_by_driver, disabled, missed, driver_unavailable, expired, null]

@@ -116,6 +116,23 @@ class PttController extends Cubit<PttState> {
     closeSignals: closeSignals,
   );
 
+  /// Controlador de una pre-consulta (005): turnos de 15 s, así que se suelta 1 s antes y la voz
+  /// de la otra parte se da por terminada a los 20 s sin `floor.released`.
+  factory PttController.livePreconsult(KyqApiClient api, String preconsultId, Stream<Object?> closeSignals) =>
+      PttController(
+        api: PreconsultPttApi(api, preconsultId),
+        room: LiveKitVoiceRoom(),
+        focus: AudioSessionFocus(),
+        tones: AudioplayersTonePlayer(),
+        mic: const PlatformMicPermission(),
+        closeSignals: closeSignals,
+        floorMargin: preconsultFloorMargin,
+        remoteTimeout: const Duration(seconds: 20),
+      );
+
+  /// Margen de la pre-consulta: el backend corta a los 15 s.
+  static const preconsultFloorMargin = Duration(seconds: 1);
+
   final PttApi _api;
   final VoiceRoom _room;
   final AudioFocus _focus;
@@ -280,6 +297,9 @@ class PttController extends Cubit<PttState> {
     unawaited(_play(PttTone.end));
     await _releaseFloorQuietly();
   }
+
+  /// Toca [tone] con el reproductor del walkie-talkie (p. ej. consulta entrante).
+  Future<void> playTone(PttTone tone) => _play(tone);
 
   /// Abre los ajustes del sistema cuando el micrófono quedó denegado para siempre.
   Future<void> openMicSettings() => _mic.openSettings();
