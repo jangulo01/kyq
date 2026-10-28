@@ -17,8 +17,8 @@ import (
 	"github.com/kyq/backend/internal/billing"
 	"github.com/kyq/backend/internal/config"
 	"github.com/kyq/backend/internal/control"
-	"github.com/kyq/backend/internal/crm"
 	"github.com/kyq/backend/internal/cooperatives"
+	"github.com/kyq/backend/internal/crm"
 	"github.com/kyq/backend/internal/drivers"
 	"github.com/kyq/backend/internal/fares"
 	"github.com/kyq/backend/internal/health"
@@ -187,24 +187,24 @@ func run(logger *slog.Logger) error {
 				Affiliations: affils, Trips: trips.ParticipantChecker{Q: st.Queries}, Operators: st.Queries,
 			},
 		},
-		Admin:    &admin.Handlers{Store: st},
-		Affils:   &affiliations.Handlers{Service: affils},
-		Drivers:  &drivers.Handlers{Store: st},
-		Presence: &drivers.Presence{Store: st, Routes: routes, Publisher: publisher, Usage: usage, Logger: logger},
-		Trips:    &trips.Handlers{Service: tripService},
-		PTT:      &ptt.Handlers{Service: pttService},
-		Usage:    &telemetry.Handlers{Store: st},
-		KYC:      &kyc.Handlers{Service: kycService},
-		Billing:  &billing.Handlers{Service: billingService, WebhookEnabled: cfg.BoldEnabled()},
-		Notices:  &notify.Handlers{Service: notices},
-		Costs:    &telemetry.CostHandlers{Store: st, CityCode: cfg.CityCode},
-		Tower:    &control.Handlers{Store: st},
-		CRM:      &crm.Handlers{Store: st, Moderation: &crm.Moderation{Store: st, Publisher: publisher, Logger: logger}},
-		Health:   &health.Handlers{Checker: checker},
+		Admin:        &admin.Handlers{Store: st},
+		Affils:       &affiliations.Handlers{Service: affils},
+		Drivers:      &drivers.Handlers{Store: st},
+		Presence:     &drivers.Presence{Store: st, Routes: routes, Publisher: publisher, Usage: usage, Logger: logger},
+		Trips:        &trips.Handlers{Service: tripService},
+		PTT:          &ptt.Handlers{Service: pttService},
+		Usage:        &telemetry.Handlers{Store: st},
+		KYC:          &kyc.Handlers{Service: kycService},
+		Billing:      &billing.Handlers{Service: billingService, WebhookEnabled: cfg.BoldEnabled()},
+		Notices:      &notify.Handlers{Service: notices},
+		Costs:        &telemetry.CostHandlers{Store: st, CityCode: cfg.CityCode},
+		Tower:        &control.Handlers{Store: st},
+		CRM:          &crm.Handlers{Store: st, Moderation: &crm.Moderation{Store: st, Publisher: publisher, Logger: logger}},
+		Health:       &health.Handlers{Checker: checker},
 		Cooperatives: &cooperatives.Handlers{Service: coopService},
 		GroupPTT:     &ptt.GroupHandlers{Service: pttService},
-		Safety:   &safety.Handlers{Service: safetyService, MapStyleURL: cfg.MapStyleURL},
-		TripPay:  &trippay.Handlers{Service: tripPayService},
+		Safety:       &safety.Handlers{Service: safetyService, MapStyleURL: cfg.MapStyleURL},
+		TripPay:      &trippay.Handlers{Service: tripPayService},
 		LiveKitWebhook: &telemetry.LiveKitWebhook{
 			APIKey: cfg.LiveKitAPIKey, APISecret: cfg.LiveKitAPISecret, Store: st, Usage: usage,
 		},
