@@ -200,8 +200,12 @@ SELECT EXISTS (
 -- Miembros -----------------------------------------------------------------------------------
 
 -- name: UpsertRadioMember :one
+-- Una conversación nueva llega con "Escuchar" solo si el usuario aún escucha menos de 10 (FR-024).
 INSERT INTO radio_members (conversation_id, user_id, role, status, listening, joined_at, updated_at)
-VALUES ($1, $2, $3, $4, $5, $6, $6)
+VALUES (sqlc.arg(conversation_id), sqlc.arg(user_id), sqlc.arg(role), sqlc.arg(status),
+        sqlc.arg(listening)::boolean AND (SELECT count(*) FROM radio_members l
+                WHERE l.user_id = sqlc.arg(user_id) AND l.listening AND l.status IN ('active', 'muted')) < 10,
+        sqlc.arg(joined_at), sqlc.arg(joined_at))
 ON CONFLICT (conversation_id, user_id) DO UPDATE
 SET role = EXCLUDED.role, status = EXCLUDED.status, joined_at = EXCLUDED.joined_at, updated_at = EXCLUDED.updated_at,
     muted_by_peer = false, blocked_by_peer = false

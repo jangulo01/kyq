@@ -51,8 +51,8 @@
 
 ## Phase 6: US7 Varias conversaciones (P2)
 
-- [ ] T025 [US7] `PUT …/listening` con límite de 10 (`409 listening_limit`); pruebas
-- [ ] T026 [US7] `kyq_radio`: cola de reproducción (un emisor en vivo, los demás desde el registro al terminar, prioridad de viaje y SOS, hablar pausa la cola) y conexión de las salas con "Escuchar"; pruebas de unidad con 3 fuentes simultáneas (FR-024, FR-025, SC-006)
+- [X] T025 [US7] `PUT …/listening` con límite de 10 (`409 listening_limit`); pruebas
+- [X] T026 [US7] `kyq_radio`: cola de reproducción (un emisor en vivo, los demás desde el registro al terminar, prioridad de viaje y SOS, hablar pausa la cola) y conexión de las salas con "Escuchar"; pruebas de unidad con 3 fuentes simultáneas (FR-024, FR-025, SC-006)
 
 ## Phase 7: US3 Clientes (P1)
 
