@@ -22,6 +22,25 @@ enum HandsFreeSignal {
 /// Aspecto de la burbuja según el estado del walkie-talkie.
 enum BubbleLook { connecting, idle, talking, remoteTalking, busy }
 
+/// Destino de las pulsaciones cuando no hay canal de viaje ni consulta abiertos: la conversación
+/// seleccionada de Radio Kyq (011, FR-028). El canal del viaje siempre gana.
+abstract interface class HandsFreeRadio {
+  /// Hay una conversación seleccionada y la radio está encendida.
+  bool get ready;
+
+  /// Pidiendo el turno o hablando.
+  bool get speaking;
+
+  BubbleLook get look;
+
+  /// Cambió algo de lo anterior.
+  Stream<void> get changes;
+
+  Future<void> press();
+
+  Future<void> release();
+}
+
 /// Capa nativa de Kyq Conductor: sesión multimedia y burbuja sobre otras apps.
 abstract interface class HandsFreePlatform {
   Stream<HandsFreeSignal> get signals;
@@ -64,7 +83,9 @@ class HandsFreePtt {
   late final StreamSubscription<HandsFreeSignal> _signals;
   final _stack = <PttController>[];
   final _subs = <PttController, StreamSubscription<PttState>>{};
-  PttController? _lastTarget;
+  Object? _lastTarget;
+  HandsFreeRadio? _radio;
+  StreamSubscription<void>? _radioSub;
   bool _mediaButtonEnabled;
   bool _bubbleEnabled;
   bool _foreground = true;
@@ -107,6 +128,17 @@ class HandsFreePtt {
     _sync();
   }
 
+  /// La radio recibe las pulsaciones mientras no haya canal abierto (011, FR-028).
+  void setRadio(HandsFreeRadio? radio) {
+    unawaited(_radioSub?.cancel());
+    _radio = radio;
+    _radioSub = radio?.changes.listen((_) => _sync());
+    _sync();
+  }
+
+  /// La radio, si hoy es ella quien recibe las pulsaciones.
+  HandsFreeRadio? get _radioTarget => target == null && (_radio?.ready ?? false) ? _radio : null;
+
   /// Preferencias del conductor (FR-015). [bubble] además exige el permiso de superposición.
   void configure({bool? mediaButton, bool? bubble}) {
     _mediaButtonEnabled = mediaButton ?? _mediaButtonEnabled;
@@ -128,22 +160,27 @@ class HandsFreePtt {
 
   void _onSignal(HandsFreeSignal signal) {
     final t = target;
-    if (t == null) return;
+    final r = _radioTarget;
+    if (t == null && r == null) return;
+    Future<void> press() => t != null ? t.press() : r!.press();
+    Future<void> release() => t != null ? t.release() : r!.release();
     switch (signal) {
       case HandsFreeSignal.buttonDown:
         if (!_mediaButtonEnabled) return;
-        final speaking = t.state.status == PttStatus.talking || t.state.status == PttStatus.requesting;
+        final speaking = t != null
+            ? t.state.status == PttStatus.talking || t.state.status == PttStatus.requesting
+            : r!.speaking;
         if (_latched && speaking) {
           // Segundo clic: soltar. Se ignora el "subir" de este mismo clic.
           _latched = false;
           _swallowUp = true;
-          unawaited(t.release());
+          unawaited(release());
           return;
         }
         _latched = false;
         _swallowUp = false;
         _downAt = _clock();
-        unawaited(t.press());
+        unawaited(press());
       case HandsFreeSignal.buttonUp:
         if (_swallowUp) {
           _swallowUp = false;
@@ -153,16 +190,16 @@ class HandsFreePtt {
         if (downAt == null) return;
         _downAt = null;
         if (_clock().difference(downAt) >= holdThreshold) {
-          unawaited(t.release());
+          unawaited(release());
         } else {
           // Clic corto: sigue hablando hasta el siguiente clic o hasta que caduque el turno.
           _latched = true;
         }
       case HandsFreeSignal.bubbleDown:
         _resetButton();
-        unawaited(t.press());
+        unawaited(press());
       case HandsFreeSignal.bubbleUp:
-        unawaited(t.release());
+        unawaited(release());
     }
   }
 
@@ -176,16 +213,22 @@ class HandsFreePtt {
 
   void _sync() {
     final t = target;
-    if (t != _lastTarget) {
-      _lastTarget = t;
+    final r = _radioTarget;
+    final current = t ?? r;
+    if (current != _lastTarget) {
+      _lastTarget = current;
       _resetButton();
     }
-    final media = t != null && _mediaButtonEnabled;
+    final media = current != null && _mediaButtonEnabled;
     if (media != _mediaActive) {
       _mediaActive = media;
       _call(() => _platform.setMediaButtonActive(media));
     }
-    final look = t != null && _bubbleEnabled && !_foreground ? lookFor(t.state.status) : null;
+    final look = current == null || !_bubbleEnabled || _foreground
+        ? null
+        : t != null
+        ? lookFor(t.state.status)
+        : r!.look;
     if (look == _shownLook) return;
     _shownLook = look;
     _call(() => look == null ? _platform.hideBubble() : _platform.showBubble(look));
@@ -196,6 +239,8 @@ class HandsFreePtt {
   }
 
   Future<void> dispose() async {
+    await _radioSub?.cancel();
+    _radio = null;
     _stack.clear();
     for (final sub in _subs.values) {
       await sub.cancel();

@@ -313,18 +313,23 @@ class _KyqDriverAppState extends State<KyqDriverApp> {
                         a.trip?.status != TripStatus.completed && b.trip?.status == TripStatus.completed,
                     listener: (context, _) => context.read<TripPaymentCubit>().load(),
                     // El botón físico y la burbuja hablan por el canal del viaje (RN-KYQ-012).
-                    child: HandsFreeAttachment(
-                      handsFree: _handsFree,
-                      controller: context.read<PttController>(),
-                      child: TripPage(
-                        ptt: context.read<PttController>(),
-                        payments: true,
-                        safety: TripSafety(
-                          api: widget.api,
-                          tripId: tripId,
-                          sos: context.read<SosCubit>(),
-                          platform: widget.services.safety,
-                          onSetupPin: () => context.push('/safety'),
+                    // 011: mientras suena o habla el viaje, la radio espera y después sigue (FR-025).
+                    child: _TripVoicePriority(
+                      ptt: context.read<PttController>(),
+                      radio: () => _radio.cubit,
+                      child: HandsFreeAttachment(
+                        handsFree: _handsFree,
+                        controller: context.read<PttController>(),
+                        child: TripPage(
+                          ptt: context.read<PttController>(),
+                          payments: true,
+                          safety: TripSafety(
+                            api: widget.api,
+                            tripId: tripId,
+                            sos: context.read<SosCubit>(),
+                            platform: widget.services.safety,
+                            onSetupPin: () => context.push('/safety'),
+                          ),
                         ),
                       ),
                     ),
@@ -342,6 +347,8 @@ class _KyqDriverAppState extends State<KyqDriverApp> {
   void initState() {
     super.initState();
     _authSub = widget.auth.stream.listen(_onAuth);
+    // 011: sin viaje, el botón físico y la burbuja hablan por la conversación de Radio.
+    _radio.scope.addListener(_onRadioScope);
     _presenceSub = _presence.stream.listen((s) {
       if (s.me case final me?) {
         _radio.start(me.driverId, applied: _radioApplied);
@@ -357,6 +364,11 @@ class _KyqDriverAppState extends State<KyqDriverApp> {
       if (target != null && _router.routerDelegate.currentConfiguration.uri.path == '/') _router.go(target);
     });
     _onAuth(widget.auth.state);
+  }
+
+  void _onRadioScope() {
+    final cubit = _radio.cubit;
+    _handsFree.setRadio(cubit == null ? null : RadioHandsFree(cubit));
   }
 
   void _onAuth(AuthState state) {
@@ -425,6 +437,7 @@ class _KyqDriverAppState extends State<KyqDriverApp> {
   void dispose() {
     _authSub.cancel();
     _presenceSub.cancel();
+    _radio.scope.removeListener(_onRadioScope);
     unawaited(_radio.dispose());
     _router.dispose();
     _onboardingSub.cancel();
@@ -486,4 +499,48 @@ class _KyqDriverAppState extends State<KyqDriverApp> {
       ),
     );
   }
+}
+
+/// Mientras habla el conductor o el pasajero del viaje, la radio espera y después sigue (011,
+/// FR-025); al salir del viaje la radio vuelve a sonar.
+class _TripVoicePriority extends StatefulWidget {
+  const _TripVoicePriority({required this.ptt, required this.radio, required this.child});
+
+  final PttController ptt;
+  final RadioCubit? Function() radio;
+  final Widget child;
+
+  @override
+  State<_TripVoicePriority> createState() => _TripVoicePriorityState();
+}
+
+class _TripVoicePriorityState extends State<_TripVoicePriority> {
+  late final StreamSubscription<PttState> _sub;
+  bool _on = false;
+
+  static bool _voice(PttStatus s) =>
+      s == PttStatus.talking || s == PttStatus.requesting || s == PttStatus.remoteTalking;
+
+  void _set(bool on) {
+    if (on == _on) return;
+    _on = on;
+    final cubit = widget.radio();
+    if (cubit != null && !cubit.isClosed) unawaited(cubit.setPriority(on));
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _sub = widget.ptt.stream.listen((s) => _set(_voice(s.status)));
+  }
+
+  @override
+  void dispose() {
+    _sub.cancel();
+    _set(false);
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
 }

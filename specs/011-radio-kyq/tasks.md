@@ -82,7 +82,7 @@
 ## Phase 11: US8 Manos libres y US9 Emergencia (P2)
 
 - [X] T040 [US8] Conductor: "Radio encendida" en el servicio en primer plano (`background/foreground_service.dart`), aviso fijo con "Apagar radio", reconexión de Centrifugo y salas con pantalla bloqueada; pasajero: servicio en primer plano equivalente; atenuación de navegación con `AudioFocus`; pruebas (FR-026, FR-027)
-- [ ] T041 [US8] `HandsFreePtt` (burbuja y botón Bluetooth de 005) hacia el canal del viaje si hay viaje y si no hacia la conversación de Radio seleccionada; modo auto en `kyq_radio` (botones ≥ 1/3 del ancho, alto contraste, flechas para cambiar de conversación, sin teclado); pruebas (FR-028, FR-029)
+- [X] T041 [US8] `HandsFreePtt` (burbuja y botón Bluetooth de 005) hacia el canal del viaje si hay viaje y si no hacia la conversación de Radio seleccionada; modo auto en `kyq_radio` (botones ≥ 1/3 del ancho, alto contraste, flechas para cambiar de conversación, sin teclado); pruebas (FR-028, FR-029)
 - [ ] T042 [US9] `safety`: `RaiseWithoutTrip` (`raised_from = radio`), webhook de salas `sos-` sin viaje, consola de 003 con "Sin viaje · desde Radio"; `POST …/emergency` (con viaje en curso abre el SOS del viaje), mensaje `emergency` a la conversación y a la cooperativa que suena en Ocupado; pruebas de integración (FR-030, FR-031)
 - [ ] T043 [US9] `kyq_radio` y panel: botón Emergencia (mantener 2 s) con el flujo y PIN de 003, aviso de emergencia recibido; consola muestra alertas sin viaje; pruebas
 

@@ -1,7 +1,40 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kyq_api/kyq_api.dart';
 import 'package:kyq_ptt/kyq_ptt.dart';
 import 'package:kyq_ptt/testing.dart';
+
+class _Radio implements HandsFreeRadio {
+  final calls = <String>[];
+  final _changes = StreamController<void>.broadcast(sync: true);
+
+  @override
+  bool ready = true;
+
+  @override
+  bool speaking = false;
+
+  @override
+  BubbleLook look = BubbleLook.idle;
+
+  void changed() => _changes.add(null);
+
+  @override
+  Stream<void> get changes => _changes.stream;
+
+  @override
+  Future<void> press() async {
+    calls.add('press');
+    speaking = true;
+  }
+
+  @override
+  Future<void> release() async {
+    calls.add('release');
+    speaking = false;
+  }
+}
 
 /// RN-KYQ-012: botón físico (Bluetooth, manos libres, volante) y burbuja flotante.
 void main() {
@@ -153,5 +186,40 @@ void main() {
     expect(platform.mediaActive, isFalse);
     expect(platform.bubble, isNull);
     await consult.controller.close();
+  });
+
+  test('011: sin viaje, el botón y la burbuja hablan por la conversación de Radio (FR-028)', () async {
+    final radio = _Radio()..ready = false;
+    handsFree.setRadio(radio);
+    expect(platform.mediaActive, isFalse, reason: 'sin conversación seleccionada no captura');
+    radio
+      ..ready = true
+      ..changed();
+    expect(platform.mediaActive, isTrue);
+
+    platform.emit(HandsFreeSignal.buttonDown);
+    now = now.add(const Duration(milliseconds: 700));
+    platform.emit(HandsFreeSignal.buttonUp);
+    await settle();
+    expect(radio.calls, ['press', 'release'], reason: 'mantener habla mientras se mantiene');
+
+    handsFree.setForeground(false);
+    radio
+      ..look = BubbleLook.remoteTalking
+      ..changed();
+    expect(platform.bubble, BubbleLook.remoteTalking);
+
+    // Con viaje abierto, el canal del viaje gana (RN-KYQ-012).
+    handsFree.attach(trip.controller);
+    platform.emit(HandsFreeSignal.bubbleDown);
+    await settle();
+    expect(trip.controller.state.status, PttStatus.talking);
+    expect(radio.calls, ['press', 'release']);
+    platform.emit(HandsFreeSignal.bubbleUp);
+    await settle();
+    handsFree.detach(trip.controller);
+    platform.emit(HandsFreeSignal.bubbleDown);
+    await settle();
+    expect(radio.calls.last, 'press', reason: 'al cerrar el viaje vuelve la radio');
   });
 }

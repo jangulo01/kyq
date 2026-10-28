@@ -2,6 +2,7 @@ import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
 
 import 'add_contact.dart';
+import 'auto_mode.dart';
 import 'channels.dart';
 import 'conversation_page.dart';
 import 'radio_page.dart';
@@ -27,6 +28,7 @@ GoRoute radioRoute({List<RouteBase> extra = const [], RadioScope scope = _bare})
       path: 'channels/:id',
       builder: (context, state) => scope(context, ChannelPage(conversationId: state.pathParameters['id']!)),
     ),
+    GoRoute(path: 'auto', builder: (context, state) => scope(context, const RadioAutoPage())),
     GoRoute(path: 'settings', builder: (context, state) => scope(context, const RadioSettingsPage())),
     ...extra,
   ],
