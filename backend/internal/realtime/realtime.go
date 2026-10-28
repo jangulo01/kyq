@@ -14,6 +14,8 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
+
+	"github.com/kyq/backend/internal/auth"
 )
 
 const tokenTTL = time.Hour
@@ -134,6 +136,20 @@ type TripParticipantChecker interface {
 type Authorizer struct {
 	Affiliations AffiliationChecker
 	Trips        TripParticipantChecker
+}
+
+// AdminTowerChannel is the live control tower notice channel (007): admins only.
+const AdminTowerChannel = "admin:tower"
+
+// AuthorizeRole is Authorize for a caller with role: the admin namespace is only for admins.
+func (a Authorizer) AuthorizeRole(ctx context.Context, userID uuid.UUID, role, channel string) error {
+	if strings.HasPrefix(channel, "admin:") {
+		if role == auth.RoleAdmin && channel == AdminTowerChannel {
+			return nil
+		}
+		return ErrForbiddenChannel
+	}
+	return a.Authorize(ctx, userID, channel)
 }
 
 // Authorize returns nil when userID may subscribe to channel.

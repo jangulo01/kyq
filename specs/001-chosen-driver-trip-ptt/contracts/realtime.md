@@ -12,6 +12,7 @@ recuperar eventos tras reconectar.
 | `user:{userId}` | Solo ese usuario | Ofertas y cambios de sus viajes |
 | `driver_presence:{driverId}` | Pasajeros afiliados a ese conductor | `driver.presence` |
 | `trip:{tripId}` | Pasajero y conductor del viaje | `trip.location` |
+| `admin:tower` (007) | Solo usuarios con rol admin | `tower.changed` |
 
 ## Eventos
 
@@ -25,6 +26,7 @@ recuperar eventos tras reconectar.
 | `trip.location` | `trip:{tripId}` | `lat`, `lng`, `heading`, `speed_mps` | FR-014 |
 | `driver.presence` | `driver_presence:{driverId}` | `driver_id`, `presence`, `busy_until_estimate?` | FR-008 |
 | `ptt.closed` | `user:{passengerId}` y `user:{driverId}` | `trip_id` | FR-020 |
+| `tower.changed` | `admin:tower` | `{}` (sin datos: el panel vuelve a pedir `GET /v1/admin/tower`); como mucho uno cada 3 s y solo si algo cambió | 007 FR-005 |
 
 Los eventos de turno PTT (quién habla) viajan como mensajes de datos de LiveKit dentro de la sala
 del viaje: `{"type":"floor.taken","user_id":...}` y `{"type":"floor.released"}`.

@@ -25,6 +25,8 @@ var (
 	ErrNotFound            = errors.New("not found")
 	ErrPhoneHasOtherRole   = errors.New("phone has another role")
 	ErrInvalidRole         = errors.New("invalid role")
+	// ErrAccountSuspended: un administrador suspendió la cuenta (007, FR-016).
+	ErrAccountSuspended = errors.New("account suspended")
 )
 
 // Límites de envío de OTP por hora contra el bombeo de SMS (números rotados desde un mismo
@@ -54,6 +56,8 @@ type User struct {
 	Phone       string
 	Role        string
 	DisplayName string
+	// Suspended: sin login ni renovación de sesión (007).
+	Suspended bool
 }
 
 // RefreshToken is a stored refresh token.
@@ -209,6 +213,8 @@ func (s *Service) VerifyOTP(ctx context.Context, phone, code, displayName, role 
 		return Tokens{}, fmt.Errorf("get user: %w", err)
 	} else if role != "" && user.Role != role {
 		return Tokens{}, ErrPhoneHasOtherRole
+	} else if user.Suspended {
+		return Tokens{}, ErrAccountSuspended
 	}
 	return s.issue(ctx, user)
 }
@@ -241,6 +247,9 @@ func (s *Service) Refresh(ctx context.Context, raw string) (Tokens, error) {
 	user, err := s.repo.GetUserByID(ctx, stored.UserID)
 	if err != nil {
 		return Tokens{}, fmt.Errorf("get user: %w", err)
+	}
+	if user.Suspended {
+		return Tokens{}, ErrAccountSuspended
 	}
 	return s.issue(ctx, user)
 }

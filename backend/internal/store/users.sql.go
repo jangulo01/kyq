@@ -16,7 +16,7 @@ import (
 const createUser = `-- name: CreateUser :one
 INSERT INTO users (id, phone_e164, role, display_name)
 VALUES ($1, $2, $3, $4)
-RETURNING id, phone_e164, role, display_name, created_at
+RETURNING id, phone_e164, role, display_name, created_at, suspended_at, suspension_reason
 `
 
 type CreateUserParams struct {
@@ -40,6 +40,8 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		&i.Role,
 		&i.DisplayName,
 		&i.CreatedAt,
+		&i.SuspendedAt,
+		&i.SuspensionReason,
 	)
 	return i, err
 }
@@ -70,7 +72,7 @@ func (q *Queries) GetRefreshTokenByHash(ctx context.Context, tokenHash []byte) (
 }
 
 const getUserByID = `-- name: GetUserByID :one
-SELECT id, phone_e164, role, display_name, created_at
+SELECT id, phone_e164, role, display_name, created_at, suspended_at, suspension_reason
 FROM users
 WHERE id = $1
 `
@@ -84,12 +86,14 @@ func (q *Queries) GetUserByID(ctx context.Context, id uuid.UUID) (User, error) {
 		&i.Role,
 		&i.DisplayName,
 		&i.CreatedAt,
+		&i.SuspendedAt,
+		&i.SuspensionReason,
 	)
 	return i, err
 }
 
 const getUserByPhone = `-- name: GetUserByPhone :one
-SELECT id, phone_e164, role, display_name, created_at
+SELECT id, phone_e164, role, display_name, created_at, suspended_at, suspension_reason
 FROM users
 WHERE phone_e164 = $1
 `
@@ -103,6 +107,8 @@ func (q *Queries) GetUserByPhone(ctx context.Context, phoneE164 string) (User, e
 		&i.Role,
 		&i.DisplayName,
 		&i.CreatedAt,
+		&i.SuspendedAt,
+		&i.SuspensionReason,
 	)
 	return i, err
 }

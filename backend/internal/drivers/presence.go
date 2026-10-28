@@ -57,6 +57,7 @@ var (
 	errTripInProgress = errors.New("trip in progress")
 	errBlocked        = errors.New("blocked")
 	errOffline        = errors.New("driver offline")
+	errSuspended      = errors.New("account suspended")
 )
 
 func (p *Presence) setPresence(w http.ResponseWriter, r *http.Request) {
@@ -93,6 +94,14 @@ func (p *Presence) setPresence(w http.ResponseWriter, r *http.Request) {
 			result = store.DriverPresenceOffline
 			return q.SetDriverPresence(r.Context(), store.SetDriverPresenceParams{UserID: principal.UserID, Presence: result})
 		}
+		// 007 (FR-016): la sesión vigente de un suspendido no le deja volver a ONLINE.
+		suspended, err := q.IsUserSuspended(r.Context(), principal.UserID)
+		if err != nil {
+			return err
+		}
+		if suspended {
+			return errSuspended
+		}
 		docs, err := q.ListDocumentsForDrivers(r.Context(), []uuid.UUID{principal.UserID})
 		if err != nil {
 			return err
@@ -116,6 +125,9 @@ func (p *Presence) setPresence(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case errors.Is(err, errTripInProgress):
 		httpx.WriteError(w, http.StatusConflict, "trip_in_progress", "termina tu viaje antes de desconectarte")
+		return
+	case errors.Is(err, errSuspended):
+		httpx.WriteError(w, http.StatusConflict, "account_suspended", "tu cuenta está suspendida; comunícate con el soporte de Kyq")
 		return
 	case errors.Is(err, errBlocked):
 		httpx.WriteError(w, http.StatusConflict, string(reason), blockMessage(reason, problems))

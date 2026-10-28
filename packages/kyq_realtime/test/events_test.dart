@@ -12,6 +12,13 @@ void main() {
     expect(Channels.user('u1'), 'user:u1');
     expect(Channels.driverPresence('d1'), 'driver_presence:d1');
     expect(Channels.trip('t1'), 'trip:t1');
+    expect(Channels.adminTower, 'admin:tower');
+  });
+
+  test('tower.changed (007) no lleva datos', () {
+    final e = RealtimeEvent.fromEnvelope(envelope('tower.changed', {}));
+    expect(e, isA<TowerChanged>());
+    expect(e.occurredAt, DateTime.utc(2026, 10, 27, 12));
   });
 
   test('driver.presence', () {

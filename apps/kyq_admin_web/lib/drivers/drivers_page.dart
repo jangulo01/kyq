@@ -10,8 +10,14 @@ const _blockLabels = {'subscription_suspended': 'Suscripción suspendida', 'kyc_
 
 String _date(DateTime d) => '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
 
-/// Secciones del panel (T023, T037, T040), en la barra superior de la lista de conductores.
+/// Secciones del panel (T023, T037, T040 de 002; T032 de 007), en la barra superior de la lista
+/// de conductores.
 const adminSections = [
+  (path: '/tower', label: 'Torre', icon: Icons.hexagon_outlined),
+  (path: '/finance', label: 'Finanzas', icon: Icons.account_balance_outlined),
+  (path: '/crm', label: 'Fidelización', icon: Icons.favorite_border),
+  (path: '/users', label: 'Usuarios', icon: Icons.manage_accounts_outlined),
+  (path: '/health', label: 'Salud', icon: Icons.monitor_heart_outlined),
   (path: '/kyc', label: 'Validación', icon: Icons.fact_check_outlined),
   (path: '/billing', label: 'Suscripciones', icon: Icons.receipt_long_outlined),
   (path: '/costs', label: 'Costos', icon: Icons.query_stats),
@@ -23,20 +29,37 @@ class DriversPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // En ventanas anchas las secciones van en una franja bajo la barra (desplazable si no caben);
+    // en las estrechas, en un menú.
+    final wide = MediaQuery.sizeOf(context).width >= 1000;
     return Scaffold(
       appBar: AppBar(
         title: const Text('Conductores'),
-        actions: [
-          // En ventanas estrechas las secciones van en un menú para no desbordar la barra.
-          if (MediaQuery.sizeOf(context).width >= 1000)
-            for (final s in adminSections)
-              TextButton.icon(
-                key: Key('nav${s.path}'),
-                onPressed: () => context.go(s.path),
-                icon: Icon(s.icon),
-                label: Text(s.label),
+        bottom: wide
+            ? PreferredSize(
+                preferredSize: const Size.fromHeight(48),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    child: Row(
+                      children: [
+                        for (final s in adminSections)
+                          TextButton.icon(
+                            key: Key('nav${s.path}'),
+                            onPressed: () => context.go(s.path),
+                            icon: Icon(s.icon),
+                            label: Text(s.label),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
               )
-          else
+            : null,
+        actions: [
+          if (!wide)
             PopupMenuButton<String>(
               key: const Key('nav.menu'),
               tooltip: 'Secciones',
