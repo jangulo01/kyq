@@ -55,4 +55,6 @@ Los eventos de turno PTT (quién habla) viajan como mensajes de datos de LiveKit
 del viaje (y de la pre-consulta de 005): `{"type":"floor.taken","user_id":...}` y `{"type":"floor.released"}`.
 
 El canal de voz de grupo de la cooperativa (006, `COOP_GROUP`) usa los mismos mensajes de datos en
-la sala `coop-{cooperativeId}`, con un único turno para todo el grupo.
+la sala de la cooperativa (empieza como `coop-{cooperativeId}` y pasa a `coop-{cooperativeId}-{sufijo}`
+cada vez que un miembro sale o es retirado), con un único turno para todo el grupo. Al rotar la sala, los demás se
+desconectan y vuelven a entrar con un token nuevo (los de grupo duran 1 minuto).

@@ -2,6 +2,8 @@ package ptt
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"time"
 
@@ -10,8 +12,14 @@ import (
 	"github.com/kyq/backend/internal/store"
 )
 
-// GroupMaxParticipants caps a cooperative's group room (research R5).
-const GroupMaxParticipants = 50
+const (
+	// GroupMaxParticipants caps a cooperative's group room (research R5).
+	GroupMaxParticipants = 50
+	// GroupTokenTTL es la vida de un token de la sala de grupo. Es corto porque la membresía
+	// cambia: quien sale o es retirado no debe poder entrar con un token viejo. La app pide uno
+	// nuevo cada vez que (re)conecta.
+	GroupTokenTTL = time.Minute
+)
 
 // ErrNoCooperative means the driver is not an active member of an active cooperative (FR-022).
 var ErrNoCooperative = errors.New("no active cooperative")
@@ -60,7 +68,7 @@ func (s *Service) GroupToken(ctx context.Context, driverID uuid.UUID) (Credentia
 		s.logger().ErrorContext(ctx, "create livekit group room", "room", ch.RoomName, "err", err)
 		return Credentials{}, ErrUnavailable
 	}
-	token, err := s.LiveKit.ParticipantToken(driverID.String(), name, ch.RoomName, now, TokenTTL)
+	token, err := s.LiveKit.ParticipantToken(driverID.String(), name, ch.RoomName, now, GroupTokenTTL)
 	if err != nil {
 		return Credentials{}, err
 	}
@@ -122,8 +130,9 @@ func (s *Service) releaseGroupHolder(ctx context.Context, ch store.GroupPttChann
 }
 
 // LeaveGroup takes a driver who left or was removed out of the group channel (FR-024): frees his
-// turn after revoking publishing and disconnects him from the room. The membership is already
-// ended, so he cannot get a new token.
+// turn after revoking publishing, disconnects him and rotates the room. The membership is already
+// ended, so he cannot get a new token; rotating also voids the one he holds, which would otherwise
+// let him back into the room until it expires. The rest of the group reconnects with new tokens.
 func (s *Service) LeaveGroup(ctx context.Context, cooperativeID, driverID uuid.UUID) error {
 	if s.Groups == nil {
 		return nil
@@ -139,11 +148,14 @@ func (s *Service) LeaveGroup(ctx context.Context, cooperativeID, driverID uuid.U
 		// El turno caduca solo y el barrido retira el permiso; se le saca de la sala igual.
 		s.logger().WarnContext(ctx, "release group floor on leave", "room", ch.RoomName, "err", err)
 	}
-	return s.Groups.RemoveParticipant(ctx, ch.RoomName, driverID.String())
+	if err := s.Groups.RemoveParticipant(ctx, ch.RoomName, driverID.String()); err != nil {
+		s.logger().WarnContext(ctx, "remove group participant on leave", "room", ch.RoomName, "err", err)
+	}
+	return s.rotateGroupRoom(ctx, ch)
 }
 
-// CloseGroup deletes the room of a suspended cooperative, disconnecting everyone (FR-024). The
-// turn row is cleared only after LiveKit confirms.
+// CloseGroup deletes the room of a suspended cooperative, disconnecting everyone (FR-024), and
+// leaves a new room name for when it is reactivated.
 func (s *Service) CloseGroup(ctx context.Context, cooperativeID uuid.UUID) error {
 	if s.Groups == nil {
 		return nil
@@ -155,13 +167,37 @@ func (s *Service) CloseGroup(ctx context.Context, cooperativeID uuid.UUID) error
 	if err != nil {
 		return err
 	}
-	if err := s.Groups.DeleteRoom(ctx, ch.RoomName); err != nil {
+	return s.rotateGroupRoom(ctx, ch)
+}
+
+// rotateGroupRoom guarda un nombre de sala nuevo y después borra la sala vieja en LiveKit. En ese
+// orden: si el borrado fallara, los tokens nuevos ya apuntan a la sala nueva y nadie recrea la
+// vieja (la autocreación de LiveKit está apagada, infra/livekit.yaml).
+func (s *Service) rotateGroupRoom(ctx context.Context, ch store.GroupPttChannel) error {
+	next, err := groupRoomName(ch.CooperativeID)
+	if err != nil {
 		return err
 	}
-	if ch.FloorHolderID.Valid {
-		return s.Store.ReleaseGroupPTTFloor(ctx, store.ReleaseGroupPTTFloorParams{CooperativeID: cooperativeID, FloorHolderID: ch.FloorHolderID})
+	// Sin filas: otra rotación ganó; la sala vieja se borra igual.
+	if _, err := s.Store.RotateGroupPTTRoom(ctx, store.RotateGroupPTTRoomParams{
+		NewRoom: next, CooperativeID: ch.CooperativeID, OldRoom: ch.RoomName,
+	}); err != nil {
+		return err
+	}
+	if err := s.Groups.DeleteRoom(ctx, ch.RoomName); err != nil {
+		s.logger().ErrorContext(ctx, "delete rotated livekit group room", "room", ch.RoomName, "err", err)
+		return err
 	}
 	return nil
+}
+
+// groupRoomName es un nombre de sala de grupo que no se repite: `coop-{id}-{aleatorio}`.
+func groupRoomName(cooperativeID uuid.UUID) (string, error) {
+	var b [6]byte
+	if _, err := rand.Read(b[:]); err != nil {
+		return "", err
+	}
+	return "coop-" + cooperativeID.String() + "-" + hex.EncodeToString(b[:]), nil
 }
 
 // ExpireGroupFloors frees group turns past FloorTTL after revoking publishing.

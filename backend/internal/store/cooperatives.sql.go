@@ -739,6 +739,28 @@ func (q *Queries) ReleaseGroupPTTFloor(ctx context.Context, arg ReleaseGroupPTTF
 	return err
 }
 
+const rotateGroupPTTRoom = `-- name: RotateGroupPTTRoom :execrows
+UPDATE group_ptt_channels
+SET room_name = $1, floor_holder_id = NULL, floor_expires_at = NULL
+WHERE cooperative_id = $2 AND room_name = $3
+`
+
+type RotateGroupPTTRoomParams struct {
+	NewRoom       string
+	CooperativeID uuid.UUID
+	OldRoom       string
+}
+
+// Sala nueva del canal de grupo (FR-024): los tokens emitidos para la anterior dejan de servir
+// porque esa sala se borra y LiveKit no crea salas solo. El turno se libera con la sala vieja.
+func (q *Queries) RotateGroupPTTRoom(ctx context.Context, arg RotateGroupPTTRoomParams) (int64, error) {
+	result, err := q.db.Exec(ctx, rotateGroupPTTRoom, arg.NewRoom, arg.CooperativeID, arg.OldRoom)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const setMembershipRole = `-- name: SetMembershipRole :execrows
 UPDATE cooperative_memberships SET role = $2 WHERE id = $1 AND status = 'active'
 `

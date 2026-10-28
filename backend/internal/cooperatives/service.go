@@ -222,7 +222,8 @@ func viewOf(c store.Cooperative, members, pending int32) Cooperative {
 	}
 }
 
-// RoomName is the LiveKit room of a cooperative's group channel.
+// RoomName is the first LiveKit room of a cooperative's group channel; package ptt rotates it
+// whenever a member leaves or is removed (group_ptt_channels.room_name holds the current one).
 func RoomName(id uuid.UUID) string { return "coop-" + id.String() }
 
 // Create adds an active cooperative with its group voice channel (FR-001, FR-022).

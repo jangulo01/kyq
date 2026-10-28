@@ -136,6 +136,13 @@ ON CONFLICT (trip_id, driver_id) DO NOTHING;
 -- name: GetGroupPTTChannel :one
 SELECT * FROM group_ptt_channels WHERE cooperative_id = $1;
 
+-- name: RotateGroupPTTRoom :execrows
+-- Sala nueva del canal de grupo (FR-024): los tokens emitidos para la anterior dejan de servir
+-- porque esa sala se borra y LiveKit no crea salas solo. El turno se libera con la sala vieja.
+UPDATE group_ptt_channels
+SET room_name = sqlc.arg(new_room), floor_holder_id = NULL, floor_expires_at = NULL
+WHERE cooperative_id = sqlc.arg(cooperative_id) AND room_name = sqlc.arg(old_room);
+
 -- name: TakeGroupPTTFloor :one
 -- Turno único del grupo (FR-023): libre o ya del llamante. Uno caducado lo libera el barrido.
 UPDATE group_ptt_channels
