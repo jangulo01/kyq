@@ -626,3 +626,21 @@ UPDATE radio_reports
 SET status = 'resolved', decision = sqlc.arg(decision), note = sqlc.narg(note), resolved_by = sqlc.arg(resolved_by),
     resolved_at = sqlc.arg(resolved_at)
 WHERE message_id = sqlc.arg(message_id) AND status = 'open';
+
+-- Cuenta eliminada (habeas data, T047) -----------------------------------------------------------
+
+-- name: ListRadioMessagesByAuthor :many
+SELECT id FROM radio_messages WHERE author_id = $1 AND status <> 'deleted';
+
+-- name: ListRadioSavedCopiesOfAuthor :many
+-- Copias guardadas por otros de los mensajes de ese autor.
+SELECT r.message_id, r.user_id, r.saved_key
+FROM radio_receipts r JOIN radio_messages m ON m.id = r.message_id
+WHERE m.author_id = $1 AND r.saved_key IS NOT NULL;
+
+-- name: ListRadioSavedByUser :many
+-- Copias que guardó la persona.
+SELECT message_id, saved_key FROM radio_receipts WHERE user_id = $1 AND saved_key IS NOT NULL;
+
+-- name: AnonymizeRadioAuthor :execrows
+UPDATE radio_messages SET author_id = NULL WHERE author_id = $1;

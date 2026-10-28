@@ -11,6 +11,7 @@ import '../domains/domains_page.dart';
 import '../emergencies/session_user.dart';
 import '../radio/bulk_uploads_page.dart';
 import '../radio/radio_settings_page.dart';
+import '../radio/reports_page.dart';
 import '../support/support_admin_cubits.dart';
 import '../support/support_admin_pages.dart';
 import '../billing/billing_cubits.dart';
@@ -108,6 +109,7 @@ class KyqAdminApp extends StatefulWidget {
     this.towerEvents,
     this.ops,
     this.pickCsv = pickCsvFile,
+    this.reportPlayer,
   });
 
   final KyqApiClient api;
@@ -121,6 +123,9 @@ class KyqAdminApp extends StatefulWidget {
 
   /// CSV de las cargas masivas de Radio (011); las pruebas pasan uno en memoria.
   final CsvPicker pickCsv;
+
+  /// Audio de los mensajes reportados; null usa audioplayers.
+  final ReportPlayer? reportPlayer;
 
   @override
   State<KyqAdminApp> createState() => _KyqAdminAppState();
@@ -309,6 +314,20 @@ class _KyqAdminAppState extends State<KyqAdminApp> {
             builder: (context, state) =>
                 BlocProvider(create: (_) => RadioSettingsCubit(widget.api)..load(), child: const RadioSettingsPage()),
             routes: [
+              GoRoute(
+                path: 'reports',
+                builder: (context, state) =>
+                    BlocProvider(create: (_) => RadioReportsCubit(widget.api)..load(), child: const RadioReportsPage()),
+                routes: [
+                  GoRoute(
+                    path: ':id',
+                    builder: (context, state) => BlocProvider(
+                      create: (_) => RadioReportCubit(widget.api, state.pathParameters['id']!)..load(),
+                      child: RadioReportPage(player: widget.reportPlayer ?? AudioplayersReportPlayer()),
+                    ),
+                  ),
+                ],
+              ),
               GoRoute(
                 path: 'bulk',
                 builder: (context, state) => BlocProvider(

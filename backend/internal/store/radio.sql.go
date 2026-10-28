@@ -13,6 +13,18 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const anonymizeRadioAuthor = `-- name: AnonymizeRadioAuthor :execrows
+UPDATE radio_messages SET author_id = NULL WHERE author_id = $1
+`
+
+func (q *Queries) AnonymizeRadioAuthor(ctx context.Context, authorID uuid.NullUUID) (int64, error) {
+	result, err := q.db.Exec(ctx, anonymizeRadioAuthor, authorID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const attachRadioEgress = `-- name: AttachRadioEgress :one
 UPDATE radio_messages SET egress_id = $1
 WHERE id = (
@@ -2146,6 +2158,32 @@ func (q *Queries) ListRadioMessages(ctx context.Context, arg ListRadioMessagesPa
 	return items, nil
 }
 
+const listRadioMessagesByAuthor = `-- name: ListRadioMessagesByAuthor :many
+
+SELECT id FROM radio_messages WHERE author_id = $1 AND status <> 'deleted'
+`
+
+// Cuenta eliminada (habeas data, T047) -----------------------------------------------------------
+func (q *Queries) ListRadioMessagesByAuthor(ctx context.Context, authorID uuid.NullUUID) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, listRadioMessagesByAuthor, authorID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []uuid.UUID{}
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listRadioModerators = `-- name: ListRadioModerators :many
 SELECT user_id FROM radio_members WHERE conversation_id = $1 AND role IN ('owner', 'moderator') AND status IN ('active', 'muted')
 `
@@ -2266,6 +2304,69 @@ func (q *Queries) ListRadioRecipients(ctx context.Context, conversationID uuid.U
 			&i.MutedByPeer,
 			&i.PresenceStatus,
 		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listRadioSavedByUser = `-- name: ListRadioSavedByUser :many
+SELECT message_id, saved_key FROM radio_receipts WHERE user_id = $1 AND saved_key IS NOT NULL
+`
+
+type ListRadioSavedByUserRow struct {
+	MessageID uuid.UUID
+	SavedKey  pgtype.Text
+}
+
+// Copias que guardó la persona.
+func (q *Queries) ListRadioSavedByUser(ctx context.Context, userID uuid.UUID) ([]ListRadioSavedByUserRow, error) {
+	rows, err := q.db.Query(ctx, listRadioSavedByUser, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListRadioSavedByUserRow{}
+	for rows.Next() {
+		var i ListRadioSavedByUserRow
+		if err := rows.Scan(&i.MessageID, &i.SavedKey); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listRadioSavedCopiesOfAuthor = `-- name: ListRadioSavedCopiesOfAuthor :many
+SELECT r.message_id, r.user_id, r.saved_key
+FROM radio_receipts r JOIN radio_messages m ON m.id = r.message_id
+WHERE m.author_id = $1 AND r.saved_key IS NOT NULL
+`
+
+type ListRadioSavedCopiesOfAuthorRow struct {
+	MessageID uuid.UUID
+	UserID    uuid.UUID
+	SavedKey  pgtype.Text
+}
+
+// Copias guardadas por otros de los mensajes de ese autor.
+func (q *Queries) ListRadioSavedCopiesOfAuthor(ctx context.Context, authorID uuid.NullUUID) ([]ListRadioSavedCopiesOfAuthorRow, error) {
+	rows, err := q.db.Query(ctx, listRadioSavedCopiesOfAuthor, authorID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListRadioSavedCopiesOfAuthorRow{}
+	for rows.Next() {
+		var i ListRadioSavedCopiesOfAuthorRow
+		if err := rows.Scan(&i.MessageID, &i.UserID, &i.SavedKey); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

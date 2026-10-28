@@ -162,6 +162,12 @@ class _RadioSettingsPageState extends State<RadioSettingsPage> {
             title: const Text('Configuración de Radio'),
             actions: [
               TextButton.icon(
+                key: const Key('radio.reports.open'),
+                onPressed: () => context.push('/radio/reports'),
+                icon: const Icon(Icons.flag_outlined),
+                label: const Text('Reportes'),
+              ),
+              TextButton.icon(
                 key: const Key('radio.bulk.open'),
                 onPressed: () => context.push('/radio/bulk'),
                 icon: const Icon(Icons.upload_file),
