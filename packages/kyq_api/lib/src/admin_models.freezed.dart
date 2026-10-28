@@ -2618,7 +2618,8 @@ as int,
 /// @nodoc
 mixin _$CrmAffiliations {
 
- int get activeNow; int get activeAtStart; int get created; int get removed; int get net; double? get churnRate; List<CrmWeek> get weekly;
+ int get activeNow; int get activeAtStart; int get created; int get removed; int get net; double? get churnRate; List<CrmWeek> get weekly;/// 008: altas por origen (`qr_scan`, `post_trip`, `link`).
+ Map<String, int> get createdBySource;
 /// Create a copy of CrmAffiliations
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -2631,16 +2632,16 @@ $CrmAffiliationsCopyWith<CrmAffiliations> get copyWith => _$CrmAffiliationsCopyW
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is CrmAffiliations&&(identical(other.activeNow, activeNow) || other.activeNow == activeNow)&&(identical(other.activeAtStart, activeAtStart) || other.activeAtStart == activeAtStart)&&(identical(other.created, created) || other.created == created)&&(identical(other.removed, removed) || other.removed == removed)&&(identical(other.net, net) || other.net == net)&&(identical(other.churnRate, churnRate) || other.churnRate == churnRate)&&const DeepCollectionEquality().equals(other.weekly, weekly));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is CrmAffiliations&&(identical(other.activeNow, activeNow) || other.activeNow == activeNow)&&(identical(other.activeAtStart, activeAtStart) || other.activeAtStart == activeAtStart)&&(identical(other.created, created) || other.created == created)&&(identical(other.removed, removed) || other.removed == removed)&&(identical(other.net, net) || other.net == net)&&(identical(other.churnRate, churnRate) || other.churnRate == churnRate)&&const DeepCollectionEquality().equals(other.weekly, weekly)&&const DeepCollectionEquality().equals(other.createdBySource, createdBySource));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,activeNow,activeAtStart,created,removed,net,churnRate,const DeepCollectionEquality().hash(weekly));
+int get hashCode => Object.hash(runtimeType,activeNow,activeAtStart,created,removed,net,churnRate,const DeepCollectionEquality().hash(weekly),const DeepCollectionEquality().hash(createdBySource));
 
 @override
 String toString() {
-  return 'CrmAffiliations(activeNow: $activeNow, activeAtStart: $activeAtStart, created: $created, removed: $removed, net: $net, churnRate: $churnRate, weekly: $weekly)';
+  return 'CrmAffiliations(activeNow: $activeNow, activeAtStart: $activeAtStart, created: $created, removed: $removed, net: $net, churnRate: $churnRate, weekly: $weekly, createdBySource: $createdBySource)';
 }
 
 
@@ -2651,7 +2652,7 @@ abstract mixin class $CrmAffiliationsCopyWith<$Res>  {
   factory $CrmAffiliationsCopyWith(CrmAffiliations value, $Res Function(CrmAffiliations) _then) = _$CrmAffiliationsCopyWithImpl;
 @useResult
 $Res call({
- int activeNow, int activeAtStart, int created, int removed, int net, double? churnRate, List<CrmWeek> weekly
+ int activeNow, int activeAtStart, int created, int removed, int net, double? churnRate, List<CrmWeek> weekly, Map<String, int> createdBySource
 });
 
 
@@ -2668,7 +2669,7 @@ class _$CrmAffiliationsCopyWithImpl<$Res>
 
 /// Create a copy of CrmAffiliations
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? activeNow = null,Object? activeAtStart = null,Object? created = null,Object? removed = null,Object? net = null,Object? churnRate = freezed,Object? weekly = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? activeNow = null,Object? activeAtStart = null,Object? created = null,Object? removed = null,Object? net = null,Object? churnRate = freezed,Object? weekly = null,Object? createdBySource = null,}) {
   return _then(_self.copyWith(
 activeNow: null == activeNow ? _self.activeNow : activeNow // ignore: cast_nullable_to_non_nullable
 as int,activeAtStart: null == activeAtStart ? _self.activeAtStart : activeAtStart // ignore: cast_nullable_to_non_nullable
@@ -2677,7 +2678,8 @@ as int,removed: null == removed ? _self.removed : removed // ignore: cast_nullab
 as int,net: null == net ? _self.net : net // ignore: cast_nullable_to_non_nullable
 as int,churnRate: freezed == churnRate ? _self.churnRate : churnRate // ignore: cast_nullable_to_non_nullable
 as double?,weekly: null == weekly ? _self.weekly : weekly // ignore: cast_nullable_to_non_nullable
-as List<CrmWeek>,
+as List<CrmWeek>,createdBySource: null == createdBySource ? _self.createdBySource : createdBySource // ignore: cast_nullable_to_non_nullable
+as Map<String, int>,
   ));
 }
 
@@ -2762,10 +2764,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( int activeNow,  int activeAtStart,  int created,  int removed,  int net,  double? churnRate,  List<CrmWeek> weekly)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( int activeNow,  int activeAtStart,  int created,  int removed,  int net,  double? churnRate,  List<CrmWeek> weekly,  Map<String, int> createdBySource)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _CrmAffiliations() when $default != null:
-return $default(_that.activeNow,_that.activeAtStart,_that.created,_that.removed,_that.net,_that.churnRate,_that.weekly);case _:
+return $default(_that.activeNow,_that.activeAtStart,_that.created,_that.removed,_that.net,_that.churnRate,_that.weekly,_that.createdBySource);case _:
   return orElse();
 
 }
@@ -2783,10 +2785,10 @@ return $default(_that.activeNow,_that.activeAtStart,_that.created,_that.removed,
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( int activeNow,  int activeAtStart,  int created,  int removed,  int net,  double? churnRate,  List<CrmWeek> weekly)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( int activeNow,  int activeAtStart,  int created,  int removed,  int net,  double? churnRate,  List<CrmWeek> weekly,  Map<String, int> createdBySource)  $default,) {final _that = this;
 switch (_that) {
 case _CrmAffiliations():
-return $default(_that.activeNow,_that.activeAtStart,_that.created,_that.removed,_that.net,_that.churnRate,_that.weekly);case _:
+return $default(_that.activeNow,_that.activeAtStart,_that.created,_that.removed,_that.net,_that.churnRate,_that.weekly,_that.createdBySource);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -2803,10 +2805,10 @@ return $default(_that.activeNow,_that.activeAtStart,_that.created,_that.removed,
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( int activeNow,  int activeAtStart,  int created,  int removed,  int net,  double? churnRate,  List<CrmWeek> weekly)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( int activeNow,  int activeAtStart,  int created,  int removed,  int net,  double? churnRate,  List<CrmWeek> weekly,  Map<String, int> createdBySource)?  $default,) {final _that = this;
 switch (_that) {
 case _CrmAffiliations() when $default != null:
-return $default(_that.activeNow,_that.activeAtStart,_that.created,_that.removed,_that.net,_that.churnRate,_that.weekly);case _:
+return $default(_that.activeNow,_that.activeAtStart,_that.created,_that.removed,_that.net,_that.churnRate,_that.weekly,_that.createdBySource);case _:
   return null;
 
 }
@@ -2818,7 +2820,7 @@ return $default(_that.activeNow,_that.activeAtStart,_that.created,_that.removed,
 @JsonSerializable()
 
 class _CrmAffiliations implements CrmAffiliations {
-  const _CrmAffiliations({this.activeNow = 0, this.activeAtStart = 0, this.created = 0, this.removed = 0, this.net = 0, this.churnRate, final  List<CrmWeek> weekly = const <CrmWeek>[]}): _weekly = weekly;
+  const _CrmAffiliations({this.activeNow = 0, this.activeAtStart = 0, this.created = 0, this.removed = 0, this.net = 0, this.churnRate, final  List<CrmWeek> weekly = const <CrmWeek>[], final  Map<String, int> createdBySource = const <String, int>{}}): _weekly = weekly,_createdBySource = createdBySource;
   factory _CrmAffiliations.fromJson(Map<String, dynamic> json) => _$CrmAffiliationsFromJson(json);
 
 @override@JsonKey() final  int activeNow;
@@ -2832,6 +2834,15 @@ class _CrmAffiliations implements CrmAffiliations {
   if (_weekly is EqualUnmodifiableListView) return _weekly;
   // ignore: implicit_dynamic_type
   return EqualUnmodifiableListView(_weekly);
+}
+
+/// 008: altas por origen (`qr_scan`, `post_trip`, `link`).
+ final  Map<String, int> _createdBySource;
+/// 008: altas por origen (`qr_scan`, `post_trip`, `link`).
+@override@JsonKey() Map<String, int> get createdBySource {
+  if (_createdBySource is EqualUnmodifiableMapView) return _createdBySource;
+  // ignore: implicit_dynamic_type
+  return EqualUnmodifiableMapView(_createdBySource);
 }
 
 
@@ -2848,16 +2859,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _CrmAffiliations&&(identical(other.activeNow, activeNow) || other.activeNow == activeNow)&&(identical(other.activeAtStart, activeAtStart) || other.activeAtStart == activeAtStart)&&(identical(other.created, created) || other.created == created)&&(identical(other.removed, removed) || other.removed == removed)&&(identical(other.net, net) || other.net == net)&&(identical(other.churnRate, churnRate) || other.churnRate == churnRate)&&const DeepCollectionEquality().equals(other._weekly, _weekly));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _CrmAffiliations&&(identical(other.activeNow, activeNow) || other.activeNow == activeNow)&&(identical(other.activeAtStart, activeAtStart) || other.activeAtStart == activeAtStart)&&(identical(other.created, created) || other.created == created)&&(identical(other.removed, removed) || other.removed == removed)&&(identical(other.net, net) || other.net == net)&&(identical(other.churnRate, churnRate) || other.churnRate == churnRate)&&const DeepCollectionEquality().equals(other._weekly, _weekly)&&const DeepCollectionEquality().equals(other._createdBySource, _createdBySource));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,activeNow,activeAtStart,created,removed,net,churnRate,const DeepCollectionEquality().hash(_weekly));
+int get hashCode => Object.hash(runtimeType,activeNow,activeAtStart,created,removed,net,churnRate,const DeepCollectionEquality().hash(_weekly),const DeepCollectionEquality().hash(_createdBySource));
 
 @override
 String toString() {
-  return 'CrmAffiliations(activeNow: $activeNow, activeAtStart: $activeAtStart, created: $created, removed: $removed, net: $net, churnRate: $churnRate, weekly: $weekly)';
+  return 'CrmAffiliations(activeNow: $activeNow, activeAtStart: $activeAtStart, created: $created, removed: $removed, net: $net, churnRate: $churnRate, weekly: $weekly, createdBySource: $createdBySource)';
 }
 
 
@@ -2868,7 +2879,7 @@ abstract mixin class _$CrmAffiliationsCopyWith<$Res> implements $CrmAffiliations
   factory _$CrmAffiliationsCopyWith(_CrmAffiliations value, $Res Function(_CrmAffiliations) _then) = __$CrmAffiliationsCopyWithImpl;
 @override @useResult
 $Res call({
- int activeNow, int activeAtStart, int created, int removed, int net, double? churnRate, List<CrmWeek> weekly
+ int activeNow, int activeAtStart, int created, int removed, int net, double? churnRate, List<CrmWeek> weekly, Map<String, int> createdBySource
 });
 
 
@@ -2885,7 +2896,7 @@ class __$CrmAffiliationsCopyWithImpl<$Res>
 
 /// Create a copy of CrmAffiliations
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? activeNow = null,Object? activeAtStart = null,Object? created = null,Object? removed = null,Object? net = null,Object? churnRate = freezed,Object? weekly = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? activeNow = null,Object? activeAtStart = null,Object? created = null,Object? removed = null,Object? net = null,Object? churnRate = freezed,Object? weekly = null,Object? createdBySource = null,}) {
   return _then(_CrmAffiliations(
 activeNow: null == activeNow ? _self.activeNow : activeNow // ignore: cast_nullable_to_non_nullable
 as int,activeAtStart: null == activeAtStart ? _self.activeAtStart : activeAtStart // ignore: cast_nullable_to_non_nullable
@@ -2894,7 +2905,8 @@ as int,removed: null == removed ? _self.removed : removed // ignore: cast_nullab
 as int,net: null == net ? _self.net : net // ignore: cast_nullable_to_non_nullable
 as int,churnRate: freezed == churnRate ? _self.churnRate : churnRate // ignore: cast_nullable_to_non_nullable
 as double?,weekly: null == weekly ? _self._weekly : weekly // ignore: cast_nullable_to_non_nullable
-as List<CrmWeek>,
+as List<CrmWeek>,createdBySource: null == createdBySource ? _self._createdBySource : createdBySource // ignore: cast_nullable_to_non_nullable
+as Map<String, int>,
   ));
 }
 

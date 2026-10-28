@@ -151,6 +151,26 @@ class KyqApiClient implements SafetyApi {
     return res.data!.map((e) => DriverClient.fromJson(e as Map<String, dynamic>)).toList();
   }
 
+  /// 008: bolsa zonal, tarifa preferencial y enlace para compartir.
+  Future<DispatchSettings> dispatchSettings() async {
+    final res = await _send(() => _dio.get<Map<String, dynamic>>('/v1/driver/dispatch-settings'));
+    return DispatchSettings.fromJson(res.data!);
+  }
+
+  /// 008: el descuento va de 0 a 30 %; fuera de rango responde 400 `invalid_settings`.
+  Future<DispatchSettings> setDispatchSettings({
+    required bool acceptsZonePool,
+    required int preferentialDiscountPct,
+  }) async {
+    final res = await _send(
+      () => _dio.put<Map<String, dynamic>>(
+        '/v1/driver/dispatch-settings',
+        data: {'accepts_zone_pool': acceptsZonePool, 'preferential_discount_pct': preferentialDiscountPct},
+      ),
+    );
+    return DispatchSettings.fromJson(res.data!);
+  }
+
   // Conductor: alta y documentos (002)
 
   Future<Onboarding> driverOnboarding() async {
@@ -266,8 +286,18 @@ class KyqApiClient implements SafetyApi {
   // Pasajero: Conductores Elegidos
 
   /// Afilia al conductor del QR. [created] es false si ya estaba en la lista.
-  Future<({ChosenDriver driver, bool created})> affiliate(String qrToken) async {
-    final res = await _send(() => _dio.post<Map<String, dynamic>>('/v1/affiliations', data: {'qr_token': qrToken}));
+  /// Guarda al conductor del [qrToken] como Conductor Elegido. 008: con [source] =
+  /// [AffiliationSource.link] cuando llega desde su enlace compartido.
+  Future<({ChosenDriver driver, bool created})> affiliate(
+    String qrToken, {
+    AffiliationSource source = AffiliationSource.qrScan,
+  }) => _affiliate({'qr_token': qrToken, if (source == AffiliationSource.link) 'source': 'link'});
+
+  /// 008: guarda al conductor de un viaje completado (`trip_id`); 404 `trip_not_found`.
+  Future<({ChosenDriver driver, bool created})> affiliateAfterTrip(String tripId) => _affiliate({'trip_id': tripId});
+
+  Future<({ChosenDriver driver, bool created})> _affiliate(Map<String, dynamic> body) async {
+    final res = await _send(() => _dio.post<Map<String, dynamic>>('/v1/affiliations', data: body));
     return (driver: ChosenDriver.fromJson(res.data!), created: res.statusCode == 201);
   }
 
@@ -302,11 +332,13 @@ class KyqApiClient implements SafetyApi {
 
   // Viajes
 
-  Future<FareQuote> quote(GeoPoint pickup, GeoPoint dropoff) async {
+  /// Cotiza el recorrido. 008: con [driverId] aplica su tarifa preferencial si el pasajero es su
+  /// cliente (RN-KYQ-013).
+  Future<FareQuote> quote(GeoPoint pickup, GeoPoint dropoff, {String? driverId}) async {
     final res = await _send(
       () => _dio.post<Map<String, dynamic>>(
         '/v1/fares/quote',
-        data: {'pickup': pickup.toJson(), 'dropoff': dropoff.toJson()},
+        data: {'pickup': pickup.toJson(), 'dropoff': dropoff.toJson(), 'driver_id': ?driverId},
       ),
     );
     return FareQuote.fromJson(res.data!);
@@ -314,9 +346,10 @@ class KyqApiClient implements SafetyApi {
 
   /// Pide un viaje al Conductor Elegido [driverId] o, con [dispatch] = cooperativa, a su cooperativa.
   /// Con [allowDelegation] el pasajero consiente que pase a un compañero si su conductor no puede
-  /// (006, RN-KYQ-008). 409 `driver_not_free`, `no_cooperative` o `no_driver_available`.
+  /// (006, RN-KYQ-008). 008: con [TripDispatch.zonePool] no hace falta [driverId] (bolsa zonal).
+  /// 409 `driver_not_free`, `no_cooperative` o `no_driver_available`.
   Future<Trip> requestTrip({
-    required String driverId,
+    String? driverId,
     required GeoPoint pickup,
     required GeoPoint dropoff,
     TripDispatch dispatch = TripDispatch.chosenDriver,
@@ -325,7 +358,7 @@ class KyqApiClient implements SafetyApi {
     () => _dio.post(
       '/v1/trips',
       data: {
-        'driver_id': driverId,
+        'driver_id': ?driverId,
         'pickup': pickup.toJson(),
         'dropoff': dropoff.toJson(),
         if (dispatch != TripDispatch.chosenDriver) 'dispatch': tripDispatchToApi(dispatch),

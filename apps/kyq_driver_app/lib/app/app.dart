@@ -8,6 +8,8 @@ import 'package:kyq_ptt/kyq_ptt.dart';
 import 'package:kyq_realtime/kyq_realtime.dart';
 import 'package:kyq_ui/kyq_ui.dart';
 
+import '../dispatch/dispatch_settings_cubit.dart';
+import '../dispatch/dispatch_settings_page.dart';
 import '../background/location_reporter.dart';
 import '../handsfree/hands_free_settings_cubit.dart';
 import '../cooperative/cooperative_channel_page.dart';
@@ -160,6 +162,13 @@ class _KyqDriverAppState extends State<KyqDriverApp> {
         routes: [
           GoRoute(path: 'qr', builder: (context, state) => const MyQrPage()),
           GoRoute(path: 'clients', builder: (context, state) => const ClientsPage()),
+          GoRoute(
+            path: 'dispatch',
+            builder: (context, state) => BlocProvider(
+              create: (_) => DispatchSettingsCubit(widget.api)..load(),
+              child: const DispatchSettingsPage(),
+            ),
+          ),
           GoRoute(path: 'notices', builder: (context, state) => const NoticesPage()),
           GoRoute(
             path: 'preconsults',

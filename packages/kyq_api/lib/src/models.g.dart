@@ -181,16 +181,36 @@ Map<String, dynamic> _$FareTableInputToJson(_FareTableInput instance) => <String
   'rounding_minor': instance.roundingMinor,
 };
 
+_DispatchSettings _$DispatchSettingsFromJson(Map<String, dynamic> json) => _DispatchSettings(
+  acceptsZonePool: json['accepts_zone_pool'] as bool? ?? false,
+  preferentialDiscountPct: (json['preferential_discount_pct'] as num?)?.toInt() ?? 0,
+  affiliateLink: json['affiliate_link'] as String? ?? '',
+);
+
+Map<String, dynamic> _$DispatchSettingsToJson(_DispatchSettings instance) => <String, dynamic>{
+  'accepts_zone_pool': instance.acceptsZonePool,
+  'preferential_discount_pct': instance.preferentialDiscountPct,
+  'affiliate_link': instance.affiliateLink,
+};
+
 _DriverClient _$DriverClientFromJson(Map<String, dynamic> json) => _DriverClient(
   passengerId: json['passenger_id'] as String,
   displayName: json['display_name'] as String,
   affiliatedAt: DateTime.parse(json['affiliated_at'] as String),
+  source: $enumDecodeNullable(_$AffiliationSourceEnumMap, json['source']) ?? AffiliationSource.qrScan,
 );
 
 Map<String, dynamic> _$DriverClientToJson(_DriverClient instance) => <String, dynamic>{
   'passenger_id': instance.passengerId,
   'display_name': instance.displayName,
   'affiliated_at': instance.affiliatedAt.toIso8601String(),
+  'source': _$AffiliationSourceEnumMap[instance.source]!,
+};
+
+const _$AffiliationSourceEnumMap = {
+  AffiliationSource.qrScan: 'qr_scan',
+  AffiliationSource.postTrip: 'post_trip',
+  AffiliationSource.link: 'link',
 };
 
 _FareQuote _$FareQuoteFromJson(Map<String, dynamic> json) => _FareQuote(
@@ -198,6 +218,8 @@ _FareQuote _$FareQuoteFromJson(Map<String, dynamic> json) => _FareQuote(
   durationS: (json['duration_s'] as num).toInt(),
   suggestedFareMinor: (json['suggested_fare_minor'] as num).toInt(),
   currency: json['currency'] as String,
+  listFareMinor: (json['list_fare_minor'] as num?)?.toInt(),
+  preferentialDiscountPct: (json['preferential_discount_pct'] as num?)?.toInt() ?? 0,
 );
 
 Map<String, dynamic> _$FareQuoteToJson(_FareQuote instance) => <String, dynamic>{
@@ -205,6 +227,8 @@ Map<String, dynamic> _$FareQuoteToJson(_FareQuote instance) => <String, dynamic>
   'duration_s': instance.durationS,
   'suggested_fare_minor': instance.suggestedFareMinor,
   'currency': instance.currency,
+  'list_fare_minor': instance.listFareMinor,
+  'preferential_discount_pct': instance.preferentialDiscountPct,
 };
 
 _FareProposal _$FareProposalFromJson(Map<String, dynamic> json) => _FareProposal(
@@ -263,6 +287,8 @@ _Trip _$TripFromJson(Map<String, dynamic> json) => _Trip(
   allowDelegation: json['allow_delegation'] as bool? ?? false,
   handoverCount: (json['handover_count'] as num?)?.toInt() ?? 0,
   canDelegate: json['can_delegate'] as bool? ?? false,
+  listFareMinor: (json['list_fare_minor'] as num?)?.toInt(),
+  preferentialDiscountPct: (json['preferential_discount_pct'] as num?)?.toInt() ?? 0,
 );
 
 Map<String, dynamic> _$TripToJson(_Trip instance) => <String, dynamic>{
@@ -291,6 +317,8 @@ Map<String, dynamic> _$TripToJson(_Trip instance) => <String, dynamic>{
   'allow_delegation': instance.allowDelegation,
   'handover_count': instance.handoverCount,
   'can_delegate': instance.canDelegate,
+  'list_fare_minor': instance.listFareMinor,
+  'preferential_discount_pct': instance.preferentialDiscountPct,
 };
 
 const _$TripStatusEnumMap = {
@@ -305,7 +333,11 @@ const _$TripStatusEnumMap = {
   TripStatus.cancelled: 'CANCELLED',
 };
 
-const _$TripDispatchEnumMap = {TripDispatch.chosenDriver: 'chosen_driver', TripDispatch.cooperative: 'cooperative'};
+const _$TripDispatchEnumMap = {
+  TripDispatch.chosenDriver: 'chosen_driver',
+  TripDispatch.cooperative: 'cooperative',
+  TripDispatch.zonePool: 'zone_pool',
+};
 
 _PttCredentials _$PttCredentialsFromJson(Map<String, dynamic> json) => _PttCredentials(
   url: json['url'] as String,

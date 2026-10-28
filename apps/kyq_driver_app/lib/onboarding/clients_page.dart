@@ -35,7 +35,7 @@ class _ClientsPageState extends State<ClientsPage> {
                     padding: const EdgeInsets.all(32),
                     children: const [
                       Text(
-                        'Aún nadie te ha guardado. Muestra tu código QR a tus pasajeros.',
+                        'Aún nadie te ha guardado. Muestra tu código QR o comparte tu enlace con tus pasajeros.',
                         textAlign: TextAlign.center,
                       ),
                     ],
@@ -49,7 +49,7 @@ class _ClientsPageState extends State<ClientsPage> {
                       return ListTile(
                         leading: CircleAvatar(child: Text(c.displayName.characters.first.toUpperCase())),
                         title: Text(c.displayName),
-                        subtitle: Text('Te guardó el ${d.day}/${d.month}/${d.year}'),
+                        subtitle: Text('Te guardó el ${d.day}/${d.month}/${d.year} · ${sourceLabel(c.source)}'),
                       );
                     },
                   ),
@@ -59,3 +59,10 @@ class _ClientsPageState extends State<ClientsPage> {
     );
   }
 }
+
+/// 008: cómo llegó el cliente a la cartera.
+String sourceLabel(AffiliationSource s) => switch (s) {
+  AffiliationSource.qrScan => 'con tu QR',
+  AffiliationSource.postTrip => 'después de un viaje',
+  AffiliationSource.link => 'con tu enlace',
+};

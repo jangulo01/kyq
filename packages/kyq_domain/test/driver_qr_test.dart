@@ -19,4 +19,13 @@ void main() {
   test('tolera espacios alrededor', () {
     expect(parseDriverQr(' ${driverQrPayload(token)}\n'), token);
   });
+
+  test('008: enlace del conductor por esquema kyq o por su página pública', () {
+    expect(parseAffiliateLink('kyq://affiliate/$token'), token);
+    expect(parseAffiliateLink('https://kyq.co/a/$token'), token);
+    expect(parseAffiliateLink(' https://kyq.co/a/$token/\n'), token);
+    expect(parseAffiliateLink('https://kyq.co/b/$token'), isNull);
+    expect(parseAffiliateLink('kyq://affiliate/corto'), isNull);
+    expect(parseAffiliateLink(driverQrPayload(token)), isNull);
+  });
 }

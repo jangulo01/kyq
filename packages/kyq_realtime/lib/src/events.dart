@@ -51,6 +51,11 @@ sealed class RealtimeEvent {
         canDelegate: data['can_delegate'] as bool? ?? false,
         cooperativeName: data['cooperative_name'] as String?,
         requestedDriverName: data['requested_driver_name'] as String?,
+        origin: offerOriginFromApi(data['origin'] as String?),
+        loyalClient: data['loyal_client'] as bool? ?? false,
+        tripsTogether: data['trips_together'] as int? ?? 0,
+        pickupDistanceM: data['pickup_distance_m'] as int?,
+        preferentialDiscountPct: data['preferential_discount_pct'] as int? ?? 0,
       ),
       'trip.delegated' => TripDelegated(
         at,
@@ -211,6 +216,11 @@ final class TripOffered extends RealtimeEvent {
     this.canDelegate = false,
     this.cooperativeName,
     this.requestedDriverName,
+    this.origin = OfferOrigin.chosenDriver,
+    this.loyalClient = false,
+    this.tripsTogether = 0,
+    this.pickupDistanceM,
+    this.preferentialDiscountPct = 0,
   });
 
   final String tripId;
@@ -230,7 +240,32 @@ final class TripOffered extends RealtimeEvent {
   final bool canDelegate;
   final String? cooperativeName;
   final String? requestedDriverName;
+
+  /// 008: por qué le llega la oferta (etiqueta de la tarjeta).
+  final OfferOrigin origin;
+
+  /// 008: el pasajero lo tiene como Conductor Elegido ("⭐ Cliente de tu cartera").
+  final bool loyalClient;
+
+  /// 008: viajes completados juntos.
+  final int tripsTogether;
+
+  /// 008: distancia en metros hasta la recogida, si se conoce su ubicación.
+  final int? pickupDistanceM;
+
+  /// 008: descuento preferencial ya aplicado a [suggestedFareMinor] (RN-KYQ-013).
+  final int preferentialDiscountPct;
 }
+
+/// 008: origen de una oferta de viaje.
+enum OfferOrigin { chosenDriver, cooperative, zonePool }
+
+/// Interpreta el campo `origin` de `trip.offer`; si falta, la oferta viene de su cartera.
+OfferOrigin offerOriginFromApi(String? v) => switch (v) {
+  'cooperative' => OfferOrigin.cooperative,
+  'zone_pool' => OfferOrigin.zonePool,
+  _ => OfferOrigin.chosenDriver,
+};
 
 /// 006: la solicitud del pasajero pasó a un compañero de la cooperativa (RN-KYQ-008).
 final class TripDelegated extends RealtimeEvent {

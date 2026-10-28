@@ -63,6 +63,16 @@ class ChosenDriversPage extends StatelessWidget {
               ),
             ),
           ),
+          // 008: la bolsa zonal también sirve a quien aún no tiene Conductores Elegidos (FR-001).
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+            child: OutlinedButton.icon(
+              key: const Key('home.nearby'),
+              onPressed: () => context.push(nearbyRequestLocation),
+              icon: const Icon(Icons.near_me),
+              label: const Text('Pedir un viaje a un conductor cercano'),
+            ),
+          ),
           Expanded(child: _driverList()),
         ],
       ),
@@ -90,7 +100,8 @@ class ChosenDriversPage extends StatelessWidget {
                     Icon(Icons.local_taxi, size: 56),
                     SizedBox(height: 16),
                     Text(
-                      'Aún no tienes conductores guardados. Escanea el código QR de tu conductor de confianza.',
+                      'Aún no tienes conductores guardados. Escanea el código QR de tu conductor de confianza '
+                      'o pide un viaje a un conductor cercano.',
                       textAlign: TextAlign.center,
                     ),
                   ],

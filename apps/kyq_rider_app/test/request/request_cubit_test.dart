@@ -34,7 +34,7 @@ void main() {
   setUp(() {
     api = MockApi();
     realtime = FakeRealtime();
-    when(() => api.quote(any(), any())).thenAnswer((_) async => _quote);
+    when(() => api.quote(any(), any(), driverId: any(named: 'driverId'))).thenAnswer((_) async => _quote);
   });
 
   RequestCubit build({LocationSource? location}) => RequestCubit(
@@ -61,7 +61,7 @@ void main() {
       expect(c.state.dropoff, _there);
       expect(c.state.quote, _quote);
       expect(c.state.tripId, 't1');
-      verify(() => api.quote(_here, _there)).called(1);
+      verify(() => api.quote(_here, _there, driverId: 'd1')).called(1);
     },
   );
 
@@ -134,7 +134,9 @@ void main() {
 
   blocTest<RequestCubit, RequestState>(
     'no_route muestra un mensaje en español y no hay tarifa',
-    setUp: () => when(() => api.quote(any(), any())).thenThrow(const ApiException(422, 'no_route', 'x')),
+    setUp: () => when(
+      () => api.quote(any(), any(), driverId: any(named: 'driverId')),
+    ).thenThrow(const ApiException(422, 'no_route', 'x')),
     build: build,
     act: (c) async {
       await c.start();

@@ -161,6 +161,9 @@ abstract class CrmAffiliations with _$CrmAffiliations {
     @Default(0) int net,
     double? churnRate,
     @Default(<CrmWeek>[]) List<CrmWeek> weekly,
+
+    /// 008: altas por origen (`qr_scan`, `post_trip`, `link`).
+    @Default(<String, int>{}) Map<String, int> createdBySource,
   }) = _CrmAffiliations;
 
   factory CrmAffiliations.fromJson(Map<String, dynamic> json) => _$CrmAffiliationsFromJson(json);

@@ -215,6 +215,9 @@ _CrmAffiliations _$CrmAffiliationsFromJson(Map<String, dynamic> json) => _CrmAff
   weekly:
       (json['weekly'] as List<dynamic>?)?.map((e) => CrmWeek.fromJson(e as Map<String, dynamic>)).toList() ??
       const <CrmWeek>[],
+  createdBySource:
+      (json['created_by_source'] as Map<String, dynamic>?)?.map((k, e) => MapEntry(k, (e as num).toInt())) ??
+      const <String, int>{},
 );
 
 Map<String, dynamic> _$CrmAffiliationsToJson(_CrmAffiliations instance) => <String, dynamic>{
@@ -225,6 +228,7 @@ Map<String, dynamic> _$CrmAffiliationsToJson(_CrmAffiliations instance) => <Stri
   'net': instance.net,
   'churn_rate': instance.churnRate,
   'weekly': instance.weekly.map((e) => e.toJson()).toList(),
+  'created_by_source': instance.createdBySource,
 };
 
 _CrmRepeat _$CrmRepeatFromJson(Map<String, dynamic> json) => _CrmRepeat(

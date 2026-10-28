@@ -18,7 +18,9 @@ class RequestPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final cubit = context.read<RequestCubit>();
     return Scaffold(
-      appBar: AppBar(title: Text('Viaje con ${cubit.driverName}')),
+      appBar: AppBar(
+        title: Text(cubit.nearbyOnly ? 'Viaje con un conductor cercano' : 'Viaje con ${cubit.driverName}'),
+      ),
       body: BlocConsumer<RequestCubit, RequestState>(
         listenWhen: (a, b) => (b.error != null && a.error != b.error) || (b.tripId != null && a.tripId == null),
         listener: (context, state) {
@@ -124,8 +126,17 @@ class _RequestPanel extends StatelessWidget {
           const Text('Buscando tu ubicación…'),
           const SizedBox(height: 12),
         ],
-        if (cubit.cooperative != null) ...[_DispatchSelector(state: state), const SizedBox(height: 12)],
-        if (!state.driverFree) ...[
+        if (cubit.nearbyOnly) ...[
+          const Text(
+            'Te atenderá el conductor libre más cercano que recibe solicitudes de la zona.',
+            key: Key('request.nearbyInfo'),
+          ),
+          const SizedBox(height: 12),
+        ] else ...[
+          _DispatchSelector(state: state),
+          const SizedBox(height: 12),
+        ],
+        if (!state.driverFree && state.dispatch != TripDispatch.zonePool) ...[
           Text(
             state.coversBusyDriver
                 ? '${cubit.driverName} no está libre ahora: la solicitud irá a un compañero de su cooperativa.'
@@ -141,7 +152,20 @@ class _RequestPanel extends StatelessWidget {
             child: Center(child: CircularProgressIndicator()),
           )
         else if (quote != null) ...[
-          Text('Tarifa sugerida', style: theme.textTheme.labelLarge),
+          if (quote.preferentialDiscountPct > 0) ...[
+            Text(
+              'Tarifa preferencial −${quote.preferentialDiscountPct} %',
+              key: const Key('request.preferential'),
+              style: theme.textTheme.labelLarge?.copyWith(color: theme.colorScheme.primary),
+            ),
+            if (quote.listFareMinor case final list?)
+              Text(
+                formatMoney(list, quote.currency),
+                key: const Key('request.listFare'),
+                style: const TextStyle(decoration: TextDecoration.lineThrough),
+              ),
+          ] else
+            Text('Tarifa sugerida', style: theme.textTheme.labelLarge),
           Text(
             formatMoney(quote.suggestedFareMinor, quote.currency),
             key: const Key('request.fare'),
@@ -158,19 +182,19 @@ class _RequestPanel extends StatelessWidget {
           onPressed: state.canRequest ? cubit.request : null,
           child: state.requesting
               ? const SizedBox.square(dimension: 20, child: CircularProgressIndicator(strokeWidth: 2))
-              : Text(
-                  state.dispatch == TripDispatch.cooperative
-                      ? 'Pedir a ${cubit.cooperative?.name ?? 'la cooperativa'}'
-                      : 'Pedir a ${cubit.driverName}',
-                ),
+              : Text(switch (state.dispatch) {
+                  TripDispatch.cooperative => 'Pedir a ${cubit.cooperative?.name ?? 'la cooperativa'}',
+                  TripDispatch.zonePool => 'Pedir al conductor más cercano',
+                  TripDispatch.chosenDriver => 'Pedir a ${cubit.driverName}',
+                }),
         ),
       ],
     );
   }
 }
 
-/// Selector triple de despacho (FR-009): mi conductor, su cooperativa y, deshabilitada, la
-/// opción "autónomo libre más cercano", que llega en una etapa posterior.
+/// Selector de despacho (006, FR-009): mi conductor, su cooperativa (si tiene) y la opción 3, el
+/// conductor libre más cercano de la bolsa zonal (008, FR-001).
 class _DispatchSelector extends StatelessWidget {
   const _DispatchSelector({required this.state});
 
@@ -179,7 +203,7 @@ class _DispatchSelector extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cubit = context.read<RequestCubit>();
-    final coop = cubit.cooperative!;
+    final coop = cubit.cooperative;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -190,31 +214,28 @@ class _DispatchSelector extends StatelessWidget {
               icon: const Icon(Icons.person),
               label: Text('Mi conductor', key: const Key('request.dispatch.chosen')),
             ),
+            if (coop != null)
+              ButtonSegment(
+                value: TripDispatch.cooperative,
+                icon: const Icon(Icons.groups),
+                label: Text('Su cooperativa', key: const Key('request.dispatch.cooperative')),
+              ),
             ButtonSegment(
-              value: TripDispatch.cooperative,
-              icon: const Icon(Icons.groups),
-              label: Text('Su cooperativa', key: const Key('request.dispatch.cooperative')),
+              value: TripDispatch.zonePool,
+              icon: const Icon(Icons.near_me),
+              label: Text('Más cercano', key: const Key('request.dispatch.nearest')),
             ),
           ],
           selected: {state.dispatch},
           onSelectionChanged: (s) => cubit.setDispatch(s.first),
         ),
         const SizedBox(height: 4),
-        Text(
-          state.dispatch == TripDispatch.cooperative
-              ? 'Irá al compañero libre más cercano de ${coop.name}.'
-              : 'Irá a ${cubit.driverName}.',
-          textAlign: TextAlign.center,
-        ),
-        const ListTile(
-          key: Key('request.dispatch.nearest'),
-          dense: true,
-          enabled: false,
-          leading: Icon(Icons.near_me_outlined),
-          title: Text('Autónomo libre más cercano'),
-          trailing: Text('Próximamente'),
-        ),
-        if (state.dispatch == TripDispatch.chosenDriver)
+        Text(switch (state.dispatch) {
+          TripDispatch.cooperative => 'Irá al compañero libre más cercano de ${coop?.name ?? 'su cooperativa'}.',
+          TripDispatch.zonePool => 'Irá al conductor libre más cercano que recibe solicitudes de la zona.',
+          TripDispatch.chosenDriver => 'Irá a ${cubit.driverName}.',
+        }, textAlign: TextAlign.center),
+        if (coop != null && state.dispatch == TripDispatch.chosenDriver)
           CheckboxListTile(
             key: const Key('request.allowDelegation'),
             dense: true,
@@ -233,6 +254,9 @@ String _km(int meters) {
 }
 
 String _minutes(int seconds) => '${(seconds / 60).ceil()} min';
+
+/// 008: ruta para pedir a la bolsa zonal sin Conductor Elegido.
+const nearbyRequestLocation = '/nearby';
 
 /// Ruta del mapa de solicitud para [driver].
 String requestLocation(ChosenDriver driver) => Uri(

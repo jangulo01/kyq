@@ -136,6 +136,16 @@ class HomePage extends StatelessWidget {
             ),
             Card(
               child: ListTile(
+                key: const Key('home.dispatch'),
+                leading: const Icon(Icons.tune),
+                title: const Text('Despacho y tarifas'),
+                subtitle: const Text('Bolsa zonal, tarifa preferencial y tu enlace para ganar clientes'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => context.push('/dispatch'),
+              ),
+            ),
+            Card(
+              child: ListTile(
                 key: const Key('home.preconsults'),
                 leading: const Icon(Icons.record_voice_over),
                 title: const Text('Consultas de voz'),

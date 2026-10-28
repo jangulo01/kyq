@@ -155,6 +155,29 @@ class TripCubit extends Cubit<TripState> {
   /// Cancela sin cargo; el backend solo lo permite antes de IN_PROGRESS.
   Future<void> cancel() => _act(() => _api.cancelTrip(tripId));
 
+  /// 008: guarda al conductor de este viaje terminado como Conductor Elegido (FR-014). Devuelve
+  /// true si quedó guardado (o ya lo estaba) y, si no, el motivo para el pasajero.
+  Future<(bool, String)> saveDriverAsChosen(String driverName) async {
+    try {
+      final r = await _api.affiliateAfterTrip(tripId);
+      return (
+        true,
+        r.created
+            ? '$driverName quedó en tus Conductores Elegidos.'
+            : '$driverName ya estaba en tus Conductores Elegidos.',
+      );
+    } on ApiException catch (e) {
+      return (
+        false,
+        switch (e.code) {
+          'driver_not_available' => '$driverName no puede recibir clientes por ahora.',
+          'network' => 'Sin conexión con el servidor. Revisa tu internet.',
+          _ => 'No pudimos guardarlo. Inténtalo de nuevo.',
+        },
+      );
+    }
+  }
+
   Future<void> _act(Future<Trip> Function() action) async {
     if (state.busy || state.trip == null) return;
     emit(state.copyWith(busy: true, error: () => null));

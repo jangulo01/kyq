@@ -55,6 +55,44 @@ void main() {
     expect(e.pickup.lat, 4.6);
     expect(e.suggestedFareMinor, 1250000);
     expect(e.expiresAt.difference(e.occurredAt), const Duration(seconds: 25));
+    expect(e.origin, OfferOrigin.chosenDriver, reason: 'sin origin, viene de su cartera');
+    expect(e.loyalClient, isFalse);
+    expect(e.pickupDistanceM, isNull);
+  });
+
+  test('trip.offer con el origen de 008', () {
+    final base = {
+      'trip_id': 't1',
+      'passenger_name': 'Ana',
+      'pickup': {'lat': 4.6, 'lng': -74.08},
+      'dropoff': {'lat': 4.65, 'lng': -74.05},
+      'distance_m': 5200,
+      'duration_s': 900,
+      'suggested_fare_minor': 1320000,
+      'currency': 'COP',
+      'expires_at': '2026-10-27T12:00:25Z',
+    };
+    final loyal =
+        RealtimeEvent.fromEnvelope(
+              envelope('trip.offer', {
+                ...base,
+                'origin': 'chosen_driver',
+                'loyal_client': true,
+                'trips_together': 4,
+                'preferential_discount_pct': 10,
+              }),
+            )
+            as TripOffered;
+    expect(loyal.loyalClient, isTrue);
+    expect(loyal.tripsTogether, 4);
+    expect(loyal.preferentialDiscountPct, 10);
+
+    final pool =
+        RealtimeEvent.fromEnvelope(envelope('trip.offer', {...base, 'origin': 'zone_pool', 'pickup_distance_m': 3000}))
+            as TripOffered;
+    expect(pool.origin, OfferOrigin.zonePool);
+    expect(pool.pickupDistanceM, 3000);
+    expect(offerOriginFromApi('cooperative'), OfferOrigin.cooperative);
   });
 
   test('trip.status, propuesta, negociación, ubicación y cierre PTT', () {

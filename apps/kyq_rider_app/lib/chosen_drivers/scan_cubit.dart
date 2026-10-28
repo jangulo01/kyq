@@ -41,14 +41,28 @@ class ScanCubit extends Cubit<ScanState> {
 
   Future<void> onCode(String raw) async {
     if (state is! ScanWaiting) return;
-    final token = parseDriverQr(raw);
+    // 008: también vale el enlace del conductor mostrado como código.
+    final token = parseDriverQr(raw) ?? parseAffiliateLink(raw);
     if (token == null) {
       emit(const ScanInvalid());
       return;
     }
+    await _affiliate(token, AffiliationSource.qrScan);
+  }
+
+  /// 008: afiliación desde el enlace que compartió el conductor (`kyq://affiliate/{token}`).
+  Future<void> fromLink(String token) async {
+    _linkToken = token;
+    if (state is ScanProcessing) return;
+    await _affiliate(token, AffiliationSource.link);
+  }
+
+  String? _linkToken;
+
+  Future<void> _affiliate(String token, AffiliationSource source) async {
     emit(const ScanProcessing());
     try {
-      final result = await _api.affiliate(token);
+      final result = await _api.affiliate(token, source: source);
       emit(ScanSucceeded(result.driver, alreadyChosen: !result.created));
     } on ApiException catch (e) {
       emit(
@@ -61,6 +75,13 @@ class ScanCubit extends Cubit<ScanState> {
     }
   }
 
-  /// Vuelve a escanear tras un código inválido o un error.
-  void retry() => emit(const ScanWaiting());
+  /// Vuelve a escanear tras un código inválido o un error; con un enlace, lo reintenta.
+  void retry() {
+    final link = _linkToken;
+    if (link != null) {
+      _affiliate(link, AffiliationSource.link);
+    } else {
+      emit(const ScanWaiting());
+    }
+  }
 }

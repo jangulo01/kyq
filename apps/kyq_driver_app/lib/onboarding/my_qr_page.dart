@@ -9,11 +9,16 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
+import '../dispatch/dispatch_settings_page.dart';
+
 const _invitation = 'Escanéame con Kyq Pasajero y guárdame como tu conductor de confianza';
 
 /// QR personal del conductor (FR-005), en pantalla y en PDF para imprimir.
 class MyQrPage extends StatefulWidget {
-  const MyQrPage({super.key});
+  const MyQrPage({super.key, this.share = shareWithPlatform});
+
+  /// 008: comparte el enlace del conductor (FR-015).
+  final ShareText share;
 
   @override
   State<MyQrPage> createState() => _MyQrPageState();
@@ -21,6 +26,16 @@ class MyQrPage extends StatefulWidget {
 
 class _MyQrPageState extends State<MyQrPage> {
   late final Future<DriverMe> _me = context.read<KyqApiClient>().driverMe();
+
+  Future<void> _shareLink() async {
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final settings = await context.read<KyqApiClient>().dispatchSettings();
+      await widget.share(affiliateInvitation(settings.affiliateLink));
+    } on ApiException {
+      messenger.showSnackBar(const SnackBar(content: Text('No pudimos obtener tu enlace. Inténtalo de nuevo.')));
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -53,6 +68,18 @@ class _MyQrPageState extends State<MyQrPage> {
                 ),
                 icon: const Icon(Icons.picture_as_pdf),
                 label: const Text('Descargar PDF para imprimir'),
+              ),
+              const SizedBox(height: 8),
+              OutlinedButton.icon(
+                key: const Key('qr.shareLink'),
+                onPressed: _shareLink,
+                icon: const Icon(Icons.share),
+                label: const Text('Compartir mi enlace'),
+              ),
+              const SizedBox(height: 4),
+              const Text(
+                'Quien abra tu enlace te guarda como Conductor Elegido sin escanear el código.',
+                textAlign: TextAlign.center,
               ),
             ],
           );

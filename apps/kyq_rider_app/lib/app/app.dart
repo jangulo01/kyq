@@ -6,8 +6,10 @@ import 'package:kyq_ptt/kyq_ptt.dart';
 import 'package:kyq_realtime/kyq_realtime.dart';
 import 'package:kyq_ui/kyq_ui.dart';
 
+import '../chosen_drivers/affiliate_link_page.dart';
 import '../chosen_drivers/chosen_drivers_cubit.dart';
 import '../chosen_drivers/chosen_drivers_page.dart';
+import '../chosen_drivers/scan_cubit.dart';
 import '../chosen_drivers/scan_page.dart';
 import '../payments/pending_payments_cubit.dart';
 import '../preconsult/preconsult_cubit.dart';
@@ -90,6 +92,8 @@ class _KyqRiderAppState extends State<KyqRiderApp> {
   late final GoRouter _router = buildAuthRouter(
     auth: widget.auth,
     title: 'Kyq Pasajero',
+    // 008: el enlace del conductor abre la app con `kyq://affiliate/{token}`.
+    guard: (context, state) => affiliateLinkRedirect(state.uri),
     routes: [
       GoRoute(
         path: '/',
@@ -109,6 +113,13 @@ class _KyqRiderAppState extends State<KyqRiderApp> {
         routes: [
           GoRoute(path: 'scan', builder: (context, state) => const ScanPage()),
           GoRoute(
+            path: 'affiliate/:token',
+            builder: (context, state) => BlocProvider(
+              create: (context) => ScanCubit(context.read<KyqApiClient>())..fromLink(state.pathParameters['token']!),
+              child: const AffiliateLinkPage(),
+            ),
+          ),
+          GoRoute(
             path: 'preconsult/:driverId',
             builder: (context, state) => BlocProvider(
               create: (context) => PreconsultCubit(
@@ -127,6 +138,14 @@ class _KyqRiderAppState extends State<KyqRiderApp> {
             builder: (context, state) => BlocProvider(
               create: (context) => SafetyCubit(context.read<KyqApiClient>())..load(),
               child: const SafetyPage(),
+            ),
+          ),
+          // 008: bolsa zonal desde el inicio, sin Conductor Elegido (FR-001).
+          GoRoute(
+            path: 'nearby',
+            builder: (context, state) => BlocProvider(
+              create: (context) => RequestCubit(api: context.read<KyqApiClient>(), location: widget.location)..start(),
+              child: const RequestPage(),
             ),
           ),
           GoRoute(
