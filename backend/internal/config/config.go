@@ -41,6 +41,14 @@ type Config struct {
 	S3SecretKey      string
 	S3Bucket         string
 	S3Region         string
+	// Grabaciones SOS (003): bucket privado con expiración de 90 días.
+	S3SOSBucket string
+
+	// 003: URL pública de la API para los enlaces de viaje compartido, estilo del mapa de esa
+	// página y grabación de las salas SOS con LiveKit Egress.
+	PublicBaseURL string
+	MapStyleURL   string // vacío: servicio tiles (puerto 8081) del mismo host
+	SOSRecording  bool
 
 	// Bold (002). BoldEnv vacío desactiva los pagos con Bold.
 	BoldEnv         string // "" | sandbox | production
@@ -83,6 +91,10 @@ func Load() (Config, error) {
 		S3SecretKey:            os.Getenv("KYQ_S3_SECRET_KEY"),
 		S3Bucket:               getenv("KYQ_S3_BUCKET", "kyq-kyc"),
 		S3Region:               getenv("KYQ_S3_REGION", "us-east-1"),
+		S3SOSBucket:            getenv("KYQ_S3_SOS_BUCKET", "kyq-sos"),
+		PublicBaseURL:          getenv("KYQ_PUBLIC_BASE_URL", "http://localhost:8080"),
+		MapStyleURL:            os.Getenv("KYQ_MAP_STYLE_URL"),
+		SOSRecording:           os.Getenv("KYQ_SOS_RECORDING") != "false",
 		BoldEnv:                os.Getenv("KYQ_BOLD_ENV"),
 		BoldAPIURL:             getenv("KYQ_BOLD_API_URL", "https://integrations.api.bold.co"),
 		BoldIdentityKey:        os.Getenv("KYQ_BOLD_IDENTITY_KEY"),

@@ -42,6 +42,12 @@ class HomePage extends StatelessWidget {
             ),
           ),
           IconButton(
+            key: const Key('home.safety'),
+            tooltip: 'Seguridad',
+            icon: const Icon(Icons.health_and_safety_outlined),
+            onPressed: () => context.push('/safety'),
+          ),
+          IconButton(
             tooltip: 'Cerrar sesión',
             icon: const Icon(Icons.logout),
             onPressed: () => context.read<AuthCubit>().signOut(),

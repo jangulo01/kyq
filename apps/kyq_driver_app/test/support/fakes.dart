@@ -13,12 +13,17 @@ import 'package:kyq_driver_app/subscription/checkout_launcher.dart';
 import 'package:kyq_ptt/kyq_ptt.dart';
 import 'package:kyq_ptt/testing.dart';
 import 'package:kyq_realtime/kyq_realtime.dart';
+import 'package:kyq_ui/kyq_ui.dart';
 import 'package:mocktail/mocktail.dart';
 
 class MockApi extends Mock implements KyqApiClient {
   // La pantalla de inicio siempre pregunta por un viaje en curso; por defecto no hay ninguno.
   @override
   Future<Trip?> activeTrip() async => null;
+
+  // Pantalla del viaje: por defecto no hay alerta SOS abierta (003).
+  @override
+  Future<SosAlertSelf?> activeSos() async => null;
 }
 
 /// Conductor con el alta terminada: el router no lo desvía a vehículo ni documentos.
@@ -139,6 +144,7 @@ DriverServices fakeServices({
   FakeHandsFreePlatform? handsFree,
   FakeHandsFreePrefs? handsFreePrefs,
   FakeOverlayPermission? overlay,
+  SafetyPlatform? safety,
 }) => DriverServices(
   events: events ?? FakeEventSource(),
   permissions: permissions ?? FakePermissions(),
@@ -151,6 +157,55 @@ DriverServices fakeServices({
   handsFree: handsFree ?? FakeHandsFreePlatform(),
   handsFreePrefs: handsFreePrefs ?? FakeHandsFreePrefs(),
   overlayPermission: overlay ?? FakeOverlayPermission(),
+  safety: safety ?? fakeSafety(),
+);
+
+/// GPS, menú de compartir y marcador falsos del kit de seguridad (003).
+class FakeSosLocation implements SosLocationSource {
+  @override
+  Future<SosPoint?> current() async => SosPoint(lat: 4.6, lng: -74.05, recordedAt: DateTime.now().toUtc());
+
+  @override
+  Future<void> stop() async {}
+}
+
+class FakeVoice implements VoiceRoom {
+  @override
+  Stream<VoiceRoomEvent> get events => const Stream.empty();
+
+  @override
+  String? get localIdentity => 'd1';
+
+  @override
+  Future<void> connect(String url, String token) async {}
+
+  @override
+  Future<void> setMicrophoneEnabled(bool enabled) async {}
+
+  @override
+  Future<void> sendData(Map<String, Object?> message) async {}
+
+  @override
+  Future<void> disconnect() async {}
+}
+
+class GrantedMic implements MicPermission {
+  @override
+  Future<bool> isGranted() async => true;
+
+  @override
+  Future<MicAccess> request() async => MicAccess.granted;
+
+  @override
+  Future<void> openSettings() async {}
+}
+
+SafetyPlatform fakeSafety({List<String>? shared, List<String>? calls}) => SafetyPlatform(
+  location: FakeSosLocation.new,
+  share: (text) async => shared?.add(text),
+  callEmergency: () async => calls?.add('123'),
+  voice: FakeVoice.new,
+  mic: GrantedMic(),
 );
 
 /// Preferencias del manos libres en memoria.

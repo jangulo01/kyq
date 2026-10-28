@@ -2,6 +2,7 @@
 
 Plataforma de movilidad por suscripción mensual (0 % de comisión por viaje) para conductores
 autónomos, con fidelización directa del pasajero y walkie-talkie (PTT) entre pasajero y conductor.
+Incluye botón SOS con consola de emergencias y viaje compartido en vivo (003).
 
 Principios y stack: [.specify/memory/constitution.md](.specify/memory/constitution.md).
 
@@ -11,14 +12,15 @@ Principios y stack: [.specify/memory/constitution.md](.specify/memory/constituti
 |---|---|
 | `apps/kyq_driver_app` | Kyq Conductor (Android, iOS). `com.kyq.driver` |
 | `apps/kyq_rider_app` | Kyq Pasajero (Android, iOS, web). `com.kyq.rider` |
-| `apps/kyq_admin_web` | Panel administrativo y torre de control (web) |
+| `apps/kyq_admin_web` | Panel administrativo, torre de control y consola de emergencias (web) |
 | `packages/kyq_domain` | Modelos y reglas de negocio RN-KYQ con pruebas |
 | `packages/kyq_api` | Cliente REST del contrato `specs/*/contracts/api.yaml` |
 | `packages/kyq_realtime` | Eventos en tiempo real (Centrifugo) |
 | `packages/kyq_ptt` | Walkie-talkie PTT (LiveKit) |
-| `packages/kyq_ui` | Tema y login OTP comunes |
+| `packages/kyq_ui` | Tema, login OTP y kit de seguridad comunes (botón SOS, contactos, PIN, compartir viaje) |
 | `backend` | Monolito modular en Go |
-| `infra` | Entorno Docker: PostgreSQL+PostGIS, API, Centrifugo, LiveKit, OSRM, teselas (ver `infra/README.md`) |
+| `backend/web/share` | Página pública del viaje compartido (HTML + MapLibre GL JS, embebida en la API) |
+| `infra` | Entorno Docker: PostgreSQL+PostGIS, API, Centrifugo, LiveKit (+ Egress y Redis), MinIO, OSRM, teselas (ver `infra/README.md`) |
 
 ## Requisitos
 
@@ -48,6 +50,10 @@ docker compose up -d --build      # postgres → migrate (goose) → seed (admin
   su webhook alimenta los minutos de voz por conductor (`GET /v1/admin/usage`).
 - Errores a Sentry: opcional con `KYQ_SENTRY_DSN` (vacío no envía nada; se filtran teléfonos,
   OTP y tokens).
+- SOS (003): `redis` y `egress` graban el audio de cada alerta en el bucket privado `kyq-sos`
+  (90 días). El admin de la semilla queda como operador de emergencias de guardia; la consola
+  está en el panel (sección *Emergencias*). Los contactos de emergencia reciben el enlace
+  `KYQ_PUBLIC_BASE_URL/s/{token}` (por defecto `http://KYQ_PUBLIC_HOST:8080`).
 
 ### 2. Datos de la ciudad (OSRM y mapa)
 
@@ -79,7 +85,8 @@ flutter build apk --debug --dart-define=KYQ_API_URL=http://<host>:8080 --dart-de
 ```
 
 Opcionales: `--dart-define=KYQ_MAP_STYLE_URL=...` (por defecto `http://<host>:8081/style.json`) y
-`--dart-define=KYQ_SENTRY_DSN=...`. Con `KYQ_DEV_OTP_CODE` en el `.env` no se envían SMS y se
+`--dart-define=KYQ_SENTRY_DSN=...`. El panel web (`apps/kyq_admin_web`) usa además
+`--dart-define=KYQ_REALTIME_URL=...` para la cola en vivo de la consola de emergencias. Con `KYQ_DEV_OTP_CODE` en el `.env` no se envían SMS y se
 entra con ese código.
 
 ### 4. Backend fuera de Docker (opcional)

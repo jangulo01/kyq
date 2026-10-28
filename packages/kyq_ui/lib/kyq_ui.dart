@@ -10,4 +10,8 @@ export 'src/labels.dart';
 export 'src/negotiation/negotiation_panel.dart';
 export 'src/observability/pii_scrubber.dart';
 export 'src/observability/sentry_bootstrap.dart';
+export 'src/safety/safety_page.dart';
+export 'src/safety/sos_cubit.dart';
+export 'src/safety/sos_widgets.dart';
+export 'src/safety/trip_safety.dart';
 export 'src/theme.dart';

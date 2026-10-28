@@ -1,5 +1,6 @@
 import 'package:kyq_api/kyq_api.dart';
 import 'package:kyq_ptt/kyq_ptt.dart';
+import 'package:kyq_ui/kyq_ui.dart';
 
 import '../background/foreground_service.dart';
 import '../background/geolocator_source.dart';
@@ -8,6 +9,7 @@ import '../background/online_permissions.dart';
 import '../handsfree/platform_hands_free.dart';
 import '../onboarding/photo_source.dart';
 import '../realtime/driver_events.dart';
+import '../safety/platform_safety.dart';
 import '../subscription/checkout_launcher.dart';
 
 /// Servicios de plataforma de la app. Las pruebas pasan falsos para no abrir sockets ni tocar
@@ -26,6 +28,7 @@ class DriverServices {
     required this.handsFreePrefs,
     required this.overlayPermission,
     this.cooperativePtt = PttController.cooperative,
+    required this.safety,
   });
 
   factory DriverServices.platform(DriverEventSource events) => DriverServices(
@@ -40,6 +43,7 @@ class DriverServices {
     handsFree: const MethodChannelHandsFree(),
     handsFreePrefs: const SharedPrefsHandsFreeStore(),
     overlayPermission: const PlatformOverlayPermission(),
+    safety: platformSafety(),
   );
 
   final DriverEventSource events;
@@ -67,4 +71,7 @@ class DriverServices {
 
   /// Walkie-talkie de grupo de la cooperativa (006, COOP_GROUP).
   final PttController Function(KyqApiClient api) cooperativePtt;
+
+  /// SOS, viaje compartido y 123 (003).
+  final SafetyPlatform safety;
 }

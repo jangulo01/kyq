@@ -1,5 +1,5 @@
-// Eventos de specs/001-chosen-driver-trip-ptt/contracts/realtime.md, `notice.created` de 002 y
-// `preconsult.*` de 005.
+// Eventos de specs/001-chosen-driver-trip-ptt/contracts/realtime.md, `notice.created` de 002,
+// `preconsult.*` de 005 y los `sos.*` de 003.
 
 /// Nombres de canal autorizados por el backend.
 abstract final class Channels {
@@ -9,6 +9,12 @@ abstract final class Channels {
 
   /// Torre de control del panel (007): solo admins.
   static const adminTower = 'admin:tower';
+
+  /// Cola de la consola de emergencias (solo operadores, 003).
+  static const opsSos = 'ops:sos';
+
+  /// Ubicación en vivo de una alerta (solo operadores, 003).
+  static String sos(String alertId) => 'sos:$alertId';
 }
 
 /// Evento recibido por un canal. [occurredAt] viene del sobre común.
@@ -111,6 +117,41 @@ sealed class RealtimeEvent {
         body: data['body'] as String? ?? '',
       ),
       'tower.changed' => TowerChanged(at),
+      'sos.created' => SosCreated(
+        at,
+        alertId: data['alert_id'] as String,
+        tripId: data['trip_id'] as String,
+        raisedRole: data['raised_role'] as String,
+        raisedByName: data['raised_by_name'] as String? ?? '',
+      ),
+      'sos.claimed' => SosClaimed(
+        at,
+        alertId: data['alert_id'] as String,
+        operatorId: data['operator_id'] as String,
+        operatorName: data['operator_name'] as String? ?? '',
+      ),
+      'sos.released' => SosReleased(at, alertId: data['alert_id'] as String),
+      'sos.cancel_attempt' => SosCancelAttempt(
+        at,
+        alertId: data['alert_id'] as String,
+        failedAttempts: data['failed_attempts'] as int? ?? 0,
+        locked: data['locked'] as bool? ?? false,
+      ),
+      'sos.escalated' => SosEscalated(at, alertId: data['alert_id'] as String),
+      'sos.closed' => SosClosed(
+        at,
+        alertId: data['alert_id'] as String,
+        status: data['status'] as String?,
+        outcome: data['outcome'] as String?,
+      ),
+      'sos.location' => SosLocationUpdate(
+        at,
+        alertId: data['alert_id'] as String,
+        lat: (data['lat'] as num).toDouble(),
+        lng: (data['lng'] as num).toDouble(),
+        accuracyM: (data['accuracy_m'] as num?)?.toDouble(),
+        at: DateTime.parse(data['at'] as String),
+      ),
       _ => UnknownEvent(at, type: type, data: data),
     };
   }
@@ -335,6 +376,84 @@ final class NoticeCreated extends RealtimeEvent {
 /// datos.
 final class TowerChanged extends RealtimeEvent {
   const TowerChanged(super.occurredAt);
+}
+
+/// Alerta SOS nueva en la cola de la consola (`ops:sos`, 003).
+final class SosCreated extends RealtimeEvent {
+  const SosCreated(
+    super.occurredAt, {
+    required this.alertId,
+    required this.tripId,
+    required this.raisedRole,
+    required this.raisedByName,
+  });
+
+  final String alertId;
+  final String tripId;
+
+  /// `passenger` o `driver`.
+  final String raisedRole;
+  final String raisedByName;
+}
+
+final class SosClaimed extends RealtimeEvent {
+  const SosClaimed(super.occurredAt, {required this.alertId, required this.operatorId, required this.operatorName});
+
+  final String alertId;
+  final String operatorId;
+  final String operatorName;
+}
+
+final class SosReleased extends RealtimeEvent {
+  const SosReleased(super.occurredAt, {required this.alertId});
+
+  final String alertId;
+}
+
+/// Intento de cancelar sin el PIN correcto (posible coacción, FR-005).
+final class SosCancelAttempt extends RealtimeEvent {
+  const SosCancelAttempt(super.occurredAt, {required this.alertId, required this.failedAttempts, required this.locked});
+
+  final String alertId;
+  final int failedAttempts;
+  final bool locked;
+}
+
+/// 60 s sin operador: se avisó por SMS a los de guardia (FR-011).
+final class SosEscalated extends RealtimeEvent {
+  const SosEscalated(super.occurredAt, {required this.alertId});
+
+  final String alertId;
+}
+
+/// Alerta cerrada por el operador o cancelada con PIN. También llega a `user:{id}` de quien la
+/// activó para que deje de enviar su ubicación.
+final class SosClosed extends RealtimeEvent {
+  const SosClosed(super.occurredAt, {required this.alertId, this.status, this.outcome});
+
+  final String alertId;
+
+  /// `closed` o `cancelled_by_user`.
+  final String? status;
+  final String? outcome;
+}
+
+/// Ubicación a 1 Hz de una alerta (`sos:{alertId}`).
+final class SosLocationUpdate extends RealtimeEvent {
+  const SosLocationUpdate(
+    super.occurredAt, {
+    required this.alertId,
+    required this.lat,
+    required this.lng,
+    this.accuracyM,
+    required this.at,
+  });
+
+  final String alertId;
+  final double lat;
+  final double lng;
+  final double? accuracyM;
+  final DateTime at;
 }
 
 final class UnknownEvent extends RealtimeEvent {

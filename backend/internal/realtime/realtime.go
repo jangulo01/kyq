@@ -132,10 +132,21 @@ type TripParticipantChecker interface {
 	IsParticipant(ctx context.Context, tripID, userID uuid.UUID) (bool, error)
 }
 
+// OperatorChecker reports whether a user is an administrator with the emergency operator
+// permission (003, FR-012).
+type OperatorChecker interface {
+	IsEmergencyOperator(ctx context.Context, userID uuid.UUID) (bool, error)
+}
+
+// OpsSOSChannel is the emergency console queue: sos.created, sos.claimed, sos.released,
+// sos.closed, sos.cancel_attempt and sos.escalated (003, research R3).
+const OpsSOSChannel = "ops:sos"
+
 // Authorizer decides which channels a user may subscribe to. Nil checkers deny their channels.
 type Authorizer struct {
 	Affiliations AffiliationChecker
 	Trips        TripParticipantChecker
+	Operators    OperatorChecker
 }
 
 // AdminTowerChannel is the live control tower notice channel (007): admins only.
@@ -158,6 +169,9 @@ func (a Authorizer) Authorize(ctx context.Context, userID uuid.UUID, channel str
 	if !ok {
 		return ErrForbiddenChannel
 	}
+	if channel == OpsSOSChannel {
+		return a.operator(ctx, userID)
+	}
 	id, err := uuid.Parse(rawID)
 	if err != nil {
 		return ErrForbiddenChannel
@@ -176,11 +190,29 @@ func (a Authorizer) Authorize(ctx context.Context, userID uuid.UUID, channel str
 		if a.Trips != nil {
 			allowed, err = a.Trips.IsParticipant(ctx, id, userID)
 		}
+	case "sos":
+		// Ubicación en vivo de una alerta: solo operadores; ni la persona ni la otra parte del
+		// viaje (FR-006).
+		return a.operator(ctx, userID)
 	}
 	if err != nil {
 		return fmt.Errorf("authorize channel: %w", err)
 	}
 	if !allowed {
+		return ErrForbiddenChannel
+	}
+	return nil
+}
+
+func (a Authorizer) operator(ctx context.Context, userID uuid.UUID) error {
+	if a.Operators == nil {
+		return ErrForbiddenChannel
+	}
+	ok, err := a.Operators.IsEmergencyOperator(ctx, userID)
+	if err != nil {
+		return fmt.Errorf("authorize channel: %w", err)
+	}
+	if !ok {
 		return ErrForbiddenChannel
 	}
 	return nil

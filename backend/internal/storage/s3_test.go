@@ -2,6 +2,9 @@ package storage
 
 import (
 	"context"
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"testing"
 	"time"
@@ -37,6 +40,27 @@ func TestS3SignsForPublicEndpointWithoutNetwork(t *testing.T) {
 
 	_, err = NewS3(S3Options{Endpoint: "minio:9000"})
 	assert.Error(t, err, "el endpoint exige esquema")
+}
+
+// 003 (FR-018): el bucket de grabaciones SOS borra el audio a los 90 días con una regla de
+// ciclo de vida S3.
+func TestS3EnsureExpiryPutsLifecycleRule(t *testing.T) {
+	var got string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPut {
+			_, ok := r.URL.Query()["lifecycle"]
+			assert.True(t, ok, "PUT ?lifecycle")
+			assert.Equal(t, "/kyq-sos/", r.URL.Path)
+			b, _ := io.ReadAll(r.Body)
+			got = string(b)
+		}
+	}))
+	defer srv.Close()
+	s, err := NewS3(S3Options{Endpoint: srv.URL, AccessKey: "access", SecretKey: "secret-secret", Bucket: "kyq-sos"})
+	require.NoError(t, err)
+	require.NoError(t, s.EnsureExpiry(context.Background(), 90))
+	assert.Contains(t, got, "<Days>90</Days>")
+	assert.Contains(t, got, "<Status>Enabled</Status>")
 }
 
 func TestMemoryObjects(t *testing.T) {

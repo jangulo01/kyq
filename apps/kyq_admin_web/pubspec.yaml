@@ -9,6 +9,8 @@ environment:
   sdk: ^3.12.2
 
 dependencies:
+  # Consola de emergencias (003): aviso sonoro, mapa en vivo, voz y tiempo real.
+  audioplayers: ^6.8.1
   flutter:
     sdk: flutter
   flutter_bloc: ^9.1.1
@@ -16,10 +18,13 @@ dependencies:
   maplibre_gl: ^0.27.1
   kyq_api:
     path: ../../packages/kyq_api
+  kyq_ptt:
+    path: ../../packages/kyq_ptt
   kyq_realtime:
     path: ../../packages/kyq_realtime
   kyq_ui:
     path: ../../packages/kyq_ui
+  url_launcher: ^6.3.3
 
 dev_dependencies:
   flutter_test:

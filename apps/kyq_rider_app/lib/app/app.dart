@@ -15,6 +15,7 @@ import '../realtime/realtime_events.dart';
 import '../request/location_source.dart';
 import '../request/request_cubit.dart';
 import '../request/request_page.dart';
+import '../safety/platform_safety.dart';
 import '../trip/trip_cubit.dart';
 import '../trip/trip_page.dart';
 
@@ -55,6 +56,7 @@ class KyqRiderApp extends StatefulWidget {
     this.location = const GeolocatorLocationSource(),
     this.ptt = PttController.live,
     this.preconsultPtt = PttController.livePreconsult,
+    this.safety,
   });
 
   final KyqApiClient api;
@@ -68,11 +70,16 @@ class KyqRiderApp extends StatefulWidget {
   /// Walkie-talkie de cada consulta de voz (005, RN-KYQ-010); las pruebas pasan falsos.
   final PttControllerFactory preconsultPtt;
 
+  /// SOS, viaje compartido y 123 (003); null usa los de la plataforma.
+  final SafetyPlatform? safety;
+
   @override
   State<KyqRiderApp> createState() => _KyqRiderAppState();
 }
 
 class _KyqRiderAppState extends State<KyqRiderApp> {
+  late final SafetyPlatform _safety = widget.safety ?? platformSafety();
+
   late final GoRouter _router = buildAuthRouter(
     auth: widget.auth,
     title: 'Kyq Pasajero',
@@ -98,6 +105,13 @@ class _KyqRiderAppState extends State<KyqRiderApp> {
                 refreshEvery: const Duration(seconds: 3),
               )..start(),
               child: const PreconsultPage(),
+            ),
+          ),
+          GoRoute(
+            path: 'safety',
+            builder: (context, state) => BlocProvider(
+              create: (context) => SafetyCubit(context.read<KyqApiClient>())..load(),
+              child: const SafetyPage(),
             ),
           ),
           GoRoute(
@@ -135,11 +149,20 @@ class _KyqRiderAppState extends State<KyqRiderApp> {
                     create: (context) =>
                         widget.ptt(context.read<KyqApiClient>(), tripId, context.read<TripCubit>().pttClosed),
                   ),
+                  // SOS del pasajero (003): el conductor no ve nada de la alerta (FR-006).
+                  BlocProvider(create: (context) => _safety.sosFor(context.read<KyqApiClient>(), tripId)),
                 ],
                 child: Builder(
                   builder: (context) => TripPage(
                     driverName: state.uri.queryParameters['name'] ?? 'tu conductor',
                     ptt: context.read<PttController>(),
+                    safety: TripSafety(
+                      api: context.read<KyqApiClient>(),
+                      tripId: tripId,
+                      sos: context.read<SosCubit>(),
+                      platform: _safety,
+                      onSetupPin: () => context.push('/safety'),
+                    ),
                   ),
                 ),
               );

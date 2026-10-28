@@ -188,3 +188,86 @@ func TestIntegrationNoPhoneNumbersReachTheOtherParty(t *testing.T) {
 		assert.NotContains(t, rec.Body.String(), docNumber)
 	}
 }
+
+// TestIntegrationSharedTripAndSOSKeepPrivacy (003, FR-006, FR-015, SC-006): el enlace público del
+// viaje no expone teléfonos, documentos ni pagos, y los eventos SOS solo llegan a la consola y a
+// quien pidió ayuda; la otra parte del viaje no recibe nada.
+func TestIntegrationSharedTripAndSOSKeepPrivacy(t *testing.T) {
+	pub := &wire{}
+	f := newSafetyFixture(t, pub)
+	ctx := context.Background()
+	const driverPhone, passengerPhone, contactPhone = "+573100000001", "+573200000002", "+573001110001"
+	tripID := f.acceptedTrip(t).String()
+	require.NoError(t, f.st.SetDriverLocation(ctx, store.SetDriverLocationParams{Lat: 4.61, Lng: -74.07, RecordedAt: time.Now(), UserID: f.driver}))
+
+	call := func(method, path, token string, body any) (int, string) {
+		var raw []byte
+		if body != nil {
+			var err error
+			raw, err = json.Marshal(body)
+			require.NoError(t, err)
+		}
+		req := httptest.NewRequest(method, path, bytes.NewReader(raw))
+		if token != "" {
+			req.Header.Set("Authorization", "Bearer "+token)
+		}
+		req.Header.Set("Content-Type", "application/json")
+		rec := httptest.NewRecorder()
+		f.server.ServeHTTP(rec, req)
+		return rec.Code, rec.Body.String()
+	}
+	code, _ := call(http.MethodPut, "/v1/me/emergency-contacts", f.asPx, map[string]any{"contacts": []map[string]string{
+		{"name": "Mamá", "phone_e164": contactPhone},
+	}})
+	require.Equal(t, http.StatusOK, code)
+
+	code, body := call(http.MethodPost, "/v1/trips/"+tripID+"/share", f.asPx, nil)
+	require.Equal(t, http.StatusOK, code, body)
+	var link struct{ Token string }
+	require.NoError(t, json.Unmarshal([]byte(body), &link))
+	var public []string
+	for _, path := range []string{"/v1/share/" + link.Token, "/s/" + link.Token} {
+		code, body := call(http.MethodGet, path, "", nil)
+		require.Equal(t, http.StatusOK, code, path)
+		public = append(public, body)
+	}
+	assert.Contains(t, public[0], "KYQ001", "placa visible")
+
+	code, body = call(http.MethodPost, "/v1/trips/"+tripID+"/sos", f.asPx, map[string]any{"location": map[string]float64{"lat": 4.61, "lng": -74.07}})
+	require.Equal(t, http.StatusCreated, code, body)
+	var raised struct{ Alert struct{ ID string } }
+	require.NoError(t, json.Unmarshal([]byte(body), &raised))
+	code, _ = call(http.MethodPost, "/v1/sos/"+raised.Alert.ID+"/locations", f.asPx, map[string]any{"points": []map[string]float64{{"lat": 4.62, "lng": -74.06}}})
+	require.Equal(t, http.StatusOK, code)
+	code, _ = call(http.MethodPost, "/v1/ops/sos/"+raised.Alert.ID+"/claim", f.asOperator, nil)
+	require.Equal(t, http.StatusOK, code)
+	code, _ = call(http.MethodPost, "/v1/ops/sos/"+raised.Alert.ID+"/close", f.asOperator, map[string]string{"outcome": "resolved"})
+	require.Equal(t, http.StatusNoContent, code)
+
+	// Lo que ve el conductor durante el SOS del pasajero: nada del SOS.
+	for _, path := range []string{"/v1/sos/active", "/v1/trips/" + tripID} {
+		_, body := call(http.MethodGet, path, f.asDriver, nil)
+		assert.NotContains(t, body, raised.Alert.ID, path)
+		assert.NotContains(t, body, "sos", path)
+	}
+
+	require.NotEmpty(t, pub.events)
+	for _, seen := range append(public, pub.events...) {
+		for _, phone := range []string{driverPhone, passengerPhone, contactPhone, strings.TrimPrefix(driverPhone, "+57"), strings.TrimPrefix(passengerPhone, "+57")} {
+			assert.NotContains(t, seen, phone)
+		}
+		assert.NotContains(t, seen, "phone")
+		assert.NotContains(t, seen, "kyc/")
+	}
+	for _, seen := range public {
+		assert.NotContains(t, seen, "fare", "ni datos de pago en el enlace público")
+		assert.NotContains(t, seen, f.passenger.String())
+	}
+	for _, ev := range pub.events {
+		channel := strings.SplitN(ev, " ", 2)[0]
+		if strings.Contains(ev, raised.Alert.ID) || strings.Contains(ev, `"type":"sos.`) {
+			assert.True(t, channel == realtime.OpsSOSChannel || channel == "sos:"+raised.Alert.ID || channel == "user:"+f.passenger.String(),
+				"evento SOS fuera de la consola: %s", ev)
+		}
+	}
+}

@@ -18,6 +18,7 @@ const adminSections = [
   (path: '/crm', label: 'Fidelización', icon: Icons.favorite_border),
   (path: '/users', label: 'Usuarios', icon: Icons.manage_accounts_outlined),
   (path: '/health', label: 'Salud', icon: Icons.monitor_heart_outlined),
+  (path: '/emergencies', label: 'Emergencias', icon: Icons.sos),
   (path: '/kyc', label: 'Validación', icon: Icons.fact_check_outlined),
   (path: '/cooperatives', label: 'Cooperativas', icon: Icons.groups),
   (path: '/billing', label: 'Suscripciones', icon: Icons.receipt_long_outlined),

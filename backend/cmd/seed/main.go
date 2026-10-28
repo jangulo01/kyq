@@ -35,7 +35,7 @@ func run(ctx context.Context) error {
 			return fmt.Errorf("%s ya existe con rol %s", phone, existing.Role)
 		}
 		fmt.Println("admin ya existe:", existing.ID)
-		return nil
+		return grantOperator(ctx, st, existing.ID)
 	}
 	if !store.IsNotFound(err) {
 		return err
@@ -50,5 +50,11 @@ func run(ctx context.Context) error {
 		return err
 	}
 	fmt.Println("admin creado:", id)
-	return nil
+	return grantOperator(ctx, st, id)
+}
+
+// grantOperator makes the first administrator an emergency operator on duty (003, FR-011): the
+// pilot needs someone to answer the SOS console. Idempotent.
+func grantOperator(ctx context.Context, st *store.Store, id uuid.UUID) error {
+	return st.GrantEmergencyOperator(ctx, store.GrantEmergencyOperatorParams{UserID: id, OnDuty: true})
 }

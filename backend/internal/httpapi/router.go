@@ -18,6 +18,7 @@ import (
 	"github.com/kyq/backend/internal/notify"
 	"github.com/kyq/backend/internal/ptt"
 	"github.com/kyq/backend/internal/realtime"
+	"github.com/kyq/backend/internal/safety"
 	"github.com/kyq/backend/internal/telemetry"
 	"github.com/kyq/backend/internal/trips"
 )
@@ -47,6 +48,8 @@ type Deps struct {
 	// 006: cooperativas, membresías y canal PTT de grupo.
 	Cooperatives *cooperatives.Handlers
 	GroupPTT     *ptt.GroupHandlers
+	// 003: SOS, consola de emergencias, viaje compartido (incluye rutas públicas) y seguridad.
+	Safety *safety.Handlers
 	// LiveKitWebhook is public: LiveKit authenticates it with its own signature.
 	LiveKitWebhook *telemetry.LiveKitWebhook
 }
@@ -121,6 +124,9 @@ func NewRouter(d Deps) http.Handler {
 		}
 		if d.GroupPTT != nil {
 			d.GroupPTT.Register(mux, requireAuth)
+		}
+		if d.Safety != nil {
+			d.Safety.Register(mux, requireAuth)
 		}
 	}
 

@@ -195,6 +195,11 @@ class _KyqDriverAppState extends State<KyqDriverApp> {
             ],
           ),
           GoRoute(
+            path: 'safety',
+            builder: (context, state) =>
+                BlocProvider(create: (_) => SafetyCubit(widget.api)..load(), child: const SafetyPage()),
+          ),
+          GoRoute(
             path: 'subscription',
             builder: (context, state) => BlocProvider(
               create: (_) => SubscriptionCubit(
@@ -227,13 +232,24 @@ class _KyqDriverAppState extends State<KyqDriverApp> {
                       _events.stream.where((e) => e is PttClosed && e.tripId == tripId),
                     ),
                   ),
+                  // SOS del conductor (003): el pasajero no ve nada de la alerta (FR-006).
+                  BlocProvider(create: (_) => widget.services.safety.sosFor(widget.api, tripId)),
                 ],
                 // El botón físico y la burbuja hablan por el canal del viaje (RN-KYQ-012).
                 child: Builder(
                   builder: (context) => HandsFreeAttachment(
                     handsFree: _handsFree,
                     controller: context.read<PttController>(),
-                    child: TripPage(ptt: context.read<PttController>()),
+                    child: TripPage(
+                      ptt: context.read<PttController>(),
+                      safety: TripSafety(
+                        api: widget.api,
+                        tripId: tripId,
+                        sos: context.read<SosCubit>(),
+                        platform: widget.services.safety,
+                        onSetupPin: () => context.push('/safety'),
+                      ),
+                    ),
                   ),
                 ),
               );

@@ -13,11 +13,13 @@ import 'trip_summary_page.dart';
 
 /// Pantalla del viaje del conductor: negociación, recogida, viaje y resumen (T058–T060).
 ///
-/// Con [ptt], el walkie-talkie queda abajo desde ACCEPTED hasta que cierra el canal (T074).
+/// Con [ptt], el walkie-talkie queda abajo desde ACCEPTED hasta que cierra el canal (T074). Con
+/// [safety], el botón SOS y "Compartir viaje" (003).
 class TripPage extends StatelessWidget {
-  const TripPage({super.key, this.ptt});
+  const TripPage({super.key, this.ptt, this.safety});
 
   final PttController? ptt;
+  final TripSafety? safety;
 
   static String title(TripStatus status) => switch (status) {
     TripStatus.requested => 'Oferta de viaje',
@@ -35,14 +37,31 @@ class TripPage extends StatelessWidget {
       builder: (context, state) {
         final trip = state.trip;
         return Scaffold(
-          appBar: AppBar(title: Text(trip == null ? 'Viaje' : title(trip.status))),
-          body: trip == null
-              ? Center(
-                  child: state.loading
-                      ? const CircularProgressIndicator()
-                      : Text(state.error ?? 'No pudimos cargar el viaje.'),
-                )
-              : RefreshIndicator(onRefresh: context.read<TripCubit>().refresh, child: _body(context, trip, state)),
+          appBar: AppBar(
+            title: Text(trip == null ? 'Viaje' : title(trip.status)),
+            actions: [
+              ?switch ((trip, safety)) {
+                (final trip?, final safety?) => safety.shareAction(trip.status),
+                _ => null,
+              },
+            ],
+          ),
+          body: switch ((trip, safety)) {
+            (null, _) => Center(
+              child: state.loading
+                  ? const CircularProgressIndicator()
+                  : Text(state.error ?? 'No pudimos cargar el viaje.'),
+            ),
+            (final trip?, final safety?) => TripSafetyLayer(
+              safety: safety,
+              status: trip.status,
+              child: RefreshIndicator(onRefresh: context.read<TripCubit>().refresh, child: _body(context, trip, state)),
+            ),
+            (final trip?, null) => RefreshIndicator(
+              onRefresh: context.read<TripCubit>().refresh,
+              child: _body(context, trip, state),
+            ),
+          },
           bottomNavigationBar: switch ((trip, ptt)) {
             (final trip?, final ptt?) => TripPttBar(controller: ptt, status: trip.status, remoteName: 'el pasajero'),
             _ => null,

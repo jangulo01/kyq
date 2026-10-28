@@ -104,8 +104,9 @@ func (h *LiveKitWebhook) countVoice(r *http.Request, ev webhookEvent) {
 	Add(h.Usage, driverID, VoiceSeconds, seconds)
 }
 
-// roomDriver devuelve el conductor que paga la sala: la del viaje (`trip-{id}`) o la de una
-// pre-consulta (`pre-{id}`, specs/005-ptt-extras).
+// roomDriver devuelve el conductor que paga la sala: la del viaje (`trip-{id}`), la de una
+// pre-consulta (`pre-{id}`, specs/005-ptt-extras) o la de una alerta SOS (`sos-...`,
+// specs/003-sos-emergency-console), cuya voz cuenta en el conductor del viaje asociado.
 func (h *LiveKitWebhook) roomDriver(r *http.Request, room string) (uuid.UUID, error) {
 	if rest, ok := strings.CutPrefix(room, "pre-"); ok {
 		id, err := uuid.Parse(rest)
@@ -114,7 +115,13 @@ func (h *LiveKitWebhook) roomDriver(r *http.Request, room string) (uuid.UUID, er
 		}
 		return h.Store.GetPreconsultDriver(r.Context(), id)
 	}
-	tripID, err := uuid.Parse(strings.TrimPrefix(room, "trip-"))
+	var tripID uuid.UUID
+	var err error
+	if strings.HasPrefix(room, "sos-") {
+		tripID, err = h.Store.GetSOSAlertTrip(r.Context(), room)
+	} else {
+		tripID, err = uuid.Parse(strings.TrimPrefix(room, "trip-"))
+	}
 	if err != nil {
 		return uuid.Nil, err
 	}

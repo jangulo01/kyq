@@ -8,7 +8,10 @@ docker compose -f infra/docker-compose.yml up -d
 |---|---|---|
 | postgres | 5432 | PostgreSQL 17 + PostGIS (`kyq` / `kyq_dev`) |
 | centrifugo | 8000 | Tiempo real; configuración en `centrifugo.json` |
-| livekit | 7880, 7881, 7882/udp | Voz PTT; claves de desarrollo `devkey` / `secret` |
+| livekit | 7880, 7881, 7882/udp | Voz PTT y salas SOS; claves de desarrollo `devkey` / `secret` |
+| redis | (interno) | Cola de LiveKit Egress (003); sin persistencia |
+| egress | (interno) | LiveKit Egress: graba el audio de las salas `sos-*` en `kyq-sos` (003) |
+| minio | 9000 (9001 local) | Objetos privados: fotos KYC (`kyq-kyc`) y grabaciones SOS (`kyq-sos`) |
 | osrm | 5000 | Rutas, distancia y tiempo para tarifas y ETA |
 | tiles | 8081 | Teselas PMTiles de la ciudad |
 
@@ -61,3 +64,31 @@ se muestra en el botón (i) del mapa. Caddy (`tiles/Caddyfile`) sirve los archiv
 
 La app de pasajero usa por defecto `http://<host de KYQ_API_URL>:8081/style.json`; se puede fijar
 otro estilo con `--dart-define=KYQ_MAP_STYLE_URL=...`.
+
+## SOS y consola de emergencias (003)
+
+- **Grabación**: `egress` (LiveKit Egress, configuración en `egress.yaml`) recibe por Redis las
+  órdenes de la API (`StartRoomCompositeEgress` solo audio, OGG/Opus) y sube
+  `sos/{alertId}.ogg` al bucket `kyq-sos`. Las credenciales S3 le llegan por
+  `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` (las de MinIO del `.env`). El job
+  `minio-init-sos` crea el bucket y la API le pone al arrancar la regla de ciclo de vida que borra
+  el audio a los 90 días (también válida en Cloudflare R2). Sin egress, poner
+  `KYQ_SOS_RECORDING=false`: las alertas funcionan igual, sin grabación.
+- **Redis** solo existe por Egress (desviación registrada en el plan de 003); `livekit.yaml` lo
+  declara para que el servidor publique las peticiones de grabación.
+- **Centrifugo**: namespaces `ops` (cola `ops:sos`) y `sos` (`sos:{alertId}`, ubicación a 1 Hz),
+  solo para administradores con permiso de operador de emergencias.
+- **Operadores**: la semilla deja al administrador de `KYQ_SEED_ADMIN_PHONE` como operador de
+  emergencias de guardia (tabla `emergency_operators`). La guardia se cambia desde la consola; a
+  los 60 s sin tomar una alerta se avisa por SMS a los de guardia (`KYQ_TWILIO_SMS_FROM`; vacío o
+  con OTP de desarrollo, solo se registra en el log).
+- **Viaje compartido**: la API sirve la página pública `GET /s/{token}` (MapLibre GL JS 4.7.1 y
+  pmtiles 3.2.1 desde unpkg con SRI) y `GET /v1/share/{token}`. El mapa usa `KYQ_MAP_STYLE_URL`
+  o el servicio `tiles` del mismo host (puerto 8081, perfil `routing`).
+
+Comprobar tras `docker compose up -d`:
+
+```bash
+docker compose logs egress | tail          # "service ready" y conectado a Redis
+docker compose run --rm minio-init-sos ls local/   # lista los buckets: kyq-kyc y kyq-sos
+```
