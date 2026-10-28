@@ -304,7 +304,7 @@ as bool?,
 /// @nodoc
 mixin _$RadioConversation {
 
- String get id;@JsonKey(unknownEnumValue: RadioConversationKind.channel) RadioConversationKind get kind; String get title; String? get photoUrl; String? get peerId;@JsonKey(unknownEnumValue: RadioPresence.offline) RadioPresence? get peerStatus; bool get peerMuted; int? get onlineCount;@JsonKey(unknownEnumValue: RadioRole.member) RadioRole? get myRole; String get myMemberStatus; bool get listening; int get unreadCount; DateTime? get lastMessageAt; String get status; bool get canTalk;
+ String get id;@JsonKey(unknownEnumValue: RadioConversationKind.channel) RadioConversationKind get kind; String get title; String? get photoUrl; String? get peerId;@JsonKey(unknownEnumValue: RadioPresence.offline) RadioPresence? get peerStatus; bool get peerMuted; bool get peerBlocked; int? get onlineCount;@JsonKey(unknownEnumValue: RadioRole.member) RadioRole? get myRole; String get myMemberStatus; bool get listening; int get unreadCount; DateTime? get lastMessageAt; String get status; bool get canTalk;
 /// Create a copy of RadioConversation
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -317,16 +317,16 @@ $RadioConversationCopyWith<RadioConversation> get copyWith => _$RadioConversatio
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is RadioConversation&&(identical(other.id, id) || other.id == id)&&(identical(other.kind, kind) || other.kind == kind)&&(identical(other.title, title) || other.title == title)&&(identical(other.photoUrl, photoUrl) || other.photoUrl == photoUrl)&&(identical(other.peerId, peerId) || other.peerId == peerId)&&(identical(other.peerStatus, peerStatus) || other.peerStatus == peerStatus)&&(identical(other.peerMuted, peerMuted) || other.peerMuted == peerMuted)&&(identical(other.onlineCount, onlineCount) || other.onlineCount == onlineCount)&&(identical(other.myRole, myRole) || other.myRole == myRole)&&(identical(other.myMemberStatus, myMemberStatus) || other.myMemberStatus == myMemberStatus)&&(identical(other.listening, listening) || other.listening == listening)&&(identical(other.unreadCount, unreadCount) || other.unreadCount == unreadCount)&&(identical(other.lastMessageAt, lastMessageAt) || other.lastMessageAt == lastMessageAt)&&(identical(other.status, status) || other.status == status)&&(identical(other.canTalk, canTalk) || other.canTalk == canTalk));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is RadioConversation&&(identical(other.id, id) || other.id == id)&&(identical(other.kind, kind) || other.kind == kind)&&(identical(other.title, title) || other.title == title)&&(identical(other.photoUrl, photoUrl) || other.photoUrl == photoUrl)&&(identical(other.peerId, peerId) || other.peerId == peerId)&&(identical(other.peerStatus, peerStatus) || other.peerStatus == peerStatus)&&(identical(other.peerMuted, peerMuted) || other.peerMuted == peerMuted)&&(identical(other.peerBlocked, peerBlocked) || other.peerBlocked == peerBlocked)&&(identical(other.onlineCount, onlineCount) || other.onlineCount == onlineCount)&&(identical(other.myRole, myRole) || other.myRole == myRole)&&(identical(other.myMemberStatus, myMemberStatus) || other.myMemberStatus == myMemberStatus)&&(identical(other.listening, listening) || other.listening == listening)&&(identical(other.unreadCount, unreadCount) || other.unreadCount == unreadCount)&&(identical(other.lastMessageAt, lastMessageAt) || other.lastMessageAt == lastMessageAt)&&(identical(other.status, status) || other.status == status)&&(identical(other.canTalk, canTalk) || other.canTalk == canTalk));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,kind,title,photoUrl,peerId,peerStatus,peerMuted,onlineCount,myRole,myMemberStatus,listening,unreadCount,lastMessageAt,status,canTalk);
+int get hashCode => Object.hash(runtimeType,id,kind,title,photoUrl,peerId,peerStatus,peerMuted,peerBlocked,onlineCount,myRole,myMemberStatus,listening,unreadCount,lastMessageAt,status,canTalk);
 
 @override
 String toString() {
-  return 'RadioConversation(id: $id, kind: $kind, title: $title, photoUrl: $photoUrl, peerId: $peerId, peerStatus: $peerStatus, peerMuted: $peerMuted, onlineCount: $onlineCount, myRole: $myRole, myMemberStatus: $myMemberStatus, listening: $listening, unreadCount: $unreadCount, lastMessageAt: $lastMessageAt, status: $status, canTalk: $canTalk)';
+  return 'RadioConversation(id: $id, kind: $kind, title: $title, photoUrl: $photoUrl, peerId: $peerId, peerStatus: $peerStatus, peerMuted: $peerMuted, peerBlocked: $peerBlocked, onlineCount: $onlineCount, myRole: $myRole, myMemberStatus: $myMemberStatus, listening: $listening, unreadCount: $unreadCount, lastMessageAt: $lastMessageAt, status: $status, canTalk: $canTalk)';
 }
 
 
@@ -337,7 +337,7 @@ abstract mixin class $RadioConversationCopyWith<$Res>  {
   factory $RadioConversationCopyWith(RadioConversation value, $Res Function(RadioConversation) _then) = _$RadioConversationCopyWithImpl;
 @useResult
 $Res call({
- String id,@JsonKey(unknownEnumValue: RadioConversationKind.channel) RadioConversationKind kind, String title, String? photoUrl, String? peerId,@JsonKey(unknownEnumValue: RadioPresence.offline) RadioPresence? peerStatus, bool peerMuted, int? onlineCount,@JsonKey(unknownEnumValue: RadioRole.member) RadioRole? myRole, String myMemberStatus, bool listening, int unreadCount, DateTime? lastMessageAt, String status, bool canTalk
+ String id,@JsonKey(unknownEnumValue: RadioConversationKind.channel) RadioConversationKind kind, String title, String? photoUrl, String? peerId,@JsonKey(unknownEnumValue: RadioPresence.offline) RadioPresence? peerStatus, bool peerMuted, bool peerBlocked, int? onlineCount,@JsonKey(unknownEnumValue: RadioRole.member) RadioRole? myRole, String myMemberStatus, bool listening, int unreadCount, DateTime? lastMessageAt, String status, bool canTalk
 });
 
 
@@ -354,7 +354,7 @@ class _$RadioConversationCopyWithImpl<$Res>
 
 /// Create a copy of RadioConversation
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? kind = null,Object? title = null,Object? photoUrl = freezed,Object? peerId = freezed,Object? peerStatus = freezed,Object? peerMuted = null,Object? onlineCount = freezed,Object? myRole = freezed,Object? myMemberStatus = null,Object? listening = null,Object? unreadCount = null,Object? lastMessageAt = freezed,Object? status = null,Object? canTalk = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? kind = null,Object? title = null,Object? photoUrl = freezed,Object? peerId = freezed,Object? peerStatus = freezed,Object? peerMuted = null,Object? peerBlocked = null,Object? onlineCount = freezed,Object? myRole = freezed,Object? myMemberStatus = null,Object? listening = null,Object? unreadCount = null,Object? lastMessageAt = freezed,Object? status = null,Object? canTalk = null,}) {
   return _then(_self.copyWith(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,kind: null == kind ? _self.kind : kind // ignore: cast_nullable_to_non_nullable
@@ -363,6 +363,7 @@ as String,photoUrl: freezed == photoUrl ? _self.photoUrl : photoUrl // ignore: c
 as String?,peerId: freezed == peerId ? _self.peerId : peerId // ignore: cast_nullable_to_non_nullable
 as String?,peerStatus: freezed == peerStatus ? _self.peerStatus : peerStatus // ignore: cast_nullable_to_non_nullable
 as RadioPresence?,peerMuted: null == peerMuted ? _self.peerMuted : peerMuted // ignore: cast_nullable_to_non_nullable
+as bool,peerBlocked: null == peerBlocked ? _self.peerBlocked : peerBlocked // ignore: cast_nullable_to_non_nullable
 as bool,onlineCount: freezed == onlineCount ? _self.onlineCount : onlineCount // ignore: cast_nullable_to_non_nullable
 as int?,myRole: freezed == myRole ? _self.myRole : myRole // ignore: cast_nullable_to_non_nullable
 as RadioRole?,myMemberStatus: null == myMemberStatus ? _self.myMemberStatus : myMemberStatus // ignore: cast_nullable_to_non_nullable
@@ -456,10 +457,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id, @JsonKey(unknownEnumValue: RadioConversationKind.channel)  RadioConversationKind kind,  String title,  String? photoUrl,  String? peerId, @JsonKey(unknownEnumValue: RadioPresence.offline)  RadioPresence? peerStatus,  bool peerMuted,  int? onlineCount, @JsonKey(unknownEnumValue: RadioRole.member)  RadioRole? myRole,  String myMemberStatus,  bool listening,  int unreadCount,  DateTime? lastMessageAt,  String status,  bool canTalk)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id, @JsonKey(unknownEnumValue: RadioConversationKind.channel)  RadioConversationKind kind,  String title,  String? photoUrl,  String? peerId, @JsonKey(unknownEnumValue: RadioPresence.offline)  RadioPresence? peerStatus,  bool peerMuted,  bool peerBlocked,  int? onlineCount, @JsonKey(unknownEnumValue: RadioRole.member)  RadioRole? myRole,  String myMemberStatus,  bool listening,  int unreadCount,  DateTime? lastMessageAt,  String status,  bool canTalk)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _RadioConversation() when $default != null:
-return $default(_that.id,_that.kind,_that.title,_that.photoUrl,_that.peerId,_that.peerStatus,_that.peerMuted,_that.onlineCount,_that.myRole,_that.myMemberStatus,_that.listening,_that.unreadCount,_that.lastMessageAt,_that.status,_that.canTalk);case _:
+return $default(_that.id,_that.kind,_that.title,_that.photoUrl,_that.peerId,_that.peerStatus,_that.peerMuted,_that.peerBlocked,_that.onlineCount,_that.myRole,_that.myMemberStatus,_that.listening,_that.unreadCount,_that.lastMessageAt,_that.status,_that.canTalk);case _:
   return orElse();
 
 }
@@ -477,10 +478,10 @@ return $default(_that.id,_that.kind,_that.title,_that.photoUrl,_that.peerId,_tha
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id, @JsonKey(unknownEnumValue: RadioConversationKind.channel)  RadioConversationKind kind,  String title,  String? photoUrl,  String? peerId, @JsonKey(unknownEnumValue: RadioPresence.offline)  RadioPresence? peerStatus,  bool peerMuted,  int? onlineCount, @JsonKey(unknownEnumValue: RadioRole.member)  RadioRole? myRole,  String myMemberStatus,  bool listening,  int unreadCount,  DateTime? lastMessageAt,  String status,  bool canTalk)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id, @JsonKey(unknownEnumValue: RadioConversationKind.channel)  RadioConversationKind kind,  String title,  String? photoUrl,  String? peerId, @JsonKey(unknownEnumValue: RadioPresence.offline)  RadioPresence? peerStatus,  bool peerMuted,  bool peerBlocked,  int? onlineCount, @JsonKey(unknownEnumValue: RadioRole.member)  RadioRole? myRole,  String myMemberStatus,  bool listening,  int unreadCount,  DateTime? lastMessageAt,  String status,  bool canTalk)  $default,) {final _that = this;
 switch (_that) {
 case _RadioConversation():
-return $default(_that.id,_that.kind,_that.title,_that.photoUrl,_that.peerId,_that.peerStatus,_that.peerMuted,_that.onlineCount,_that.myRole,_that.myMemberStatus,_that.listening,_that.unreadCount,_that.lastMessageAt,_that.status,_that.canTalk);case _:
+return $default(_that.id,_that.kind,_that.title,_that.photoUrl,_that.peerId,_that.peerStatus,_that.peerMuted,_that.peerBlocked,_that.onlineCount,_that.myRole,_that.myMemberStatus,_that.listening,_that.unreadCount,_that.lastMessageAt,_that.status,_that.canTalk);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -497,10 +498,10 @@ return $default(_that.id,_that.kind,_that.title,_that.photoUrl,_that.peerId,_tha
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id, @JsonKey(unknownEnumValue: RadioConversationKind.channel)  RadioConversationKind kind,  String title,  String? photoUrl,  String? peerId, @JsonKey(unknownEnumValue: RadioPresence.offline)  RadioPresence? peerStatus,  bool peerMuted,  int? onlineCount, @JsonKey(unknownEnumValue: RadioRole.member)  RadioRole? myRole,  String myMemberStatus,  bool listening,  int unreadCount,  DateTime? lastMessageAt,  String status,  bool canTalk)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id, @JsonKey(unknownEnumValue: RadioConversationKind.channel)  RadioConversationKind kind,  String title,  String? photoUrl,  String? peerId, @JsonKey(unknownEnumValue: RadioPresence.offline)  RadioPresence? peerStatus,  bool peerMuted,  bool peerBlocked,  int? onlineCount, @JsonKey(unknownEnumValue: RadioRole.member)  RadioRole? myRole,  String myMemberStatus,  bool listening,  int unreadCount,  DateTime? lastMessageAt,  String status,  bool canTalk)?  $default,) {final _that = this;
 switch (_that) {
 case _RadioConversation() when $default != null:
-return $default(_that.id,_that.kind,_that.title,_that.photoUrl,_that.peerId,_that.peerStatus,_that.peerMuted,_that.onlineCount,_that.myRole,_that.myMemberStatus,_that.listening,_that.unreadCount,_that.lastMessageAt,_that.status,_that.canTalk);case _:
+return $default(_that.id,_that.kind,_that.title,_that.photoUrl,_that.peerId,_that.peerStatus,_that.peerMuted,_that.peerBlocked,_that.onlineCount,_that.myRole,_that.myMemberStatus,_that.listening,_that.unreadCount,_that.lastMessageAt,_that.status,_that.canTalk);case _:
   return null;
 
 }
@@ -512,7 +513,7 @@ return $default(_that.id,_that.kind,_that.title,_that.photoUrl,_that.peerId,_tha
 @JsonSerializable()
 
 class _RadioConversation implements RadioConversation {
-  const _RadioConversation({required this.id, @JsonKey(unknownEnumValue: RadioConversationKind.channel) required this.kind, required this.title, this.photoUrl, this.peerId, @JsonKey(unknownEnumValue: RadioPresence.offline) this.peerStatus, this.peerMuted = false, this.onlineCount, @JsonKey(unknownEnumValue: RadioRole.member) this.myRole, this.myMemberStatus = 'active', required this.listening, required this.unreadCount, this.lastMessageAt, this.status = 'active', this.canTalk = false});
+  const _RadioConversation({required this.id, @JsonKey(unknownEnumValue: RadioConversationKind.channel) required this.kind, required this.title, this.photoUrl, this.peerId, @JsonKey(unknownEnumValue: RadioPresence.offline) this.peerStatus, this.peerMuted = false, this.peerBlocked = false, this.onlineCount, @JsonKey(unknownEnumValue: RadioRole.member) this.myRole, this.myMemberStatus = 'active', required this.listening, required this.unreadCount, this.lastMessageAt, this.status = 'active', this.canTalk = false});
   factory _RadioConversation.fromJson(Map<String, dynamic> json) => _$RadioConversationFromJson(json);
 
 @override final  String id;
@@ -522,6 +523,7 @@ class _RadioConversation implements RadioConversation {
 @override final  String? peerId;
 @override@JsonKey(unknownEnumValue: RadioPresence.offline) final  RadioPresence? peerStatus;
 @override@JsonKey() final  bool peerMuted;
+@override@JsonKey() final  bool peerBlocked;
 @override final  int? onlineCount;
 @override@JsonKey(unknownEnumValue: RadioRole.member) final  RadioRole? myRole;
 @override@JsonKey() final  String myMemberStatus;
@@ -544,16 +546,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _RadioConversation&&(identical(other.id, id) || other.id == id)&&(identical(other.kind, kind) || other.kind == kind)&&(identical(other.title, title) || other.title == title)&&(identical(other.photoUrl, photoUrl) || other.photoUrl == photoUrl)&&(identical(other.peerId, peerId) || other.peerId == peerId)&&(identical(other.peerStatus, peerStatus) || other.peerStatus == peerStatus)&&(identical(other.peerMuted, peerMuted) || other.peerMuted == peerMuted)&&(identical(other.onlineCount, onlineCount) || other.onlineCount == onlineCount)&&(identical(other.myRole, myRole) || other.myRole == myRole)&&(identical(other.myMemberStatus, myMemberStatus) || other.myMemberStatus == myMemberStatus)&&(identical(other.listening, listening) || other.listening == listening)&&(identical(other.unreadCount, unreadCount) || other.unreadCount == unreadCount)&&(identical(other.lastMessageAt, lastMessageAt) || other.lastMessageAt == lastMessageAt)&&(identical(other.status, status) || other.status == status)&&(identical(other.canTalk, canTalk) || other.canTalk == canTalk));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _RadioConversation&&(identical(other.id, id) || other.id == id)&&(identical(other.kind, kind) || other.kind == kind)&&(identical(other.title, title) || other.title == title)&&(identical(other.photoUrl, photoUrl) || other.photoUrl == photoUrl)&&(identical(other.peerId, peerId) || other.peerId == peerId)&&(identical(other.peerStatus, peerStatus) || other.peerStatus == peerStatus)&&(identical(other.peerMuted, peerMuted) || other.peerMuted == peerMuted)&&(identical(other.peerBlocked, peerBlocked) || other.peerBlocked == peerBlocked)&&(identical(other.onlineCount, onlineCount) || other.onlineCount == onlineCount)&&(identical(other.myRole, myRole) || other.myRole == myRole)&&(identical(other.myMemberStatus, myMemberStatus) || other.myMemberStatus == myMemberStatus)&&(identical(other.listening, listening) || other.listening == listening)&&(identical(other.unreadCount, unreadCount) || other.unreadCount == unreadCount)&&(identical(other.lastMessageAt, lastMessageAt) || other.lastMessageAt == lastMessageAt)&&(identical(other.status, status) || other.status == status)&&(identical(other.canTalk, canTalk) || other.canTalk == canTalk));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,kind,title,photoUrl,peerId,peerStatus,peerMuted,onlineCount,myRole,myMemberStatus,listening,unreadCount,lastMessageAt,status,canTalk);
+int get hashCode => Object.hash(runtimeType,id,kind,title,photoUrl,peerId,peerStatus,peerMuted,peerBlocked,onlineCount,myRole,myMemberStatus,listening,unreadCount,lastMessageAt,status,canTalk);
 
 @override
 String toString() {
-  return 'RadioConversation(id: $id, kind: $kind, title: $title, photoUrl: $photoUrl, peerId: $peerId, peerStatus: $peerStatus, peerMuted: $peerMuted, onlineCount: $onlineCount, myRole: $myRole, myMemberStatus: $myMemberStatus, listening: $listening, unreadCount: $unreadCount, lastMessageAt: $lastMessageAt, status: $status, canTalk: $canTalk)';
+  return 'RadioConversation(id: $id, kind: $kind, title: $title, photoUrl: $photoUrl, peerId: $peerId, peerStatus: $peerStatus, peerMuted: $peerMuted, peerBlocked: $peerBlocked, onlineCount: $onlineCount, myRole: $myRole, myMemberStatus: $myMemberStatus, listening: $listening, unreadCount: $unreadCount, lastMessageAt: $lastMessageAt, status: $status, canTalk: $canTalk)';
 }
 
 
@@ -564,7 +566,7 @@ abstract mixin class _$RadioConversationCopyWith<$Res> implements $RadioConversa
   factory _$RadioConversationCopyWith(_RadioConversation value, $Res Function(_RadioConversation) _then) = __$RadioConversationCopyWithImpl;
 @override @useResult
 $Res call({
- String id,@JsonKey(unknownEnumValue: RadioConversationKind.channel) RadioConversationKind kind, String title, String? photoUrl, String? peerId,@JsonKey(unknownEnumValue: RadioPresence.offline) RadioPresence? peerStatus, bool peerMuted, int? onlineCount,@JsonKey(unknownEnumValue: RadioRole.member) RadioRole? myRole, String myMemberStatus, bool listening, int unreadCount, DateTime? lastMessageAt, String status, bool canTalk
+ String id,@JsonKey(unknownEnumValue: RadioConversationKind.channel) RadioConversationKind kind, String title, String? photoUrl, String? peerId,@JsonKey(unknownEnumValue: RadioPresence.offline) RadioPresence? peerStatus, bool peerMuted, bool peerBlocked, int? onlineCount,@JsonKey(unknownEnumValue: RadioRole.member) RadioRole? myRole, String myMemberStatus, bool listening, int unreadCount, DateTime? lastMessageAt, String status, bool canTalk
 });
 
 
@@ -581,7 +583,7 @@ class __$RadioConversationCopyWithImpl<$Res>
 
 /// Create a copy of RadioConversation
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? kind = null,Object? title = null,Object? photoUrl = freezed,Object? peerId = freezed,Object? peerStatus = freezed,Object? peerMuted = null,Object? onlineCount = freezed,Object? myRole = freezed,Object? myMemberStatus = null,Object? listening = null,Object? unreadCount = null,Object? lastMessageAt = freezed,Object? status = null,Object? canTalk = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? kind = null,Object? title = null,Object? photoUrl = freezed,Object? peerId = freezed,Object? peerStatus = freezed,Object? peerMuted = null,Object? peerBlocked = null,Object? onlineCount = freezed,Object? myRole = freezed,Object? myMemberStatus = null,Object? listening = null,Object? unreadCount = null,Object? lastMessageAt = freezed,Object? status = null,Object? canTalk = null,}) {
   return _then(_RadioConversation(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,kind: null == kind ? _self.kind : kind // ignore: cast_nullable_to_non_nullable
@@ -590,6 +592,7 @@ as String,photoUrl: freezed == photoUrl ? _self.photoUrl : photoUrl // ignore: c
 as String?,peerId: freezed == peerId ? _self.peerId : peerId // ignore: cast_nullable_to_non_nullable
 as String?,peerStatus: freezed == peerStatus ? _self.peerStatus : peerStatus // ignore: cast_nullable_to_non_nullable
 as RadioPresence?,peerMuted: null == peerMuted ? _self.peerMuted : peerMuted // ignore: cast_nullable_to_non_nullable
+as bool,peerBlocked: null == peerBlocked ? _self.peerBlocked : peerBlocked // ignore: cast_nullable_to_non_nullable
 as bool,onlineCount: freezed == onlineCount ? _self.onlineCount : onlineCount // ignore: cast_nullable_to_non_nullable
 as int?,myRole: freezed == myRole ? _self.myRole : myRole // ignore: cast_nullable_to_non_nullable
 as RadioRole?,myMemberStatus: null == myMemberStatus ? _self.myMemberStatus : myMemberStatus // ignore: cast_nullable_to_non_nullable

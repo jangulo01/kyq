@@ -56,8 +56,8 @@
 
 ## Phase 7: US3 Clientes (P1)
 
-- [ ] T027 [US3] Conversaciones `client` derivadas de la afiliación activa: `PUT /v1/radio/clients` (desactivado por defecto), `PUT /v1/radio/clients/{passengerId}` (silenciar, bloquear), cierre al terminar la afiliación, límite de 20 mensajes/hora por pasajero y conductor (`429`); pruebas de integración (FR-003)
-- [ ] T028 [US3] Montar `/radio` en `apps/kyq_rider_app` (entrada desde la lista de Conductores Elegidos) con "Pedir viaje" hacia la solicitud de 001; ajustes del conductor "Radio con mis clientes" y lista de clientes silenciados o bloqueados; pruebas
+- [X] T027 [US3] Conversaciones `client` derivadas de la afiliación activa: `PUT /v1/radio/clients` (desactivado por defecto), `PUT /v1/radio/clients/{passengerId}` (silenciar, bloquear), cierre al terminar la afiliación, límite de 20 mensajes/hora por pasajero y conductor (`429`); pruebas de integración (FR-003)
+- [X] T028 [US3] Montar `/radio` en `apps/kyq_rider_app` (entrada desde la lista de Conductores Elegidos) con "Pedir viaje" hacia la solicitud de 001; ajustes del conductor "Radio con mis clientes" y lista de clientes silenciados o bloqueados; pruebas
 
 ## Phase 8: US10 Migración y configuración (P1)
 

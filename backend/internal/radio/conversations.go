@@ -156,7 +156,7 @@ func conversationView(r store.ListRadioConversationsRow, d Decision) Conversatio
 		id := r.PeerID
 		status := presenceOf(r.PeerStatus, r.PeerOnline)
 		c.PeerID, c.PeerStatus = &id, &status
-		c.PeerMuted = r.PeerMuted
+		c.PeerMuted, c.PeerBlocked = r.PeerMuted, r.PeerBlocked
 	} else {
 		n := int(r.OnlineCount)
 		c.OnlineCount = &n

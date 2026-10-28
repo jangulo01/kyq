@@ -31,13 +31,15 @@ type Me struct {
 
 // Conversation is one row of the Radio list (contracts: Conversation).
 type Conversation struct {
-	ID             uuid.UUID  `json:"id"`
-	Kind           string     `json:"kind"`
-	Title          string     `json:"title"`
-	PhotoURL       *string    `json:"photo_url"`
-	PeerID         *uuid.UUID `json:"peer_id"`
-	PeerStatus     *string    `json:"peer_status"`
-	PeerMuted      bool       `json:"peer_muted"`
+	ID         uuid.UUID  `json:"id"`
+	Kind       string     `json:"kind"`
+	Title      string     `json:"title"`
+	PhotoURL   *string    `json:"photo_url"`
+	PeerID     *uuid.UUID `json:"peer_id"`
+	PeerStatus *string    `json:"peer_status"`
+	PeerMuted  bool       `json:"peer_muted"`
+	// PeerBlocked: el conductor bloqueó a este cliente (FR-003).
+	PeerBlocked    bool       `json:"peer_blocked"`
 	OnlineCount    *int       `json:"online_count"`
 	MyRole         *string    `json:"my_role"`
 	MyMemberStatus string     `json:"my_member_status"`

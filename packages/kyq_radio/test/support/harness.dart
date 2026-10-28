@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:kyq_api/kyq_api.dart';
 import 'package:kyq_ptt/testing.dart';
 import 'package:kyq_radio/kyq_radio.dart';
 import 'package:kyq_radio/testing.dart';
@@ -11,10 +12,12 @@ import 'package:kyq_realtime/kyq_realtime.dart';
 
 /// Radio montada en un router de prueba con API, salas, tonos y audio falsos.
 class RadioHarness {
-  RadioHarness(this.api, {this.myUserId = 'me'});
+  RadioHarness(this.api, {this.myUserId = 'me', this.isDriver = true, this.onRequestTrip});
 
   final FakeRadioApi api;
   final String myUserId;
+  final bool isDriver;
+  final void Function(BuildContext context, RadioConversation conversation)? onRequestTrip;
   final events = StreamController<RealtimeEvent>.broadcast();
   final player = FakeMessagePlayer();
   final tones = FakeTonePlayer();
@@ -41,7 +44,14 @@ class RadioHarness {
     addTearDown(router.dispose);
     await tester.pumpWidget(
       RepositoryProvider(
-        create: (_) => RadioDeps(api: api, myUserId: myUserId, events: events.stream, newPlayer: () => player),
+        create: (_) => RadioDeps(
+          api: api,
+          myUserId: myUserId,
+          events: events.stream,
+          newPlayer: () => player,
+          isDriver: isDriver,
+          onRequestTrip: onRequestTrip,
+        ),
         child: BlocProvider.value(
           value: cubit..load(),
           child: MaterialApp.router(routerConfig: router),

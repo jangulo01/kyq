@@ -153,6 +153,13 @@ func TestIntegration011RadioRoutesMatchContract(t *testing.T) {
 	assert.Contains(t, rec.Body.String(), "kyq://radio/"+inv2["code"].(string))
 	assert.Contains(t, rec.Body.String(), "referrer=radio%3D"+inv2["code"].(string))
 
+	// Radio con mis clientes (FR-003).
+	require.NoError(t, s.st.InsertAffiliation(context.Background(), store.InsertAffiliationParams{PassengerID: s.ana, DriverID: s.carlos}))
+	c.call(http.MethodPut, "/v1/radio/clients", s.carlosTk, map[string]any{"enabled": true}, http.StatusNoContent)
+	c.call(http.MethodPut, "/v1/radio/clients", s.anaTk, map[string]any{"enabled": true}, http.StatusForbidden)
+	c.call(http.MethodPut, "/v1/radio/clients/"+s.ana.String(), s.carlosTk, map[string]any{"muted": true}, http.StatusNoContent)
+	c.call(http.MethodPut, "/v1/radio/clients/"+s.jonathan.String(), s.carlosTk, map[string]any{"blocked": true}, http.StatusNotFound)
+
 	// Borrar el contacto (FR-002).
 	c.call(http.MethodDelete, "/v1/radio/conversations/"+convID, s.carlosTk, nil, http.StatusNoContent)
 	c.call(http.MethodGet, "/v1/radio/conversations/"+convID, s.jonTk, nil, http.StatusNotFound)

@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:kyq_api/kyq_api.dart';
 import 'package:kyq_ptt/kyq_ptt.dart';
+import 'package:kyq_radio/kyq_radio.dart';
 import 'package:kyq_realtime/kyq_realtime.dart';
 import 'package:kyq_ui/kyq_ui.dart';
 
@@ -29,6 +32,7 @@ import '../trip/checkout_launcher.dart';
 import '../trip/trip_cubit.dart';
 import '../trip/trip_page.dart';
 import '../trip/trip_payment_cubit.dart';
+import 'session_user.dart';
 
 /// URL del backend. En el emulador de Android, 10.0.2.2 es el localhost del PC.
 const apiBaseUrl = String.fromEnvironment('KYQ_API_URL', defaultValue: 'http://10.0.2.2:8080');
@@ -80,6 +84,9 @@ class KyqRiderApp extends StatefulWidget {
     this.places = const SharedPrefsSavedPlaces(),
     this.map = maplibreTripMap,
     this.pickDateTime = materialDateTimePicker,
+    this.radio = liveRadioCubit,
+    this.radioPlayer = JustAudioMessagePlayer.new,
+    this.radioApi,
   });
 
   final KyqApiClient api;
@@ -108,6 +115,13 @@ class KyqRiderApp extends StatefulWidget {
   /// Fecha y hora de una reserva; las pruebas no abren los diálogos.
   final DateTimePicker pickDateTime;
 
+  /// Radio Kyq (011): salas, tonos y audio reales; las pruebas pasan un cubit con falsos.
+  final RadioCubitFactory radio;
+  final MessagePlayer Function() radioPlayer;
+
+  /// API de Radio; null usa [api]. Las pruebas pasan una en memoria.
+  final RadioApi? radioApi;
+
   @override
   State<KyqRiderApp> createState() => _KyqRiderAppState();
 }
@@ -115,13 +129,26 @@ class KyqRiderApp extends StatefulWidget {
 class _KyqRiderAppState extends State<KyqRiderApp> {
   late final SafetyPlatform _safety = widget.safety ?? platformSafety();
 
+  // 011: Radio con los conductores que activaron "Radio con mis clientes"; vive con la sesión.
+  late final RadioMount _radio = RadioMount(
+    api: widget.radioApi ?? widget.api,
+    events: (userId) => widget.realtime.subscribe('user:$userId'),
+    factory: widget.radio,
+    newPlayer: widget.radioPlayer,
+    isDriver: false,
+    location: _RiderRadioLocation(widget.location),
+    onRequestTrip: (context, c) =>
+        context.push(Uri(path: '/request/${c.peerId}', queryParameters: {'name': c.title}).toString()),
+  );
+  late final StreamSubscription<AuthState> _authSub;
+
   late final GoRouter _router = buildAuthRouter(
     auth: widget.auth,
     title: 'Kyq Pasajero',
     // 009: Ayuda, y lo único que ve una cuenta suspendida.
     withSupport: true,
-    // 008: el enlace del conductor abre la app con `kyq://affiliate/{token}`.
-    guard: (context, state) => affiliateLinkRedirect(state.uri),
+    // 008: el enlace del conductor abre la app con `kyq://affiliate/{token}`; 011: kyq://radio/{code}.
+    guard: (context, state) => affiliateLinkRedirect(state.uri) ?? radioDeepLinkRedirect(state.uri),
     routes: [
       GoRoute(
         path: '/',
@@ -165,6 +192,7 @@ class _KyqRiderAppState extends State<KyqRiderApp> {
             ),
           ),
           GoRoute(path: 'scan', builder: (context, state) => const ScanPage()),
+          radioRoute(scope: _radio.wrap),
           GoRoute(
             path: 'affiliate/:token',
             builder: (context, state) => BlocProvider(
@@ -276,7 +304,29 @@ class _KyqRiderAppState extends State<KyqRiderApp> {
   );
 
   @override
+  void initState() {
+    super.initState();
+    _authSub = widget.auth.stream.listen(_onAuth);
+    _onAuth(widget.auth.state);
+  }
+
+  Future<void> _onAuth(AuthState state) async {
+    switch (state) {
+      case AuthSignedIn():
+        final session = await widget.api.currentSession();
+        final id = session == null ? null : userIdFromAccessToken(session.accessToken);
+        if (id != null && mounted) _radio.start(id);
+      case AuthSignedOut():
+        await _radio.stop();
+      default:
+        break;
+    }
+  }
+
+  @override
   void dispose() {
+    _authSub.cancel();
+    unawaited(_radio.dispose());
     _router.dispose();
     super.dispose();
   }
@@ -294,5 +344,22 @@ class _KyqRiderAppState extends State<KyqRiderApp> {
         child: MaterialApp.router(title: 'Kyq Pasajero', theme: kyqTheme(), routerConfig: _router),
       ),
     );
+  }
+}
+
+/// Ubicación de la radio con el GPS del pasajero; sin permiso no hay punto.
+class _RiderRadioLocation implements RadioLocation {
+  const _RiderRadioLocation(this.source);
+
+  final LocationSource source;
+
+  @override
+  Future<RadioPoint?> current() async {
+    try {
+      final p = await source.current();
+      return (lat: p.lat, lng: p.lng);
+    } on LocationUnavailable {
+      return null;
+    }
   }
 }

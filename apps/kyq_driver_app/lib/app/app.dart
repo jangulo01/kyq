@@ -37,7 +37,7 @@ import '../preconsult/preconsult_page.dart';
 import '../preconsult/preconsult_settings_cubit.dart';
 import '../preconsult/preconsult_settings_page.dart';
 import '../presence/presence_cubit.dart';
-import '../radio/radio_mount.dart';
+import '../radio/radio_location.dart';
 import '../realtime/driver_events.dart';
 import '../subscription/subscription_cubit.dart';
 import '../subscription/subscription_page.dart';
@@ -140,7 +140,7 @@ class _KyqDriverAppState extends State<KyqDriverApp> {
   // 011: Radio Kyq; arranca al conocer la cuenta y escucha aunque se cambie de pantalla.
   late final RadioMount _radio = RadioMount(
     api: widget.services.radioApi ?? widget.api,
-    events: _events.stream,
+    events: (_) => _events.stream,
     factory: widget.services.radio,
     newPlayer: widget.services.radioPlayer,
     location: PositionRadioLocation(widget.services.positions),

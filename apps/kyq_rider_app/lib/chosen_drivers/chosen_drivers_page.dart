@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:kyq_api/kyq_api.dart';
+import 'package:kyq_radio/kyq_radio.dart';
 import 'package:kyq_ui/kyq_ui.dart';
 
 import '../map/trip_map.dart';
@@ -33,6 +34,13 @@ class ChosenDriversPage extends StatelessWidget {
       appBar: AppBar(
         title: const Text('Mis Conductores Elegidos'),
         actions: [
+          // 011: Radio con los conductores que la activaron para sus clientes.
+          IconButton(
+            key: const Key('home.radio'),
+            tooltip: 'Radio',
+            icon: const Icon(Icons.settings_input_antenna),
+            onPressed: () => context.push(RadioRoutes.list),
+          ),
           IconButton(
             key: const Key('home.reservations'),
             tooltip: 'Mis reservas',

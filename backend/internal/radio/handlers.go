@@ -45,6 +45,8 @@ func (h *Handlers) Register(mux *http.ServeMux, authMW func(http.Handler) http.H
 	mux.Handle("PUT /v1/radio/channels/{conversationId}/members/{userId}", driver(h.moderate))
 	mux.Handle("POST /v1/radio/channels/{conversationId}/leave", user(h.leave))
 	mux.Handle("POST /v1/radio/invites/{code}/accept", user(h.accept))
+	mux.Handle("PUT /v1/radio/clients", driver(h.setClients))
+	mux.Handle("PUT /v1/radio/clients/{passengerId}", driver(h.setClient))
 	// Públicas: vista de la invitación, página del enlace y baja de SMS (sin datos personales).
 	mux.HandleFunc("GET /v1/radio/invites/{code}", h.preview)
 	mux.HandleFunc("GET /r/{code}", h.page)
@@ -311,6 +313,32 @@ func (h *Handlers) leave(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	respond(w, r, http.StatusNoContent, nil, h.Service.Leave(r.Context(), principal(r), id))
+}
+
+func (h *Handlers) setClients(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		Enabled *bool `json:"enabled"`
+	}
+	if !httpx.DecodeJSON(w, r, &in) {
+		return
+	}
+	if in.Enabled == nil {
+		writeError(w, r, ErrInvalid)
+		return
+	}
+	respond(w, r, http.StatusNoContent, nil, h.Service.SetClients(r.Context(), principal(r), *in.Enabled))
+}
+
+func (h *Handlers) setClient(w http.ResponseWriter, r *http.Request) {
+	id, ok := pathID(w, r, "passengerId")
+	if !ok {
+		return
+	}
+	var in ClientUpdate
+	if !httpx.DecodeJSON(w, r, &in) {
+		return
+	}
+	respond(w, r, http.StatusNoContent, nil, h.Service.SetClient(r.Context(), principal(r), id, in))
 }
 
 func (h *Handlers) accept(w http.ResponseWriter, r *http.Request) {

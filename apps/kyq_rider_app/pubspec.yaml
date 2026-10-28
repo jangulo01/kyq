@@ -21,6 +21,8 @@ dependencies:
     path: ../../packages/kyq_domain
   kyq_ptt:
     path: ../../packages/kyq_ptt
+  kyq_radio:
+    path: ../../packages/kyq_radio
   kyq_realtime:
     path: ../../packages/kyq_realtime
   kyq_ui:

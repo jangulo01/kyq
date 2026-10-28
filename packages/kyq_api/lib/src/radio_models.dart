@@ -57,6 +57,7 @@ abstract class RadioConversation with _$RadioConversation {
     String? peerId,
     @JsonKey(unknownEnumValue: RadioPresence.offline) RadioPresence? peerStatus,
     @Default(false) bool peerMuted,
+    @Default(false) bool peerBlocked,
     int? onlineCount,
     @JsonKey(unknownEnumValue: RadioRole.member) RadioRole? myRole,
     @Default('active') String myMemberStatus,

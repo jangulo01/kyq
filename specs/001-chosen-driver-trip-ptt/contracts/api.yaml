@@ -5058,6 +5058,9 @@ components:
         peer_muted:
           type: boolean
           description: El conductor silenció a este cliente (FR-003)
+        peer_blocked:
+          type: boolean
+          description: El conductor bloqueó a este cliente (FR-003)
         can_talk:
           type: boolean
           description: El botón grande transmite aquí (rol, silenciado, bloqueo, acceso)

@@ -5,6 +5,7 @@ import 'add_contact.dart';
 import 'channels.dart';
 import 'conversation_page.dart';
 import 'radio_page.dart';
+import 'settings_page.dart';
 
 /// Rutas de Radio para el go_router de cada app, bajo `/radio` (deps.dart: [RadioRoutes]).
 /// [extra] añade las de cada app (ajustes, canales, modo auto). [scope] envuelve cada pantalla:
@@ -26,6 +27,7 @@ GoRoute radioRoute({List<RouteBase> extra = const [], RadioScope scope = _bare})
       path: 'channels/:id',
       builder: (context, state) => scope(context, ChannelPage(conversationId: state.pathParameters['id']!)),
     ),
+    GoRoute(path: 'settings', builder: (context, state) => scope(context, const RadioSettingsPage())),
     ...extra,
   ],
 );

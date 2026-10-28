@@ -182,6 +182,11 @@ class RadioCubit extends Cubit<RadioState> implements QueueEffects {
       _syncHeartbeat();
     } on ApiException catch (e) {
       if (!isClosed) emit(state.copyWith(loading: false, error: () => radioErrorText(e)));
+    } on Object {
+      // Radio nunca tumba la app: una respuesta inesperada se muestra como error de carga.
+      if (!isClosed) {
+        emit(state.copyWith(loading: false, error: () => 'No pudimos cargar Radio. Desliza para reintentar.'));
+      }
     }
   }
 
