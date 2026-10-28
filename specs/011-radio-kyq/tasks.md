@@ -95,9 +95,9 @@
 
 ## Phase 13: Polish
 
-- [ ] T048 [P] Revisión clean-room (principio I): textos, íconos, colores y tonos propios; ninguna referencia a la marca de terceros en código, assets ni strings; anotar en `research.md`
-- [ ] T049 `cd backend && go vet ./... && go test ./...` con base real; `melos run analyze` y `melos run test`; CI en verde
-- [ ] T050 `graphify update .` y actualizar `README`/`infra/README.md` con Radio (variables, buckets, enlaces)
+- [X] T048 [P] Revisión clean-room (principio I): textos, íconos, colores y tonos propios; ninguna referencia a la marca de terceros en código, assets ni strings; anotar en `research.md`
+- [X] T049 `cd backend && go vet ./... && go test ./...` con base real; `melos run analyze` y `melos run test`; CI en verde
+- [X] T050 `graphify update .` y actualizar `README`/`infra/README.md` con Radio (variables, buckets, enlaces). El grafo de `graphify` se regenera al integrar en la rama principal (no se versiona `graphify-out/`, como en 005 T026)
 - [ ] T051 Desplegar en la VM y recorrer [quickstart.md](quickstart.md) con dos teléfonos; registrar en `validation.md`; prueba de usabilidad y piloto de phva.md §3 (lo hace el responsable)
 
 ## Dependencies & Execution Order

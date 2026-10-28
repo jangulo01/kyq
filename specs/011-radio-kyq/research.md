@@ -52,6 +52,11 @@ Decisiones técnicas de 011 tomadas sobre el código de 001–010 (rama `011-rad
   lo usa LiveKit y en Android abrirlo dos veces falla en varios modelos. **Spike obligatorio**
   (T004): medir que la primera sílaba queda grabada y el costo de CPU con 20 mensajes/min; si
   falla, plan B: el cliente envía también los paquetes Opus por un `DataTrack` al backend.
+- **Estado (implementación)**: se implementó el plan principal detrás de la interfaz de salas
+  (`radio.Rooms.CreateRadioRoom(…, record)`, `ptt.RadioRooms`): cambiar a plan B es otra
+  implementación de esa interfaz y de los avisos `EgressStarted`/`EgressEnded`, sin tocar el
+  resto de Radio. `KYQ_RADIO_RECORDING=false` apaga el registro. El spike T004 sigue pendiente
+  en la VM.
 
 ## R4. Reproducción con velocidad sin cambiar el tono
 
@@ -137,3 +142,24 @@ Decisiones técnicas de 011 tomadas sobre el código de 001–010 (rama `011-rad
   el conductor conecta `HandsFreePtt` (burbuja y botón) a la conversación seleccionada cuando no
   hay viaje abierto.
 - **Rationale**: misma pantalla en conductor y pasajero (principio III); evita duplicar.
+
+## Revisión clean-room (T048, principio I)
+
+Revisado al cerrar la implementación de 011 (código, textos, íconos, colores, tonos y assets de
+`packages/kyq_radio`, `kyq_ptt`, `kyq_realtime`, `kyq_api`, las dos apps, el panel y el backend):
+
+- **Comportamiento**: el de un walkie-talkie permanente (phva.md §1.3): lista única con estado,
+  botón grande central de mantener o tocar, turno único con tono de ocupado, reproducción en
+  orden y modo auto. Nada se tomó de una app concreta: los flujos salen de la especificación.
+- **Textos**: propios, en español, escritos para Kyq ("Radio", "Escuchar", "Solo escucha",
+  "Radio encendida", "Mantén pulsado para hablar"…). Ningún nombre ni marca de terceros en
+  strings, rutas, identificadores ni comentarios del código de 011 (búsqueda sin coincidencias).
+- **Íconos y colores**: Material Icons de Flutter y la paleta de Kyq (verde Disponible, ámbar
+  Ocupado, azul Solo escucha, gris Desconectado; cada estado con su forma además del color).
+- **Tonos**: sintetizados en `kyq_ptt/tones.dart` (inicio, fin, ocupado, alerta, emergencia); no
+  hay archivos de sonido de terceros.
+- **Protocolos**: LiveKit (WebRTC) y Centrifugo propios de Kyq, contrato OpenAPI propio; no se
+  usa ningún protocolo ni servidor de otra app. Abrir Waze o Google Maps es solo un enlace
+  estándar de navegación del sistema.
+- **Assets**: `kyq_radio` no trae imágenes ni sonidos.
+
