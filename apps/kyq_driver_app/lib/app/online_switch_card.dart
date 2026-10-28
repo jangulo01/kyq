@@ -6,9 +6,12 @@ import '../presence/presence_cubit.dart';
 
 /// Interruptor ONLINE/OFFLINE con el motivo de bloqueo y el asistente de permisos (T056).
 class OnlineSwitchCard extends StatelessWidget {
-  const OnlineSwitchCard({super.key, required this.state});
+  const OnlineSwitchCard({super.key, required this.state, this.blockedReason});
 
   final PresenceState state;
+
+  /// Por qué no puede conectarse (documentos, suscripción), o null si puede.
+  final String? blockedReason;
 
   @override
   Widget build(BuildContext context) {
@@ -40,6 +43,18 @@ class OnlineSwitchCard extends StatelessWidget {
               value: state.online,
               onChanged: canToggle ? cubit.setOnline : null,
             ),
+            if (!state.online && blockedReason != null)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(Icons.lock_outline, size: 18, color: theme.colorScheme.onSurfaceVariant),
+                    const SizedBox(width: 8),
+                    Expanded(child: Text(blockedReason!, key: const Key('home.blocked'))),
+                  ],
+                ),
+              ),
             if (state.error != null)
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),

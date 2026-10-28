@@ -1,5 +1,6 @@
 // Package observability reports server errors to Sentry without personal data (constitution,
-// FR-020): no phones, OTP codes, tokens, request bodies or names leave the server.
+// FR-020; 002 FR-011): no phones, OTP codes, tokens, document numbers, signed URLs, request
+// bodies or names leave the server.
 package observability
 
 import (
@@ -72,10 +73,20 @@ var (
 	bearRe  = regexp.MustCompile(`(?i)bearer\s+\S+`)
 	// Códigos OTP: 6 dígitos junto a la palabra code/código/otp.
 	otpRe = regexp.MustCompile(`(?i)(code|código|codigo|otp)("?\s*[:=]\s*"?)\d{6}`)
+	// URLs firmadas de S3 (fotos de documentos): la consulta es la credencial.
+	signedURLRe = regexp.MustCompile(`([?&])(?:[^\s"'&#]*&)*?X-Amz-[A-Za-z]+=[^\s"'#]*`)
+	// Números de documento junto a su clave: number=..., "number":"...", número: ...
+	docNumberRe = regexp.MustCompile(`(?i)((?:document_|doc_)?(?:number|número|numero)"?\s*[:=]\s*"?)[0-9A-Za-z][0-9A-Za-z.\-]{2,39}`)
 )
 
-// ScrubString removes phones, OTP codes and tokens from s.
+// sensitiveKeys are context and breadcrumb keys whose values are always dropped.
+var sensitiveKeys = map[string]bool{"number": true, "document_number": true, "doc_number": true}
+
+// ScrubString removes phones, OTP codes, tokens, signed URL credentials and document numbers
+// from s.
 func ScrubString(s string) string {
+	s = signedURLRe.ReplaceAllString(s, "${1}[signed]")
+	s = docNumberRe.ReplaceAllString(s, "${1}[doc]")
 	s = jwtRe.ReplaceAllString(s, "[token]")
 	s = bearRe.ReplaceAllString(s, "Bearer [token]")
 	s = otpRe.ReplaceAllString(s, "$1$2[otp]")
@@ -88,6 +99,10 @@ func scrubValue(v any) any {
 		return ScrubString(x)
 	case map[string]any:
 		for k, e := range x {
+			if sensitiveKeys[k] {
+				x[k] = "[doc]"
+				continue
+			}
 			x[k] = scrubValue(e)
 		}
 		return x
@@ -98,6 +113,10 @@ func scrubValue(v any) any {
 		return x
 	case map[string]string:
 		for k, e := range x {
+			if sensitiveKeys[k] {
+				x[k] = "[doc]"
+				continue
+			}
 			x[k] = ScrubString(e)
 		}
 		return x

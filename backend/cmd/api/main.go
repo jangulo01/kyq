@@ -14,13 +14,17 @@ import (
 	"github.com/kyq/backend/internal/admin"
 	"github.com/kyq/backend/internal/affiliations"
 	"github.com/kyq/backend/internal/auth"
+	"github.com/kyq/backend/internal/billing"
 	"github.com/kyq/backend/internal/config"
 	"github.com/kyq/backend/internal/drivers"
 	"github.com/kyq/backend/internal/fares"
 	"github.com/kyq/backend/internal/httpapi"
+	"github.com/kyq/backend/internal/kyc"
+	"github.com/kyq/backend/internal/notify"
 	"github.com/kyq/backend/internal/observability"
 	"github.com/kyq/backend/internal/ptt"
 	"github.com/kyq/backend/internal/realtime"
+	"github.com/kyq/backend/internal/storage"
 	"github.com/kyq/backend/internal/store"
 	"github.com/kyq/backend/internal/telemetry"
 	"github.com/kyq/backend/internal/trips"
@@ -68,6 +72,7 @@ func run(logger *slog.Logger) error {
 
 	tokens := auth.NewTokenIssuer(cfg.JWTSecret, nil)
 	affils := affiliations.NewService(affiliations.NewPgRepo(st.Queries))
+	affils.Eligibility = drivers.Eligibility{Store: st}
 	publisher := &realtime.Client{APIURL: cfg.CentrifugoAPIURL, APIKey: cfg.CentrifugoAPIKey}
 	routes := fares.OSRM{BaseURL: cfg.OSRMURL}
 	usage := &telemetry.Recorder{Store: st, Logger: logger}
@@ -83,10 +88,47 @@ func run(logger *slog.Logger) error {
 		Store: st, LiveKit: livekit, Rooms: livekit, PublicURL: cfg.LiveKitURL, Publisher: publisher, Usage: usage, Logger: logger,
 	}
 	go pttService.RunSweeper(ctx, time.Second)
+
+	objects, err := storage.NewS3(storage.S3Options{
+		Endpoint: cfg.S3Endpoint, PublicEndpoint: cfg.S3PublicEndpoint, AccessKey: cfg.S3AccessKey,
+		SecretKey: cfg.S3SecretKey, Bucket: cfg.S3Bucket, Region: cfg.S3Region,
+	})
+	if err != nil {
+		return err
+	}
+	// El job minio-init crea el bucket; esto cubre arranques sin él (R2 o desarrollo local).
+	bucketCtx, cancelBucket := context.WithTimeout(ctx, 10*time.Second)
+	if err := objects.EnsureBucket(bucketCtx); err != nil {
+		logger.Warn("bucket de documentos no disponible al arrancar", "err", err)
+	}
+	cancelBucket()
+
+	var sms notify.SMSSender = notify.LogSMS{Logger: logger}
+	switch {
+	case cfg.UsesDevOTP():
+	case cfg.TwilioSMSFrom != "":
+		sms = notify.TwilioSMS{AccountSID: cfg.TwilioAccountSID, AuthToken: cfg.TwilioAuthToken, From: cfg.TwilioSMSFrom}
+	default:
+		logger.Warn("KYQ_TWILIO_SMS_FROM vacío: los avisos por SMS solo se registran")
+	}
+	notices := &notify.Service{Store: st, Publisher: publisher, SMS: sms, Logger: logger}
+	go notices.RunSweeper(ctx, time.Minute)
+	kycService := &kyc.Service{Store: st, Objects: objects, Notify: notices, Logger: logger}
+	go kycService.RunExpirySweeper(ctx, time.Minute)
+	billingService := &billing.Service{
+		Store: st, Notify: notices, CityCode: cfg.CityCode, WebhookSecret: cfg.BoldWebhookSecret(), Logger: logger,
+	}
+	if cfg.BoldEnabled() {
+		logger.Info("pagos con Bold activos", "env", cfg.BoldEnv)
+		billingService.Bold = &billing.BoldClient{BaseURL: cfg.BoldAPIURL, IdentityKey: cfg.BoldIdentityKey}
+	} else {
+		logger.Warn("KYQ_BOLD_ENV vacío: pagos con Bold desactivados")
+	}
+	go billingService.RunSweeper(ctx, 10*time.Second, time.Minute)
 	handler := httpapi.NewRouter(httpapi.Deps{
 		Logger: logger,
 		Tokens: tokens,
-		Auth:   auth.NewHandlers(auth.NewService(auth.NewPgRepo(st.Queries), otp, tokens, nil)),
+		Auth:   auth.NewHandlers(auth.NewService(auth.NewPgRepo(st), otp, tokens, nil)),
 		Realtime: &realtime.Handlers{
 			Tokens:     realtime.Tokens{Secret: cfg.CentrifugoTokenSecret},
 			Authorizer: realtime.Authorizer{Affiliations: affils, Trips: trips.ParticipantChecker{Q: st.Queries}},
@@ -98,6 +140,10 @@ func run(logger *slog.Logger) error {
 		Trips:    &trips.Handlers{Service: tripService},
 		PTT:      &ptt.Handlers{Service: pttService},
 		Usage:    &telemetry.Handlers{Store: st},
+		KYC:      &kyc.Handlers{Service: kycService},
+		Billing:  &billing.Handlers{Service: billingService, WebhookEnabled: cfg.BoldEnabled()},
+		Notices:  &notify.Handlers{Service: notices},
+		Costs:    &telemetry.CostHandlers{Store: st, CityCode: cfg.CityCode},
 		LiveKitWebhook: &telemetry.LiveKitWebhook{
 			APIKey: cfg.LiveKitAPIKey, APISecret: cfg.LiveKitAPISecret, Store: st, Usage: usage,
 		},

@@ -4,6 +4,7 @@ import 'package:kyq_api/kyq_api.dart';
 import '../background/foreground_service.dart';
 import '../background/location_reporter.dart';
 import '../background/online_permissions.dart';
+import '../onboarding/onboarding_texts.dart';
 import '../realtime/driver_events.dart';
 
 /// Cuenta del conductor y su interruptor ONLINE/OFFLINE (T056).
@@ -54,9 +55,11 @@ class PresenceState {
 /// Mensaje en español para los bloqueos de `POST /v1/driver/presence`.
 String presenceErrorMessage(ApiException e) => switch (e.code) {
   'subscription_suspended' => 'Tu suscripción está suspendida. Paga tu mensualidad para volver a recibir viajes.',
-  'kyc_expired' => 'Algún documento obligatorio falta o venció. Contacta a Kyq para actualizarlo.',
   'trip_in_progress' => 'Termina tu viaje en curso antes de desconectarte.',
   'network' => 'Sin conexión con el servidor. Inténtalo de nuevo.',
+  // 002: el motivo puede nombrar el documento (RN-KYQ-016).
+  final code when code.startsWith('kyc') || code.startsWith('document') || code.startsWith('subscription') =>
+    blockReasonMessage(code),
   _ => 'No pudimos cambiar tu estado. Inténtalo de nuevo.',
 };
 
@@ -86,6 +89,16 @@ class PresenceCubit extends Cubit<PresenceState> {
       if (me.presence != DriverPresence.offline) await _startTracking();
     } on ApiException {
       emit(state.copyWith(loading: false, loadFailed: true));
+    }
+  }
+
+  /// Vuelve a leer la cuenta sin tocar el servicio ONLINE (tras aprobarse un documento o un pago).
+  Future<void> refreshMe() async {
+    try {
+      final me = await _api.driverMe();
+      if (!isClosed) emit(state.copyWith(me: me, presence: me.presence));
+    } on ApiException {
+      // Se queda la cuenta anterior; el siguiente intento de ONLINE lo valida el backend.
     }
   }
 

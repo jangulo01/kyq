@@ -6,9 +6,15 @@ import 'auth_cubit.dart';
 
 /// Pantalla de login por OTP: teléfono → código (→ nombre si es un registro nuevo).
 class LoginPage extends StatelessWidget {
-  const LoginPage({super.key, required this.title, this.countryCode = '+57'});
+  const LoginPage({super.key, required this.title, this.countryCode = '+57', this.subtitle, this.newAccountHint});
 
   final String title;
+
+  /// Texto bajo el título, p. ej. "Soy conductor" en la app del conductor.
+  final String? subtitle;
+
+  /// Explicación al pedir el nombre en un registro nuevo (qué tipo de cuenta se crea).
+  final String? newAccountHint;
 
   /// Prefijo internacional que se antepone al número local.
   final String countryCode;
@@ -26,10 +32,19 @@ class LoginPage extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Text(title, style: Theme.of(context).textTheme.headlineMedium, textAlign: TextAlign.center),
+                  if (subtitle != null) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      subtitle!,
+                      key: const Key('login.subtitle'),
+                      style: Theme.of(context).textTheme.titleMedium,
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
                   const SizedBox(height: 32),
                   BlocBuilder<AuthCubit, AuthState>(
                     builder: (context, state) => switch (state) {
-                      AuthCodeSent() => _CodeStep(state: state),
+                      AuthCodeSent() => _CodeStep(state: state, newAccountHint: newAccountHint),
                       AuthSignedOut() => _PhoneStep(state: state, countryCode: countryCode),
                       _ => const Center(child: CircularProgressIndicator()),
                     },
@@ -95,9 +110,10 @@ class _PhoneStepState extends State<_PhoneStep> {
 }
 
 class _CodeStep extends StatefulWidget {
-  const _CodeStep({required this.state});
+  const _CodeStep({required this.state, this.newAccountHint});
 
   final AuthCodeSent state;
+  final String? newAccountHint;
 
   @override
   State<_CodeStep> createState() => _CodeStepState();
@@ -140,6 +156,7 @@ class _CodeStepState extends State<_CodeStep> {
         if (state.needsName) ...[
           const SizedBox(height: 16),
           Text('Es tu primera vez en Kyq. ¿Cómo te llamas?', style: Theme.of(context).textTheme.titleSmall),
+          if (widget.newAccountHint != null) ...[const SizedBox(height: 4), Text(widget.newAccountHint!)],
           const SizedBox(height: 8),
           TextField(
             key: const Key('login.name'),

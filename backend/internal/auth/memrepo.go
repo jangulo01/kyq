@@ -48,6 +48,11 @@ func (m *MemRepo) CreateUser(_ context.Context, u User) (User, error) {
 	return u, nil
 }
 
+func (m *MemRepo) CreateDriver(ctx context.Context, u User) (User, error) {
+	u.Role = RoleDriver
+	return m.CreateUser(ctx, u)
+}
+
 func (m *MemRepo) InsertRefreshToken(_ context.Context, t RefreshToken) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()

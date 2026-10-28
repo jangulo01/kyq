@@ -20,8 +20,11 @@ import (
 	"github.com/kyq/backend/internal/drivers"
 	"github.com/kyq/backend/internal/fares"
 	"github.com/kyq/backend/internal/httpapi"
+	"github.com/kyq/backend/internal/kyc"
+	"github.com/kyq/backend/internal/notify"
 	"github.com/kyq/backend/internal/ptt"
 	"github.com/kyq/backend/internal/realtime"
+	"github.com/kyq/backend/internal/storage"
 	"github.com/kyq/backend/internal/store"
 	"github.com/kyq/backend/internal/testdb"
 	"github.com/kyq/backend/internal/trips"
@@ -79,6 +82,19 @@ func TestIntegrationNoPhoneNumbersReachTheOtherParty(t *testing.T) {
 		MinimumMinor: 700_000, RoundingMinor: 10_000, UpdatedBy: admin,
 	}))
 
+	// FR-011 (002): el conductor tiene documentos con número y fotos en el bucket privado.
+	const docNumber = "1020304050"
+	docID := uuid.New()
+	_, err := st.InsertDocument(ctx, store.InsertDocumentParams{
+		ID: docID, DriverID: driver, DocType: store.DriverDocTypeNationalID, Number: docNumber,
+		Status: store.DocumentStatusApproved, ReviewedBy: uuid.NullUUID{UUID: admin, Valid: true},
+	})
+	require.NoError(t, err)
+	photoKey := kyc.ObjectKey(driver, docID, "front")
+	require.NoError(t, st.InsertDocumentPhoto(ctx, store.InsertDocumentPhotoParams{DocumentID: docID, Side: store.DocumentSideFront, ObjectKey: photoKey}))
+	objects := storage.NewMemory()
+	objects.Put(photoKey, []byte("jpeg"), "image/jpeg")
+
 	pub := &wire{}
 	tokens := auth.NewTokenIssuer([]byte("test-secret-test-secret-test-secret!"), nil)
 	tripService := &trips.Service{Store: st, Routes: fixedRoute{}, Publisher: pub, CityCode: "bogota"}
@@ -88,6 +104,7 @@ func TestIntegrationNoPhoneNumbersReachTheOtherParty(t *testing.T) {
 		Drivers:  &drivers.Handlers{Store: st},
 		Presence: &drivers.Presence{Store: st, Routes: fixedRoute{}, Publisher: pub},
 		Trips:    &trips.Handlers{Service: tripService},
+		KYC:      &kyc.Handlers{Service: &kyc.Service{Store: st, Objects: objects, Notify: &notify.Service{Store: st, Publisher: pub}}},
 		PTT: &ptt.Handlers{Service: &ptt.Service{
 			Store: st, LiveKit: ptt.LiveKit{APIKey: "devkey", APISecret: "secret"}, Rooms: noRooms{}, Publisher: pub,
 		}},
@@ -99,7 +116,7 @@ func TestIntegrationNoPhoneNumbersReachTheOtherParty(t *testing.T) {
 	}
 	asDriver, asPassenger := bearer(driver, auth.RoleDriver), bearer(passenger, auth.RolePassenger)
 
-	var bodies []string
+	var bodies, passengerBodies []string
 	call := func(method, path, token string, body any) map[string]any {
 		var raw []byte
 		if body != nil {
@@ -114,6 +131,9 @@ func TestIntegrationNoPhoneNumbersReachTheOtherParty(t *testing.T) {
 		server.ServeHTTP(rec, req)
 		require.Less(t, rec.Code, 300, "%s %s: %s", method, path, rec.Body.String())
 		bodies = append(bodies, method+" "+path+" "+rec.Body.String())
+		if token == asPassenger {
+			passengerBodies = append(passengerBodies, method+" "+path+" "+rec.Body.String())
+		}
 		var out map[string]any
 		_ = json.Unmarshal(rec.Body.Bytes(), &out)
 		return out
@@ -148,5 +168,23 @@ func TestIntegrationNoPhoneNumbersReachTheOtherParty(t *testing.T) {
 			assert.NotContains(t, seen, phone)
 		}
 		assert.NotContains(t, seen, "phone", "ningún campo de teléfono fuera de admin")
+	}
+
+	// FR-011: ni el número ni las fotos (claves u URLs firmadas) de los documentos llegan al
+	// pasajero, y no viajan en eventos en tiempo real.
+	require.NotEmpty(t, passengerBodies)
+	for _, seen := range append(passengerBodies, pub.events...) {
+		assert.NotContains(t, seen, docNumber)
+		assert.NotContains(t, seen, "kyc/")
+		assert.NotContains(t, seen, "X-Amz")
+		assert.NotContains(t, seen, docID.String())
+	}
+	for _, path := range []string{"/v1/driver/onboarding", "/v1/admin/kyc/drivers/" + driver.String(), "/v1/admin/kyc/queue"} {
+		req := httptest.NewRequest(http.MethodGet, path, nil)
+		req.Header.Set("Authorization", "Bearer "+asPassenger)
+		rec := httptest.NewRecorder()
+		server.ServeHTTP(rec, req)
+		assert.Equal(t, http.StatusForbidden, rec.Code, path)
+		assert.NotContains(t, rec.Body.String(), docNumber)
 	}
 }

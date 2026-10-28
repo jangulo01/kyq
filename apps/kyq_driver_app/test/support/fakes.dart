@@ -1,11 +1,14 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:kyq_api/kyq_api.dart';
 import 'package:kyq_driver_app/app/driver_services.dart';
 import 'package:kyq_driver_app/background/foreground_service.dart';
 import 'package:kyq_driver_app/background/location_reporter.dart';
 import 'package:kyq_driver_app/background/online_permissions.dart';
+import 'package:kyq_driver_app/onboarding/photo_source.dart';
 import 'package:kyq_driver_app/realtime/driver_events.dart';
+import 'package:kyq_driver_app/subscription/checkout_launcher.dart';
 import 'package:kyq_ptt/kyq_ptt.dart';
 import 'package:kyq_ptt/testing.dart';
 import 'package:kyq_realtime/kyq_realtime.dart';
@@ -15,6 +18,51 @@ class MockApi extends Mock implements KyqApiClient {
   // La pantalla de inicio siempre pregunta por un viaje en curso; por defecto no hay ninguno.
   @override
   Future<Trip?> activeTrip() async => null;
+}
+
+/// Conductor con el alta terminada: el router no lo desvía a vehículo ni documentos.
+const onboardingOk = Onboarding(status: OnboardingStatus.documentsOk);
+
+/// Respuestas por defecto de las rutas de 002 que la app consulta al iniciar sesión.
+void stubOnboardingDefaults(MockApi api, {Onboarding onboarding = onboardingOk, List<Notice> notices = const []}) {
+  when(() => api.driverOnboarding()).thenAnswer((_) async => onboarding);
+  when(() => api.driverNotices()).thenAnswer((_) async => notices);
+}
+
+/// PNG de 1×1 válido, para que las vistas previas se dibujen sin errores.
+final tinyImage = Uint8List.fromList([
+  0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44, 0x52, //
+  0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x08, 0x06, 0x00, 0x00, 0x00, 0x1F, 0x15, 0xC4,
+  0x89, 0x00, 0x00, 0x00, 0x0D, 0x49, 0x44, 0x41, 0x54, 0x78, 0x9C, 0x63, 0x00, 0x01, 0x00, 0x00,
+  0x05, 0x00, 0x01, 0x0D, 0x0A, 0x2D, 0xB4, 0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4E, 0x44, 0xAE,
+  0x42, 0x60, 0x82,
+]);
+
+/// Cámara y galería falsas: devuelven [next] (o una imagen mínima) y anotan de dónde.
+class FakePhotoSource implements PhotoSource {
+  final origins = <PhotoOrigin>[];
+  Uint8List? next;
+  Object? error;
+
+  @override
+  Future<Uint8List?> pick(PhotoOrigin origin) async {
+    origins.add(origin);
+    final e = error;
+    if (e != null) throw e;
+    return next ?? tinyImage;
+  }
+}
+
+/// Custom Tab falsa: solo anota las URLs abiertas.
+class FakeCheckout implements CheckoutLauncher {
+  final opened = <String>[];
+  bool succeed = true;
+
+  @override
+  Future<bool> open(String url) async {
+    opened.add(url);
+    return succeed;
+  }
 }
 
 /// Eventos de tiempo real empujados a mano, sin sockets.
@@ -83,12 +131,16 @@ DriverServices fakeServices({
   FakePermissions? permissions,
   FakeOnlineService? service,
   PttControllerFactory? ptt,
+  FakePhotoSource? photos,
+  FakeCheckout? checkout,
 }) => DriverServices(
   events: events ?? FakeEventSource(),
   permissions: permissions ?? FakePermissions(),
   onlineService: service ?? FakeOnlineService(),
   positions: FakePositions(),
   ptt: ptt ?? fakePttFactory([]),
+  photos: photos ?? FakePhotoSource(),
+  checkout: checkout ?? FakeCheckout(),
 );
 
 final tripNow = DateTime.utc(2026, 10, 27, 12);

@@ -65,3 +65,23 @@ func TestWithoutDSNNothingIsSent(t *testing.T) {
 	assert.False(t, enabled.Load())
 	CaptureError(context.Background(), errors.New("x"), "/v1/x") // no hace nada ni falla
 }
+
+// 002 (FR-011): ni números de documento ni URLs firmadas de las fotos llegan a Sentry.
+func TestScrubDocumentNumbersAndSignedURLs(t *testing.T) {
+	cases := map[string]string{
+		`{"doc_type":"license","number":"1020304050"}`: `{"doc_type":"license","number":"[doc]"}`,
+		"document_number=ABC-12345 rechazado":          "document_number=[doc] rechazado",
+		"número: 1.020.304.050":                        "número: [doc]",
+		"put http://minio:9000/kyq-kyc/kyc/a/b/front.jpg?X-Amz-Algorithm=AWS4&X-Amz-Credential=k%2F2026&X-Amz-Signature=abc failed": "put http://minio:9000/kyq-kyc/kyc/a/b/front.jpg?[signed] failed",
+		"https://r2.example/kyc/x.jpg?foo=1&X-Amz-Signature=abc":                                                                    "https://r2.example/kyc/x.jpg?[signed]",
+	}
+	for in, want := range cases {
+		assert.Equal(t, want, ScrubString(in), in)
+	}
+	assert.Equal(t, "pago 01a17f43 de 5000000 COP", ScrubString("pago 01a17f43 de 5000000 COP"), "ids e importes quedan")
+
+	e := &sentry.Event{Contexts: map[string]sentry.Context{"doc": {"number": "LT0001234", "doc_type": "vehicle_registration"}}}
+	got := Scrub(e)
+	assert.Equal(t, "[doc]", got.Contexts["doc"]["number"])
+	assert.Equal(t, "vehicle_registration", got.Contexts["doc"]["doc_type"])
+}

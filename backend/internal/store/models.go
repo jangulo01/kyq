@@ -54,11 +54,144 @@ func (ns NullAffiliationSource) Value() (driver.Value, error) {
 	return string(ns.AffiliationSource), nil
 }
 
+type CostConcept string
+
+const (
+	CostConceptVoiceMinute   CostConcept = "voice_minute"
+	CostConceptRealtimeEvent CostConcept = "realtime_event"
+	CostConceptRouteRequest  CostConcept = "route_request"
+	CostConceptFixedMonthly  CostConcept = "fixed_monthly"
+)
+
+func (e *CostConcept) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = CostConcept(s)
+	case string:
+		*e = CostConcept(s)
+	default:
+		return fmt.Errorf("unsupported scan type for CostConcept: %T", src)
+	}
+	return nil
+}
+
+type NullCostConcept struct {
+	CostConcept CostConcept
+	Valid       bool // Valid is true if CostConcept is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullCostConcept) Scan(value interface{}) error {
+	if value == nil {
+		ns.CostConcept, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.CostConcept.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullCostConcept) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.CostConcept), nil
+}
+
+type DocumentSide string
+
+const (
+	DocumentSideFront DocumentSide = "front"
+	DocumentSideBack  DocumentSide = "back"
+)
+
+func (e *DocumentSide) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = DocumentSide(s)
+	case string:
+		*e = DocumentSide(s)
+	default:
+		return fmt.Errorf("unsupported scan type for DocumentSide: %T", src)
+	}
+	return nil
+}
+
+type NullDocumentSide struct {
+	DocumentSide DocumentSide
+	Valid        bool // Valid is true if DocumentSide is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullDocumentSide) Scan(value interface{}) error {
+	if value == nil {
+		ns.DocumentSide, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.DocumentSide.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullDocumentSide) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.DocumentSide), nil
+}
+
+type DocumentStatus string
+
+const (
+	DocumentStatusUploading  DocumentStatus = "uploading"
+	DocumentStatusSubmitted  DocumentStatus = "submitted"
+	DocumentStatusApproved   DocumentStatus = "approved"
+	DocumentStatusRejected   DocumentStatus = "rejected"
+	DocumentStatusSuperseded DocumentStatus = "superseded"
+)
+
+func (e *DocumentStatus) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = DocumentStatus(s)
+	case string:
+		*e = DocumentStatus(s)
+	default:
+		return fmt.Errorf("unsupported scan type for DocumentStatus: %T", src)
+	}
+	return nil
+}
+
+type NullDocumentStatus struct {
+	DocumentStatus DocumentStatus
+	Valid          bool // Valid is true if DocumentStatus is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullDocumentStatus) Scan(value interface{}) error {
+	if value == nil {
+		ns.DocumentStatus, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.DocumentStatus.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullDocumentStatus) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.DocumentStatus), nil
+}
+
 type DriverDocType string
 
 const (
+	DriverDocTypeNationalID          DriverDocType = "national_id"
 	DriverDocTypeLicense             DriverDocType = "license"
 	DriverDocTypeMandatoryInsurance  DriverDocType = "mandatory_insurance"
+	DriverDocTypeTechnicalInspection DriverDocType = "technical_inspection"
 	DriverDocTypeVehicleRegistration DriverDocType = "vehicle_registration"
 )
 
@@ -227,6 +360,95 @@ func (ns NullFareProposalStatus) Value() (driver.Value, error) {
 	return string(ns.FareProposalStatus), nil
 }
 
+type PaymentMethod string
+
+const (
+	PaymentMethodBold   PaymentMethod = "bold"
+	PaymentMethodManual PaymentMethod = "manual"
+)
+
+func (e *PaymentMethod) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = PaymentMethod(s)
+	case string:
+		*e = PaymentMethod(s)
+	default:
+		return fmt.Errorf("unsupported scan type for PaymentMethod: %T", src)
+	}
+	return nil
+}
+
+type NullPaymentMethod struct {
+	PaymentMethod PaymentMethod
+	Valid         bool // Valid is true if PaymentMethod is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullPaymentMethod) Scan(value interface{}) error {
+	if value == nil {
+		ns.PaymentMethod, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.PaymentMethod.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullPaymentMethod) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.PaymentMethod), nil
+}
+
+type PaymentStatus string
+
+const (
+	PaymentStatusCreated     PaymentStatus = "created"
+	PaymentStatusProcessing  PaymentStatus = "processing"
+	PaymentStatusApproved    PaymentStatus = "approved"
+	PaymentStatusRejected    PaymentStatus = "rejected"
+	PaymentStatusExpired     PaymentStatus = "expired"
+	PaymentStatusVoided      PaymentStatus = "voided"
+	PaymentStatusNeedsReview PaymentStatus = "needs_review"
+)
+
+func (e *PaymentStatus) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = PaymentStatus(s)
+	case string:
+		*e = PaymentStatus(s)
+	default:
+		return fmt.Errorf("unsupported scan type for PaymentStatus: %T", src)
+	}
+	return nil
+}
+
+type NullPaymentStatus struct {
+	PaymentStatus PaymentStatus
+	Valid         bool // Valid is true if PaymentStatus is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullPaymentStatus) Scan(value interface{}) error {
+	if value == nil {
+		ns.PaymentStatus, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.PaymentStatus.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullPaymentStatus) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.PaymentStatus), nil
+}
+
 type TripCancelReason string
 
 const (
@@ -373,6 +595,22 @@ type Affiliation struct {
 	RemovedAt   pgtype.Timestamptz
 }
 
+type CostRate struct {
+	Concept       CostConcept
+	Currency      string
+	UnitCostMicro int64
+	EffectiveFrom time.Time
+	CreatedBy     uuid.NullUUID
+	CreatedAt     time.Time
+}
+
+type DocumentPhoto struct {
+	DocumentID uuid.UUID
+	Side       DocumentSide
+	ObjectKey  string
+	UploadedAt pgtype.Timestamptz
+}
+
 type Driver struct {
 	UserID                uuid.UUID
 	QrToken               string
@@ -385,15 +623,26 @@ type Driver struct {
 	LastLat               pgtype.Float8
 	LastLng               pgtype.Float8
 	BusyEstimateUpdatedAt pgtype.Timestamptz
+	VehicleBrand          pgtype.Text
+	VehicleModel          pgtype.Text
+	VehicleColor          pgtype.Text
+	VehicleYear           pgtype.Int2
 }
 
 type DriverDocument struct {
-	ID         uuid.UUID
-	DriverID   uuid.UUID
-	DocType    DriverDocType
-	ExpiresAt  time.Time
-	ApprovedBy uuid.NullUUID
-	ApprovedAt pgtype.Timestamptz
+	ID           uuid.UUID
+	DriverID     uuid.UUID
+	DocType      DriverDocType
+	Number       string
+	ExpiresAt    pgtype.Date
+	ExemptUntil  pgtype.Date
+	Status       DocumentStatus
+	RejectReason pgtype.Text
+	Legacy       bool
+	CreatedAt    time.Time
+	SubmittedAt  pgtype.Timestamptz
+	ReviewedBy   uuid.NullUUID
+	ReviewedAt   pgtype.Timestamptz
 }
 
 type DriverUsageDaily struct {
@@ -426,6 +675,42 @@ type FareTable struct {
 	UpdatedAt      time.Time
 }
 
+type Notice struct {
+	ID        uuid.UUID
+	DriverID  uuid.UUID
+	Kind      string
+	DedupKey  string
+	Title     string
+	Body      string
+	Sms       bool
+	CreatedAt time.Time
+	SmsSentAt pgtype.Timestamptz
+	ReadAt    pgtype.Timestamptz
+}
+
+type Payment struct {
+	ID                  uuid.UUID
+	DriverID            uuid.UUID
+	AmountMinor         int64
+	Currency            string
+	Method              PaymentMethod
+	Status              PaymentStatus
+	BoldLinkID          pgtype.Text
+	CheckoutUrl         pgtype.Text
+	BoldPaymentID       pgtype.Text
+	PaymentMethodDetail pgtype.Text
+	ManualReference     pgtype.Text
+	ReviewNote          pgtype.Text
+	CoversFrom          pgtype.Timestamptz
+	CoversUntil         pgtype.Timestamptz
+	PrevPaidUntil       pgtype.Timestamptz
+	CreatedBy           uuid.UUID
+	VoidedBy            uuid.NullUUID
+	VoidReason          pgtype.Text
+	CreatedAt           time.Time
+	UpdatedAt           time.Time
+}
+
 type PttChannel struct {
 	TripID         uuid.UUID
 	RoomName       string
@@ -448,8 +733,17 @@ type RefreshToken struct {
 type Subscription struct {
 	DriverID  uuid.UUID
 	PaidUntil time.Time
-	UpdatedBy uuid.UUID
+	UpdatedBy uuid.NullUUID
 	UpdatedAt time.Time
+}
+
+type SubscriptionPrice struct {
+	CityCode      string
+	Currency      string
+	AmountMinor   int64
+	EffectiveFrom time.Time
+	CreatedBy     uuid.UUID
+	CreatedAt     time.Time
 }
 
 type Trip struct {

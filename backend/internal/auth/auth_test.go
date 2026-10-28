@@ -121,13 +121,13 @@ func TestVerifyOTP(t *testing.T) {
 	svc, repo, _, issuer := newTestService()
 	ctx := context.Background()
 
-	_, err := svc.VerifyOTP(ctx, "+573001234567", "000000", "Ana")
+	_, err := svc.VerifyOTP(ctx, "+573001234567", "000000", "Ana", "")
 	assert.ErrorIs(t, err, ErrInvalidCode)
 
-	_, err = svc.VerifyOTP(ctx, "+573001234567", devCode, " ")
+	_, err = svc.VerifyOTP(ctx, "+573001234567", devCode, " ", "")
 	assert.ErrorIs(t, err, ErrDisplayNameRequired, "un teléfono nuevo necesita nombre")
 
-	tokens, err := svc.VerifyOTP(ctx, "+573001234567", devCode, "Ana")
+	tokens, err := svc.VerifyOTP(ctx, "+573001234567", devCode, "Ana", "")
 	require.NoError(t, err)
 	assert.Equal(t, RolePassenger, tokens.Role, "los registros nuevos son pasajeros")
 	p, err := issuer.ParseAccess(tokens.AccessToken)
@@ -136,7 +136,7 @@ func TestVerifyOTP(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, user.ID, p.UserID)
 
-	again, err := svc.VerifyOTP(ctx, "+573001234567", devCode, "")
+	again, err := svc.VerifyOTP(ctx, "+573001234567", devCode, "", "")
 	require.NoError(t, err, "un usuario existente no necesita nombre")
 	assert.Equal(t, RolePassenger, again.Role)
 }
@@ -147,14 +147,14 @@ func TestVerifyOTPKeepsExistingRole(t *testing.T) {
 	_, err := repo.CreateUser(ctx, User{ID: uuid.New(), Phone: "+573005555555", Role: RoleDriver, DisplayName: "Luis"})
 	require.NoError(t, err)
 
-	tokens, err := svc.VerifyOTP(ctx, "+573005555555", devCode, "")
+	tokens, err := svc.VerifyOTP(ctx, "+573005555555", devCode, "", "")
 	require.NoError(t, err)
 	assert.Equal(t, RoleDriver, tokens.Role)
 }
 
 func TestAccessTokenExpiresAfter15Minutes(t *testing.T) {
 	svc, _, c, issuer := newTestService()
-	tokens, err := svc.VerifyOTP(context.Background(), "+573001234567", devCode, "Ana")
+	tokens, err := svc.VerifyOTP(context.Background(), "+573001234567", devCode, "Ana", "")
 	require.NoError(t, err)
 
 	c.t = c.t.Add(14 * time.Minute)
@@ -169,7 +169,7 @@ func TestAccessTokenExpiresAfter15Minutes(t *testing.T) {
 func TestRefreshRotationAndReuseDetection(t *testing.T) {
 	svc, _, c, _ := newTestService()
 	ctx := context.Background()
-	first, err := svc.VerifyOTP(ctx, "+573001234567", devCode, "Ana")
+	first, err := svc.VerifyOTP(ctx, "+573001234567", devCode, "Ana", "")
 	require.NoError(t, err)
 
 	second, err := svc.Refresh(ctx, first.RefreshToken)
@@ -181,7 +181,7 @@ func TestRefreshRotationAndReuseDetection(t *testing.T) {
 	_, err = svc.Refresh(ctx, second.RefreshToken)
 	assert.ErrorIs(t, err, ErrInvalidRefreshToken, "la reutilización revoca todas las sesiones")
 
-	third, err := svc.VerifyOTP(ctx, "+573001234567", devCode, "")
+	third, err := svc.VerifyOTP(ctx, "+573001234567", devCode, "", "")
 	require.NoError(t, err)
 	c.t = c.t.Add(30*24*time.Hour + time.Second)
 	_, err = svc.Refresh(ctx, third.RefreshToken)
@@ -215,4 +215,36 @@ func TestRequireAuthAndRole(t *testing.T) {
 	assert.Equal(t, http.StatusUnauthorized, call("basura"))
 	assert.Equal(t, http.StatusForbidden, call(passenger))
 	assert.Equal(t, http.StatusOK, call(admin))
+}
+
+// FR-001/FR-003 (002): alta autónoma como conductor y un rol por teléfono.
+func TestVerifyOTPDriverSignUpAndOneRolePerPhone(t *testing.T) {
+	svc, repo, _, _ := newTestService()
+	ctx := context.Background()
+
+	_, err := svc.VerifyOTP(ctx, "+573101112233", devCode, "Luis", "admin")
+	assert.ErrorIs(t, err, ErrInvalidRole, "nadie se registra como admin")
+
+	tokens, err := svc.VerifyOTP(ctx, "+573101112233", devCode, "Luis", RoleDriver)
+	require.NoError(t, err)
+	assert.Equal(t, RoleDriver, tokens.Role)
+	u, err := repo.GetUserByPhone(ctx, "+573101112233")
+	require.NoError(t, err)
+	assert.Equal(t, RoleDriver, u.Role)
+
+	again, err := svc.VerifyOTP(ctx, "+573101112233", devCode, "", RoleDriver)
+	require.NoError(t, err, "el conductor vuelve a entrar con su rol")
+	assert.Equal(t, RoleDriver, again.Role)
+
+	_, err = svc.VerifyOTP(ctx, "+573200000002", devCode, "Ana", "")
+	require.NoError(t, err)
+	_, err = svc.VerifyOTP(ctx, "+573200000002", devCode, "", RoleDriver)
+	assert.ErrorIs(t, err, ErrPhoneHasOtherRole, "un pasajero no se registra como conductor")
+	_, err = svc.VerifyOTP(ctx, "+573101112233", devCode, "", RolePassenger)
+	assert.ErrorIs(t, err, ErrPhoneHasOtherRole)
+
+	rec := httptest.NewRecorder()
+	writeAuthError(rec, httptest.NewRequest(http.MethodPost, "/", nil), ErrPhoneHasOtherRole)
+	assert.Equal(t, http.StatusConflict, rec.Code)
+	assert.Contains(t, rec.Body.String(), "phone_has_other_role")
 }

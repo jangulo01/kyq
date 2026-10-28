@@ -74,6 +74,7 @@ func (p *Presence) setPresence(w http.ResponseWriter, r *http.Request) {
 	now := p.now()
 	var result store.DriverPresence
 	var reason BlockReason
+	var problems []DocumentProblem
 	err := p.Store.WithTx(r.Context(), func(q *store.Queries) error {
 		driver, err := q.GetDriverForPresence(r.Context(), principal.UserID)
 		if err != nil {
@@ -100,11 +101,9 @@ func (p *Presence) setPresence(w http.ResponseWriter, r *http.Request) {
 		if driver.PaidUntil.Valid {
 			paidUntil = driver.PaidUntil.Time
 		}
-		gateDocs := make([]Document, len(docs))
-		for i, d := range docs {
-			gateDocs[i] = Document{Type: string(d.DocType), ExpiresAt: d.ExpiresAt, Approved: d.Approved}
-		}
+		gateDocs := GateDocuments(docs)
 		if reason = EvaluateOnline(paidUntil, gateDocs, hasTrip, now); reason != BlockNone {
+			problems = DocumentProblems(gateDocs, now)
 			return errBlocked
 		}
 		if hasTrip || driver.Presence == store.DriverPresenceBusy {
@@ -119,7 +118,7 @@ func (p *Presence) setPresence(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteError(w, http.StatusConflict, "trip_in_progress", "termina tu viaje antes de desconectarte")
 		return
 	case errors.Is(err, errBlocked):
-		httpx.WriteError(w, http.StatusConflict, string(reason), blockMessage(reason))
+		httpx.WriteError(w, http.StatusConflict, string(reason), blockMessage(reason, problems))
 		return
 	case err != nil:
 		httpx.InternalError(w, r, err)
@@ -129,9 +128,12 @@ func (p *Presence) setPresence(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(w, http.StatusOK, map[string]any{"presence": result})
 }
 
-func blockMessage(r BlockReason) string {
+func blockMessage(r BlockReason, problems []DocumentProblem) string {
 	if r == BlockSubscriptionSuspended {
 		return "tu suscripción está suspendida; paga la mensualidad para trabajar"
+	}
+	if len(problems) > 0 {
+		return problems[0].Message()
 	}
 	return "algún documento obligatorio falta o venció"
 }

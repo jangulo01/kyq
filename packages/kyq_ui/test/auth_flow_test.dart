@@ -85,6 +85,67 @@ void main() {
     verify(() => api.logout()).called(1);
   });
 
+  group('alta como conductor', () {
+    late AuthCubit driverAuth;
+
+    setUp(() {
+      driverAuth = AuthCubit(
+        api,
+        allowedRoles: {UserRole.driver},
+        wrongRoleMessage: 'Esta app es para conductores.',
+        signUpRole: UserRole.driver,
+      );
+    });
+
+    test('verifica con role driver', () async {
+      when(
+        () => api.verifyOtp(
+          any(),
+          any(),
+          displayName: any(named: 'displayName'),
+          role: UserRole.driver,
+        ),
+      ).thenAnswer((_) async => _driver);
+      await driverAuth.start();
+      await driverAuth.requestCode('+573001234567');
+      await driverAuth.verify('123456', displayName: 'Carlos');
+
+      expect(driverAuth.state, isA<AuthSignedIn>());
+      verify(() => api.verifyOtp('+573001234567', '123456', displayName: 'Carlos', role: UserRole.driver)).called(1);
+    });
+
+    testWidgets('teléfono de pasajero: mensaje claro para usar otro número', (tester) async {
+      when(
+        () => api.verifyOtp(
+          any(),
+          any(),
+          displayName: any(named: 'displayName'),
+          role: any(named: 'role'),
+        ),
+      ).thenThrow(const ApiException(409, 'phone_has_other_role', 'phone already registered'));
+      await driverAuth.start();
+      await tester.pumpWidget(
+        MaterialApp(
+          home: BlocProvider.value(
+            value: driverAuth,
+            child: const LoginPage(title: 'Kyq Conductor', subtitle: 'Soy conductor'),
+          ),
+        ),
+      );
+      expect(find.text('Soy conductor'), findsOneWidget);
+
+      await tester.enterText(find.byKey(const Key('login.phone')), '3001234567');
+      await tester.tap(find.byKey(const Key('login.sendCode')));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byKey(const Key('login.code')), '123456');
+      await tester.tap(find.byKey(const Key('login.verify')));
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('ya tiene una cuenta de pasajero'), findsOneWidget);
+      expect(find.textContaining('usa otro número'), findsOneWidget);
+    });
+  });
+
   test('restaura la sesión guardada del rol correcto', () async {
     when(() => api.currentSession()).thenAnswer((_) async => _passenger);
     await cubit.start();

@@ -47,19 +47,20 @@ func (q *Queries) DriverExists(ctx context.Context, userID uuid.UUID) (bool, err
 }
 
 const listDocumentsForDrivers = `-- name: ListDocumentsForDrivers :many
-SELECT driver_id, doc_type, expires_at, (approved_by IS NOT NULL)::boolean AS approved
+SELECT driver_id, doc_type, expires_at, exempt_until
 FROM driver_documents
-WHERE driver_id = ANY ($1::uuid[])
+WHERE driver_id = ANY ($1::uuid[]) AND status = 'approved'
 ORDER BY driver_id, doc_type
 `
 
 type ListDocumentsForDriversRow struct {
-	DriverID  uuid.UUID
-	DocType   DriverDocType
-	ExpiresAt time.Time
-	Approved  bool
+	DriverID    uuid.UUID
+	DocType     DriverDocType
+	ExpiresAt   pgtype.Date
+	ExemptUntil pgtype.Date
 }
 
+// Documentos vigentes para el gate: el aprobado de cada tipo (uno como máximo).
 func (q *Queries) ListDocumentsForDrivers(ctx context.Context, driverIds []uuid.UUID) ([]ListDocumentsForDriversRow, error) {
 	rows, err := q.db.Query(ctx, listDocumentsForDrivers, driverIds)
 	if err != nil {
@@ -73,7 +74,7 @@ func (q *Queries) ListDocumentsForDrivers(ctx context.Context, driverIds []uuid.
 			&i.DriverID,
 			&i.DocType,
 			&i.ExpiresAt,
-			&i.Approved,
+			&i.ExemptUntil,
 		); err != nil {
 			return nil, err
 		}
@@ -140,36 +141,6 @@ func (q *Queries) ListDriversForAdmin(ctx context.Context) ([]ListDriversForAdmi
 	return items, nil
 }
 
-const upsertDriverDocument = `-- name: UpsertDriverDocument :exec
-INSERT INTO driver_documents (id, driver_id, doc_type, expires_at, approved_by, approved_at)
-VALUES ($1, $2, $3, $4, $5, $6)
-ON CONFLICT (driver_id, doc_type) DO UPDATE
-SET expires_at  = EXCLUDED.expires_at,
-    approved_by = EXCLUDED.approved_by,
-    approved_at = EXCLUDED.approved_at
-`
-
-type UpsertDriverDocumentParams struct {
-	ID         uuid.UUID
-	DriverID   uuid.UUID
-	DocType    DriverDocType
-	ExpiresAt  time.Time
-	ApprovedBy uuid.NullUUID
-	ApprovedAt pgtype.Timestamptz
-}
-
-func (q *Queries) UpsertDriverDocument(ctx context.Context, arg UpsertDriverDocumentParams) error {
-	_, err := q.db.Exec(ctx, upsertDriverDocument,
-		arg.ID,
-		arg.DriverID,
-		arg.DocType,
-		arg.ExpiresAt,
-		arg.ApprovedBy,
-		arg.ApprovedAt,
-	)
-	return err
-}
-
 const upsertSubscription = `-- name: UpsertSubscription :exec
 INSERT INTO subscriptions (driver_id, paid_until, updated_by)
 VALUES ($1, $2, $3)
@@ -182,7 +153,7 @@ SET paid_until = EXCLUDED.paid_until,
 type UpsertSubscriptionParams struct {
 	DriverID  uuid.UUID
 	PaidUntil time.Time
-	UpdatedBy uuid.UUID
+	UpdatedBy uuid.NullUUID
 }
 
 func (q *Queries) UpsertSubscription(ctx context.Context, arg UpsertSubscriptionParams) error {

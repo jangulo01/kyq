@@ -42,11 +42,12 @@ func (h *Handlers) verifyOTP(w http.ResponseWriter, r *http.Request) {
 		Phone       string `json:"phone_e164"`
 		Code        string `json:"code"`
 		DisplayName string `json:"display_name"`
+		Role        string `json:"role"`
 	}
 	if !httpx.DecodeJSON(w, r, &body) {
 		return
 	}
-	tokens, err := h.svc.VerifyOTP(r.Context(), body.Phone, body.Code, body.DisplayName)
+	tokens, err := h.svc.VerifyOTP(r.Context(), body.Phone, body.Code, body.DisplayName, body.Role)
 	if err != nil {
 		writeAuthError(w, r, err)
 		return
@@ -77,6 +78,11 @@ func writeAuthError(w http.ResponseWriter, r *http.Request, err error) {
 		httpx.WriteError(w, http.StatusBadRequest, "country_not_served", "Kyq aún no opera en el país de ese teléfono")
 	case errors.Is(err, ErrDisplayNameRequired):
 		httpx.WriteError(w, http.StatusBadRequest, "display_name_required", "indica un nombre de 2 a 60 caracteres")
+	case errors.Is(err, ErrInvalidRole):
+		httpx.WriteError(w, http.StatusBadRequest, "invalid_role", "role debe ser passenger o driver")
+	case errors.Is(err, ErrPhoneHasOtherRole):
+		httpx.WriteError(w, http.StatusConflict, "phone_has_other_role",
+			"ese teléfono ya tiene una cuenta con otro rol; usa otro número")
 	case errors.Is(err, ErrRateLimited):
 		httpx.WriteError(w, http.StatusTooManyRequests, "rate_limited", "demasiados códigos solicitados; espera una hora")
 	case errors.Is(err, ErrInvalidCode):

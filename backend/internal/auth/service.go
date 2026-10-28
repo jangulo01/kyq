@@ -23,6 +23,8 @@ var (
 	ErrDisplayNameRequired = errors.New("display name required")
 	ErrInvalidRefreshToken = errors.New("invalid refresh token")
 	ErrNotFound            = errors.New("not found")
+	ErrPhoneHasOtherRole   = errors.New("phone has another role")
+	ErrInvalidRole         = errors.New("invalid role")
 )
 
 // Límites de envío de OTP por hora contra el bombeo de SMS (números rotados desde un mismo
@@ -68,6 +70,9 @@ type Repo interface {
 	GetUserByPhone(ctx context.Context, phone string) (User, error)
 	GetUserByID(ctx context.Context, id uuid.UUID) (User, error)
 	CreateUser(ctx context.Context, u User) (User, error)
+	// CreateDriver creates the user with the driver role and its driver profile (no vehicle yet,
+	// new QR) in one transaction.
+	CreateDriver(ctx context.Context, u User) (User, error)
 	InsertRefreshToken(ctx context.Context, t RefreshToken) error
 	GetRefreshToken(ctx context.Context, hash []byte) (RefreshToken, error)
 	// MarkRotated returns false when the token was already rotated.
@@ -163,10 +168,15 @@ func (s *Service) servedCountry(phone string) bool {
 }
 
 // VerifyOTP checks the code and returns a session. New phones register as passengers and must
-// send a display name; drivers and admins are created by an administrator.
-func (s *Service) VerifyOTP(ctx context.Context, phone, code, displayName string) (Tokens, error) {
+// send a display name; admins are created by an administrator. role is "" (keep the existing
+// role; passenger for new phones), "passenger" or "driver": a driver signs up with "driver"
+// (FR-001), and a phone that already has another role gets ErrPhoneHasOtherRole (FR-003).
+func (s *Service) VerifyOTP(ctx context.Context, phone, code, displayName, role string) (Tokens, error) {
 	if !phoneE164.MatchString(phone) {
 		return Tokens{}, ErrInvalidPhone
+	}
+	if role != "" && role != RolePassenger && role != RoleDriver {
+		return Tokens{}, ErrInvalidRole
 	}
 	ok, err := s.otp.Check(ctx, phone, code)
 	if err != nil {
@@ -185,12 +195,20 @@ func (s *Service) VerifyOTP(ctx context.Context, phone, code, displayName string
 		if err != nil {
 			return Tokens{}, err
 		}
-		user, err = s.repo.CreateUser(ctx, User{ID: id, Phone: phone, Role: RolePassenger, DisplayName: name})
+		u := User{ID: id, Phone: phone, Role: RolePassenger, DisplayName: name}
+		if role == RoleDriver {
+			u.Role = RoleDriver
+			user, err = s.repo.CreateDriver(ctx, u)
+		} else {
+			user, err = s.repo.CreateUser(ctx, u)
+		}
 		if err != nil {
 			return Tokens{}, fmt.Errorf("create user: %w", err)
 		}
 	} else if err != nil {
 		return Tokens{}, fmt.Errorf("get user: %w", err)
+	} else if role != "" && user.Role != role {
+		return Tokens{}, ErrPhoneHasOtherRole
 	}
 	return s.issue(ctx, user)
 }

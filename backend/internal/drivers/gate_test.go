@@ -5,15 +5,18 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 var (
 	now       = time.Date(2026, 10, 27, 15, 0, 0, 0, time.UTC)
 	nextYear  = time.Date(2027, 10, 27, 0, 0, 0, 0, time.UTC)
 	validDocs = []Document{
+		{Type: DocNationalID, Approved: true},
 		{Type: DocLicense, ExpiresAt: nextYear, Approved: true},
 		{Type: DocMandatoryInsurance, ExpiresAt: nextYear, Approved: true},
-		{Type: DocVehicleRegistration, ExpiresAt: nextYear, Approved: true},
+		{Type: DocTechnicalInspection, ExpiresAt: nextYear, Approved: true},
+		{Type: DocVehicleRegistration, Approved: true},
 	}
 )
 
@@ -54,7 +57,7 @@ func TestRN016MandatoryDocuments(t *testing.T) {
 	paid := now.Add(24 * time.Hour)
 	today := time.Date(2026, 10, 27, 0, 0, 0, 0, time.UTC)
 
-	assert.Equal(t, BlockKYCExpired, EvaluateOnline(paid, validDocs[:2], false, now), "falta un documento")
+	assert.Equal(t, BlockKYCExpired, EvaluateOnline(paid, validDocs[:4], false, now), "falta un documento")
 	assert.Equal(t, BlockKYCExpired, EvaluateOnline(paid, withDoc(Document{Type: DocLicense, ExpiresAt: nextYear, Approved: false}), false, now), "sin aprobar")
 	assert.Equal(t, BlockKYCExpired, EvaluateOnline(paid, withDoc(Document{Type: DocLicense, ExpiresAt: today, Approved: true}), false, now), "vence hoy")
 	assert.Equal(t, BlockNone, EvaluateOnline(paid, withDoc(Document{Type: DocLicense, ExpiresAt: today.AddDate(0, 0, 1), Approved: true}), false, now), "vence mañana")
@@ -62,4 +65,41 @@ func TestRN016MandatoryDocuments(t *testing.T) {
 
 func TestSuspensionTakesPrecedenceOverKYC(t *testing.T) {
 	assert.Equal(t, BlockSubscriptionSuspended, EvaluateOnline(now.Add(-100*time.Hour), nil, false, now))
+}
+
+// RN-KYQ-016 (002): los cinco tipos son obligatorios; cédula y tarjeta de propiedad no vencen;
+// la revisión técnico-mecánica puede estar exenta hasta una fecha.
+func TestRN016FiveDocumentTypesAndExemption(t *testing.T) {
+	paid := now.Add(24 * time.Hour)
+	today := Today(now)
+
+	for _, missing := range MandatoryDocuments {
+		var docs []Document
+		for _, d := range validDocs {
+			if d.Type != missing {
+				docs = append(docs, d)
+			}
+		}
+		assert.Equal(t, BlockKYCExpired, EvaluateOnline(paid, docs, false, now), "sin %s", missing)
+		assert.Equal(t, []DocumentProblem{{Type: missing, Problem: "missing"}}, DocumentProblems(docs, now))
+	}
+
+	old := today.AddDate(-5, 0, 0)
+	assert.Equal(t, BlockNone, EvaluateOnline(paid, withDoc(Document{Type: DocNationalID, ExpiresAt: old, Approved: true}), false, now),
+		"la cédula no bloquea por fecha")
+	assert.Equal(t, BlockNone, EvaluateOnline(paid, withDoc(Document{Type: DocVehicleRegistration, ExpiresAt: old, Approved: true}), false, now),
+		"la tarjeta de propiedad no bloquea por fecha")
+
+	exempt := Document{Type: DocTechnicalInspection, ExemptUntil: today.AddDate(0, 0, 10), Approved: true}
+	assert.Equal(t, BlockNone, EvaluateOnline(paid, withDoc(exempt), false, now), "vehículo nuevo exento")
+	exempt.ExemptUntil = today
+	assert.Equal(t, BlockKYCExpired, EvaluateOnline(paid, withDoc(exempt), false, now), "la exención termina")
+
+	soat := withDoc(Document{Type: DocMandatoryInsurance, ExpiresAt: today, Approved: true})
+	problems := DocumentProblems(soat, now)
+	require.Len(t, problems, 1)
+	assert.Equal(t, "SOAT vencido: envía el nuevo", problems[0].Message())
+
+	assert.True(t, Document{Type: DocLicense, ExpiresAt: today.AddDate(0, 0, 1), Approved: true}.InForce(today))
+	assert.False(t, Document{Type: DocNationalID}.InForce(today), "sin aprobar nunca vale")
 }

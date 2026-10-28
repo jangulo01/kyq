@@ -29,6 +29,7 @@ class _Harness {
 
   Future<void> pump(WidgetTester tester) async {
     when(() => api.currentSession()).thenAnswer((_) async => _session);
+    stubOnboardingDefaults(api);
     when(() => api.driverMe()).thenAnswer((_) async => _me);
     final auth = AuthCubit(api, allowedRoles: {UserRole.driver}, wrongRoleMessage: '')..start();
     await tester.pumpWidget(

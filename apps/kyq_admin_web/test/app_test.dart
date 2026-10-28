@@ -80,6 +80,39 @@ void main() {
 
     expect(find.textContaining('Carlos'), findsOneWidget);
     expect(find.text('Suscripción suspendida'), findsOneWidget);
+
+    // Ventana estrecha: las secciones de 002 están en el menú.
+    await tester.tap(find.byKey(const Key('nav.menu')));
+    await tester.pumpAndSettle();
+    for (final label in ['Validación', 'Suscripciones', 'Costos', 'Tarifas']) {
+      expect(find.text(label), findsOneWidget);
+    }
+  });
+
+  testWidgets('ventana ancha: secciones en la barra y acciones de pagos y documentos', (tester) async {
+    tester.view.physicalSize = const Size(3200, 1600);
+    tester.view.devicePixelRatio = 2;
+    addTearDown(tester.view.reset);
+    final api = _MockApi();
+    when(() => api.adminListDrivers()).thenAnswer((_) async => [_driver()]);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MultiBlocProvider(
+          providers: [
+            BlocProvider<AuthCubit>.value(value: _MockAuth()),
+            BlocProvider(create: (_) => DriversCubit(api)..load()),
+          ],
+          child: const DriversPage(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    for (final path in ['/kyc', '/billing', '/costs', '/fares']) {
+      expect(find.byKey(Key('nav$path')), findsOneWidget);
+    }
+    expect(find.text('Pagos'), findsOneWidget);
+    expect(find.text('Documentos'), findsWidgets);
+    expect(find.textContaining('Revisión técnico-mecánica'), findsOneWidget);
   });
 
   testWidgets('tabla de tarifas: ejemplo y guardado en unidades mínimas', (tester) async {

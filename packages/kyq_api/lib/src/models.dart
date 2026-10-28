@@ -15,20 +15,43 @@ enum SubscriptionStatus {
   suspended,
 }
 
+/// Documentos obligatorios del conductor (002, R7). Cédula y revisión técnico-mecánica son nuevos
+/// en 002; 001 solo tenía los otros tres.
 enum DocType {
+  @JsonValue('national_id')
+  nationalId,
   license,
   @JsonValue('mandatory_insurance')
   mandatoryInsurance,
+  @JsonValue('technical_inspection')
+  technicalInspection,
   @JsonValue('vehicle_registration')
   vehicleRegistration,
 }
 
 /// Valor de [DocType] en la API (ruta `/documents/{docType}`).
 String docTypeToApi(DocType type) => switch (type) {
+  DocType.nationalId => 'national_id',
   DocType.license => 'license',
   DocType.mandatoryInsurance => 'mandatory_insurance',
+  DocType.technicalInspection => 'technical_inspection',
   DocType.vehicleRegistration => 'vehicle_registration',
 };
+
+/// Reglas de captura de cada tipo (FR-005).
+extension DocTypeRules on DocType {
+  /// Cédula y licencia llevan reverso; el resto, solo frente.
+  bool get hasBack => this == DocType.nationalId || this == DocType.license;
+
+  /// Cédula y tarjeta de propiedad no vencen.
+  bool get expires => this != DocType.nationalId && this != DocType.vehicleRegistration;
+
+  /// Lados que se fotografían, en orden.
+  List<DocSide> get sides => hasBack ? const [DocSide.front, DocSide.back] : const [DocSide.front];
+}
+
+/// Lado fotografiado de un documento.
+enum DocSide { front, back }
 
 enum TripStatus {
   @JsonValue('REQUESTED')
@@ -65,12 +88,22 @@ abstract class GeoPoint with _$GeoPoint {
   factory GeoPoint.fromJson(Map<String, dynamic> json) => _$GeoPointFromJson(json);
 }
 
+/// Vista de 001 de un documento aprobado (`/v1/driver/me`, `/v1/admin/drivers`).
 @freezed
 abstract class DriverDocument with _$DriverDocument {
-  const factory DriverDocument({required DocType docType, required String expiresAt, required bool approved}) =
-      _DriverDocument;
+  const factory DriverDocument({required DocType docType, String? expiresAt, required bool approved}) = _DriverDocument;
 
   factory DriverDocument.fromJson(Map<String, dynamic> json) => _$DriverDocumentFromJson(json);
+}
+
+enum BlockedDocumentProblem { missing, expired }
+
+/// Documento obligatorio que bloquea ONLINE (RN-KYQ-016): falta un aprobado o venció (002).
+@freezed
+abstract class BlockedDocument with _$BlockedDocument {
+  const factory BlockedDocument({required DocType docType, required BlockedDocumentProblem problem}) = _BlockedDocument;
+
+  factory BlockedDocument.fromJson(Map<String, dynamic> json) => _$BlockedDocumentFromJson(json);
 }
 
 @freezed
@@ -83,6 +116,7 @@ abstract class DriverMe with _$DriverMe {
     DateTime? paidUntil,
     required bool canGoOnline,
     String? blockReason,
+    @Default(<BlockedDocument>[]) List<BlockedDocument> blockedDocuments,
     @Default(<DriverDocument>[]) List<DriverDocument> documents,
   }) = _DriverMe;
 
@@ -104,6 +138,7 @@ abstract class AdminDriver with _$AdminDriver {
     required SubscriptionStatus subscriptionStatus,
     required bool canGoOnline,
     String? blockReason,
+    @Default(<BlockedDocument>[]) List<BlockedDocument> blockedDocuments,
     @Default(<DriverDocument>[]) List<DriverDocument> documents,
   }) = _AdminDriver;
 

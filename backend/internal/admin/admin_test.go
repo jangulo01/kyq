@@ -87,7 +87,21 @@ func TestAdminDriverLifecycle(t *testing.T) {
 	assert.Equal(t, "kyc_expired", *d.BlockReason)
 
 	require.Equal(t, http.StatusOK, do(adminToken, http.MethodPut, base+"/documents/vehicle_registration", map[string]any{"expires_at": "2027-06-30", "approved": true}).Code)
+	assert.False(t, list().CanGoOnline, "002: faltan cédula y revisión técnico-mecánica")
+
+	assert.Equal(t, http.StatusBadRequest, do(adminToken, http.MethodPut, base+"/documents/technical_inspection", map[string]any{"approved": true}).Code,
+		"la revisión técnico-mecánica exige vencimiento")
+	require.Equal(t, http.StatusOK, do(adminToken, http.MethodPut, base+"/documents/national_id", map[string]any{"approved": true}).Code)
+	require.Equal(t, http.StatusOK, do(adminToken, http.MethodPut, base+"/documents/technical_inspection", map[string]any{"expires_at": "2027-06-30", "approved": true}).Code)
+	d = list()
+	assert.True(t, d.CanGoOnline)
+	assert.Len(t, d.Documents, 3, "la vista de 001 solo lista sus tipos con vencimiento")
+
+	// Re-aprobar crea una versión nueva y retirar la aprobación bloquea (compatibilidad con 001).
+	require.Equal(t, http.StatusOK, do(adminToken, http.MethodPut, base+"/documents/license", map[string]any{"expires_at": "2028-01-31", "approved": true}).Code)
 	assert.True(t, list().CanGoOnline)
+	require.Equal(t, http.StatusOK, do(adminToken, http.MethodPut, base+"/documents/license", map[string]any{"expires_at": "2028-01-31", "approved": false}).Code)
+	assert.False(t, list().CanGoOnline)
 
 	assert.Equal(t, http.StatusBadRequest, do(adminToken, http.MethodPut, base+"/documents/passport", map[string]any{"expires_at": "2027-06-30", "approved": true}).Code)
 	assert.Equal(t, http.StatusNotFound, do(adminToken, http.MethodPut, "/v1/admin/drivers/"+uuid.NewString()+"/subscription", map[string]any{"paid_until": now}).Code)

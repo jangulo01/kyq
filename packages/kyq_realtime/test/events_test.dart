@@ -86,6 +86,26 @@ void main() {
     );
   });
 
+  test('notice.created', () {
+    final e =
+        RealtimeEvent.fromEnvelope(
+              envelope('notice.created', {
+                'id': 'n1',
+                'kind': 'doc_rejected',
+                'title': 'Documento rechazado',
+                'body': 'SOAT: foto borrosa',
+              }),
+            )
+            as NoticeCreated;
+    expect(e.noticeId, 'n1');
+    expect(e.kind, 'doc_rejected');
+    expect(e.title, 'Documento rechazado');
+    expect(
+      RealtimeEvent.fromEnvelope(envelope('notice.created', {'notice_id': 'n2', 'kind': 'sub_grace', 'title': 't'})),
+      isA<NoticeCreated>().having((e) => e.noticeId, 'id', 'n2').having((e) => e.body, 'body', ''),
+    );
+  });
+
   test('tipos nuevos no rompen la app', () {
     expect(RealtimeEvent.fromEnvelope(envelope('futuro.evento', {'x': 1})), isA<UnknownEvent>());
   });

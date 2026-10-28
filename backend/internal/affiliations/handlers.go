@@ -46,6 +46,11 @@ func (h *Handlers) create(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteError(w, http.StatusNotFound, "driver_not_found", "ese código no corresponde a un conductor Kyq")
 		return
 	}
+	if errors.Is(err, ErrDriverNotAvailable) {
+		httpx.WriteError(w, http.StatusConflict, "driver_not_available",
+			"este conductor aún no puede recibir clientes: tiene documentos o suscripción pendientes")
+		return
+	}
 	if err != nil {
 		httpx.InternalError(w, r, err)
 		return

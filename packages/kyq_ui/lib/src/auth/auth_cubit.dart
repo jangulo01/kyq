@@ -40,11 +40,16 @@ final class AuthSignedIn extends AuthState {
 
 /// Login por OTP. Solo acepta sesiones de [allowedRoles]: cada app es para un tipo de usuario.
 class AuthCubit extends Cubit<AuthState> {
-  AuthCubit(this._api, {required this.allowedRoles, required this.wrongRoleMessage}) : super(const AuthUnknown());
+  AuthCubit(this._api, {required this.allowedRoles, required this.wrongRoleMessage, this.signUpRole})
+    : super(const AuthUnknown());
 
   final KyqApiClient _api;
   final Set<UserRole> allowedRoles;
   final String wrongRoleMessage;
+
+  /// Rol con el que se crea la cuenta si el teléfono es nuevo (la app del conductor usa
+  /// [UserRole.driver]); null deja el de por defecto del backend, pasajero.
+  final UserRole? signUpRole;
 
   Future<void> start() async {
     final session = await _api.currentSession();
@@ -70,7 +75,7 @@ class AuthCubit extends Cubit<AuthState> {
     if (current is! AuthCodeSent) return;
     emit(current.copyWith(busy: true));
     try {
-      final tokens = await _api.verifyOtp(current.phone, code, displayName: displayName);
+      final tokens = await _api.verifyOtp(current.phone, code, displayName: displayName, role: signUpRole);
       if (!allowedRoles.contains(tokens.role)) {
         await _api.logout();
         emit(AuthSignedOut(error: wrongRoleMessage));
@@ -101,6 +106,8 @@ class AuthCubit extends Cubit<AuthState> {
     'invalid_phone' => 'Revisa el número de teléfono.',
     'rate_limited' => 'Pediste demasiados códigos. Espera una hora.',
     'invalid_code' => 'Código incorrecto o caducado.',
+    'phone_has_other_role' =>
+      'Este número ya tiene una cuenta de pasajero o de administrador en Kyq. Para registrarte como conductor usa otro número.',
     'network' => 'Sin conexión. Revisa tu internet.',
     _ => 'Algo salió mal. Inténtalo de nuevo.',
   };

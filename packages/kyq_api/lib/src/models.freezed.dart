@@ -550,7 +550,7 @@ as double,
 /// @nodoc
 mixin _$DriverDocument {
 
- DocType get docType; String get expiresAt; bool get approved;
+ DocType get docType; String? get expiresAt; bool get approved;
 /// Create a copy of DriverDocument
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -583,7 +583,7 @@ abstract mixin class $DriverDocumentCopyWith<$Res>  {
   factory $DriverDocumentCopyWith(DriverDocument value, $Res Function(DriverDocument) _then) = _$DriverDocumentCopyWithImpl;
 @useResult
 $Res call({
- DocType docType, String expiresAt, bool approved
+ DocType docType, String? expiresAt, bool approved
 });
 
 
@@ -600,11 +600,11 @@ class _$DriverDocumentCopyWithImpl<$Res>
 
 /// Create a copy of DriverDocument
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? docType = null,Object? expiresAt = null,Object? approved = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? docType = null,Object? expiresAt = freezed,Object? approved = null,}) {
   return _then(_self.copyWith(
 docType: null == docType ? _self.docType : docType // ignore: cast_nullable_to_non_nullable
-as DocType,expiresAt: null == expiresAt ? _self.expiresAt : expiresAt // ignore: cast_nullable_to_non_nullable
-as String,approved: null == approved ? _self.approved : approved // ignore: cast_nullable_to_non_nullable
+as DocType,expiresAt: freezed == expiresAt ? _self.expiresAt : expiresAt // ignore: cast_nullable_to_non_nullable
+as String?,approved: null == approved ? _self.approved : approved // ignore: cast_nullable_to_non_nullable
 as bool,
   ));
 }
@@ -690,7 +690,7 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( DocType docType,  String expiresAt,  bool approved)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( DocType docType,  String? expiresAt,  bool approved)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _DriverDocument() when $default != null:
 return $default(_that.docType,_that.expiresAt,_that.approved);case _:
@@ -711,7 +711,7 @@ return $default(_that.docType,_that.expiresAt,_that.approved);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( DocType docType,  String expiresAt,  bool approved)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( DocType docType,  String? expiresAt,  bool approved)  $default,) {final _that = this;
 switch (_that) {
 case _DriverDocument():
 return $default(_that.docType,_that.expiresAt,_that.approved);case _:
@@ -731,7 +731,7 @@ return $default(_that.docType,_that.expiresAt,_that.approved);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( DocType docType,  String expiresAt,  bool approved)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( DocType docType,  String? expiresAt,  bool approved)?  $default,) {final _that = this;
 switch (_that) {
 case _DriverDocument() when $default != null:
 return $default(_that.docType,_that.expiresAt,_that.approved);case _:
@@ -746,11 +746,11 @@ return $default(_that.docType,_that.expiresAt,_that.approved);case _:
 @JsonSerializable()
 
 class _DriverDocument implements DriverDocument {
-  const _DriverDocument({required this.docType, required this.expiresAt, required this.approved});
+  const _DriverDocument({required this.docType, this.expiresAt, required this.approved});
   factory _DriverDocument.fromJson(Map<String, dynamic> json) => _$DriverDocumentFromJson(json);
 
 @override final  DocType docType;
-@override final  String expiresAt;
+@override final  String? expiresAt;
 @override final  bool approved;
 
 /// Create a copy of DriverDocument
@@ -786,7 +786,7 @@ abstract mixin class _$DriverDocumentCopyWith<$Res> implements $DriverDocumentCo
   factory _$DriverDocumentCopyWith(_DriverDocument value, $Res Function(_DriverDocument) _then) = __$DriverDocumentCopyWithImpl;
 @override @useResult
 $Res call({
- DocType docType, String expiresAt, bool approved
+ DocType docType, String? expiresAt, bool approved
 });
 
 
@@ -803,12 +803,278 @@ class __$DriverDocumentCopyWithImpl<$Res>
 
 /// Create a copy of DriverDocument
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? docType = null,Object? expiresAt = null,Object? approved = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? docType = null,Object? expiresAt = freezed,Object? approved = null,}) {
   return _then(_DriverDocument(
 docType: null == docType ? _self.docType : docType // ignore: cast_nullable_to_non_nullable
-as DocType,expiresAt: null == expiresAt ? _self.expiresAt : expiresAt // ignore: cast_nullable_to_non_nullable
-as String,approved: null == approved ? _self.approved : approved // ignore: cast_nullable_to_non_nullable
+as DocType,expiresAt: freezed == expiresAt ? _self.expiresAt : expiresAt // ignore: cast_nullable_to_non_nullable
+as String?,approved: null == approved ? _self.approved : approved // ignore: cast_nullable_to_non_nullable
 as bool,
+  ));
+}
+
+
+}
+
+
+/// @nodoc
+mixin _$BlockedDocument {
+
+ DocType get docType; BlockedDocumentProblem get problem;
+/// Create a copy of BlockedDocument
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$BlockedDocumentCopyWith<BlockedDocument> get copyWith => _$BlockedDocumentCopyWithImpl<BlockedDocument>(this as BlockedDocument, _$identity);
+
+  /// Serializes this BlockedDocument to a JSON map.
+  Map<String, dynamic> toJson();
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is BlockedDocument&&(identical(other.docType, docType) || other.docType == docType)&&(identical(other.problem, problem) || other.problem == problem));
+}
+
+@JsonKey(includeFromJson: false, includeToJson: false)
+@override
+int get hashCode => Object.hash(runtimeType,docType,problem);
+
+@override
+String toString() {
+  return 'BlockedDocument(docType: $docType, problem: $problem)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $BlockedDocumentCopyWith<$Res>  {
+  factory $BlockedDocumentCopyWith(BlockedDocument value, $Res Function(BlockedDocument) _then) = _$BlockedDocumentCopyWithImpl;
+@useResult
+$Res call({
+ DocType docType, BlockedDocumentProblem problem
+});
+
+
+
+
+}
+/// @nodoc
+class _$BlockedDocumentCopyWithImpl<$Res>
+    implements $BlockedDocumentCopyWith<$Res> {
+  _$BlockedDocumentCopyWithImpl(this._self, this._then);
+
+  final BlockedDocument _self;
+  final $Res Function(BlockedDocument) _then;
+
+/// Create a copy of BlockedDocument
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') @override $Res call({Object? docType = null,Object? problem = null,}) {
+  return _then(_self.copyWith(
+docType: null == docType ? _self.docType : docType // ignore: cast_nullable_to_non_nullable
+as DocType,problem: null == problem ? _self.problem : problem // ignore: cast_nullable_to_non_nullable
+as BlockedDocumentProblem,
+  ));
+}
+
+}
+
+
+/// Adds pattern-matching-related methods to [BlockedDocument].
+extension BlockedDocumentPatterns on BlockedDocument {
+/// A variant of `map` that fallback to returning `orElse`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeMap<TResult extends Object?>(TResult Function( _BlockedDocument value)?  $default,{required TResult orElse(),}){
+final _that = this;
+switch (_that) {
+case _BlockedDocument() when $default != null:
+return $default(_that);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// Callbacks receives the raw object, upcasted.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case final Subclass2 value:
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult map<TResult extends Object?>(TResult Function( _BlockedDocument value)  $default,){
+final _that = this;
+switch (_that) {
+case _BlockedDocument():
+return $default(_that);case _:
+  throw StateError('Unexpected subclass');
+
+}
+}
+/// A variant of `map` that fallback to returning `null`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>(TResult? Function( _BlockedDocument value)?  $default,){
+final _that = this;
+switch (_that) {
+case _BlockedDocument() when $default != null:
+return $default(_that);case _:
+  return null;
+
+}
+}
+/// A variant of `when` that fallback to an `orElse` callback.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( DocType docType,  BlockedDocumentProblem problem)?  $default,{required TResult orElse(),}) {final _that = this;
+switch (_that) {
+case _BlockedDocument() when $default != null:
+return $default(_that.docType,_that.problem);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// As opposed to `map`, this offers destructuring.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case Subclass2(:final field2):
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( DocType docType,  BlockedDocumentProblem problem)  $default,) {final _that = this;
+switch (_that) {
+case _BlockedDocument():
+return $default(_that.docType,_that.problem);case _:
+  throw StateError('Unexpected subclass');
+
+}
+}
+/// A variant of `when` that fallback to returning `null`
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( DocType docType,  BlockedDocumentProblem problem)?  $default,) {final _that = this;
+switch (_that) {
+case _BlockedDocument() when $default != null:
+return $default(_that.docType,_that.problem);case _:
+  return null;
+
+}
+}
+
+}
+
+/// @nodoc
+@JsonSerializable()
+
+class _BlockedDocument implements BlockedDocument {
+  const _BlockedDocument({required this.docType, required this.problem});
+  factory _BlockedDocument.fromJson(Map<String, dynamic> json) => _$BlockedDocumentFromJson(json);
+
+@override final  DocType docType;
+@override final  BlockedDocumentProblem problem;
+
+/// Create a copy of BlockedDocument
+/// with the given fields replaced by the non-null parameter values.
+@override @JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+_$BlockedDocumentCopyWith<_BlockedDocument> get copyWith => __$BlockedDocumentCopyWithImpl<_BlockedDocument>(this, _$identity);
+
+@override
+Map<String, dynamic> toJson() {
+  return _$BlockedDocumentToJson(this, );
+}
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _BlockedDocument&&(identical(other.docType, docType) || other.docType == docType)&&(identical(other.problem, problem) || other.problem == problem));
+}
+
+@JsonKey(includeFromJson: false, includeToJson: false)
+@override
+int get hashCode => Object.hash(runtimeType,docType,problem);
+
+@override
+String toString() {
+  return 'BlockedDocument(docType: $docType, problem: $problem)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class _$BlockedDocumentCopyWith<$Res> implements $BlockedDocumentCopyWith<$Res> {
+  factory _$BlockedDocumentCopyWith(_BlockedDocument value, $Res Function(_BlockedDocument) _then) = __$BlockedDocumentCopyWithImpl;
+@override @useResult
+$Res call({
+ DocType docType, BlockedDocumentProblem problem
+});
+
+
+
+
+}
+/// @nodoc
+class __$BlockedDocumentCopyWithImpl<$Res>
+    implements _$BlockedDocumentCopyWith<$Res> {
+  __$BlockedDocumentCopyWithImpl(this._self, this._then);
+
+  final _BlockedDocument _self;
+  final $Res Function(_BlockedDocument) _then;
+
+/// Create a copy of BlockedDocument
+/// with the given fields replaced by the non-null parameter values.
+@override @pragma('vm:prefer-inline') $Res call({Object? docType = null,Object? problem = null,}) {
+  return _then(_BlockedDocument(
+docType: null == docType ? _self.docType : docType // ignore: cast_nullable_to_non_nullable
+as DocType,problem: null == problem ? _self.problem : problem // ignore: cast_nullable_to_non_nullable
+as BlockedDocumentProblem,
   ));
 }
 
@@ -819,7 +1085,7 @@ as bool,
 /// @nodoc
 mixin _$DriverMe {
 
- String get driverId; String get qrToken; DriverPresence get presence; SubscriptionStatus get subscriptionStatus; DateTime? get paidUntil; bool get canGoOnline; String? get blockReason; List<DriverDocument> get documents;
+ String get driverId; String get qrToken; DriverPresence get presence; SubscriptionStatus get subscriptionStatus; DateTime? get paidUntil; bool get canGoOnline; String? get blockReason; List<BlockedDocument> get blockedDocuments; List<DriverDocument> get documents;
 /// Create a copy of DriverMe
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -832,16 +1098,16 @@ $DriverMeCopyWith<DriverMe> get copyWith => _$DriverMeCopyWithImpl<DriverMe>(thi
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is DriverMe&&(identical(other.driverId, driverId) || other.driverId == driverId)&&(identical(other.qrToken, qrToken) || other.qrToken == qrToken)&&(identical(other.presence, presence) || other.presence == presence)&&(identical(other.subscriptionStatus, subscriptionStatus) || other.subscriptionStatus == subscriptionStatus)&&(identical(other.paidUntil, paidUntil) || other.paidUntil == paidUntil)&&(identical(other.canGoOnline, canGoOnline) || other.canGoOnline == canGoOnline)&&(identical(other.blockReason, blockReason) || other.blockReason == blockReason)&&const DeepCollectionEquality().equals(other.documents, documents));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is DriverMe&&(identical(other.driverId, driverId) || other.driverId == driverId)&&(identical(other.qrToken, qrToken) || other.qrToken == qrToken)&&(identical(other.presence, presence) || other.presence == presence)&&(identical(other.subscriptionStatus, subscriptionStatus) || other.subscriptionStatus == subscriptionStatus)&&(identical(other.paidUntil, paidUntil) || other.paidUntil == paidUntil)&&(identical(other.canGoOnline, canGoOnline) || other.canGoOnline == canGoOnline)&&(identical(other.blockReason, blockReason) || other.blockReason == blockReason)&&const DeepCollectionEquality().equals(other.blockedDocuments, blockedDocuments)&&const DeepCollectionEquality().equals(other.documents, documents));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,driverId,qrToken,presence,subscriptionStatus,paidUntil,canGoOnline,blockReason,const DeepCollectionEquality().hash(documents));
+int get hashCode => Object.hash(runtimeType,driverId,qrToken,presence,subscriptionStatus,paidUntil,canGoOnline,blockReason,const DeepCollectionEquality().hash(blockedDocuments),const DeepCollectionEquality().hash(documents));
 
 @override
 String toString() {
-  return 'DriverMe(driverId: $driverId, qrToken: $qrToken, presence: $presence, subscriptionStatus: $subscriptionStatus, paidUntil: $paidUntil, canGoOnline: $canGoOnline, blockReason: $blockReason, documents: $documents)';
+  return 'DriverMe(driverId: $driverId, qrToken: $qrToken, presence: $presence, subscriptionStatus: $subscriptionStatus, paidUntil: $paidUntil, canGoOnline: $canGoOnline, blockReason: $blockReason, blockedDocuments: $blockedDocuments, documents: $documents)';
 }
 
 
@@ -852,7 +1118,7 @@ abstract mixin class $DriverMeCopyWith<$Res>  {
   factory $DriverMeCopyWith(DriverMe value, $Res Function(DriverMe) _then) = _$DriverMeCopyWithImpl;
 @useResult
 $Res call({
- String driverId, String qrToken, DriverPresence presence, SubscriptionStatus subscriptionStatus, DateTime? paidUntil, bool canGoOnline, String? blockReason, List<DriverDocument> documents
+ String driverId, String qrToken, DriverPresence presence, SubscriptionStatus subscriptionStatus, DateTime? paidUntil, bool canGoOnline, String? blockReason, List<BlockedDocument> blockedDocuments, List<DriverDocument> documents
 });
 
 
@@ -869,7 +1135,7 @@ class _$DriverMeCopyWithImpl<$Res>
 
 /// Create a copy of DriverMe
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? driverId = null,Object? qrToken = null,Object? presence = null,Object? subscriptionStatus = null,Object? paidUntil = freezed,Object? canGoOnline = null,Object? blockReason = freezed,Object? documents = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? driverId = null,Object? qrToken = null,Object? presence = null,Object? subscriptionStatus = null,Object? paidUntil = freezed,Object? canGoOnline = null,Object? blockReason = freezed,Object? blockedDocuments = null,Object? documents = null,}) {
   return _then(_self.copyWith(
 driverId: null == driverId ? _self.driverId : driverId // ignore: cast_nullable_to_non_nullable
 as String,qrToken: null == qrToken ? _self.qrToken : qrToken // ignore: cast_nullable_to_non_nullable
@@ -878,7 +1144,8 @@ as DriverPresence,subscriptionStatus: null == subscriptionStatus ? _self.subscri
 as SubscriptionStatus,paidUntil: freezed == paidUntil ? _self.paidUntil : paidUntil // ignore: cast_nullable_to_non_nullable
 as DateTime?,canGoOnline: null == canGoOnline ? _self.canGoOnline : canGoOnline // ignore: cast_nullable_to_non_nullable
 as bool,blockReason: freezed == blockReason ? _self.blockReason : blockReason // ignore: cast_nullable_to_non_nullable
-as String?,documents: null == documents ? _self.documents : documents // ignore: cast_nullable_to_non_nullable
+as String?,blockedDocuments: null == blockedDocuments ? _self.blockedDocuments : blockedDocuments // ignore: cast_nullable_to_non_nullable
+as List<BlockedDocument>,documents: null == documents ? _self.documents : documents // ignore: cast_nullable_to_non_nullable
 as List<DriverDocument>,
   ));
 }
@@ -964,10 +1231,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String driverId,  String qrToken,  DriverPresence presence,  SubscriptionStatus subscriptionStatus,  DateTime? paidUntil,  bool canGoOnline,  String? blockReason,  List<DriverDocument> documents)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String driverId,  String qrToken,  DriverPresence presence,  SubscriptionStatus subscriptionStatus,  DateTime? paidUntil,  bool canGoOnline,  String? blockReason,  List<BlockedDocument> blockedDocuments,  List<DriverDocument> documents)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _DriverMe() when $default != null:
-return $default(_that.driverId,_that.qrToken,_that.presence,_that.subscriptionStatus,_that.paidUntil,_that.canGoOnline,_that.blockReason,_that.documents);case _:
+return $default(_that.driverId,_that.qrToken,_that.presence,_that.subscriptionStatus,_that.paidUntil,_that.canGoOnline,_that.blockReason,_that.blockedDocuments,_that.documents);case _:
   return orElse();
 
 }
@@ -985,10 +1252,10 @@ return $default(_that.driverId,_that.qrToken,_that.presence,_that.subscriptionSt
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String driverId,  String qrToken,  DriverPresence presence,  SubscriptionStatus subscriptionStatus,  DateTime? paidUntil,  bool canGoOnline,  String? blockReason,  List<DriverDocument> documents)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String driverId,  String qrToken,  DriverPresence presence,  SubscriptionStatus subscriptionStatus,  DateTime? paidUntil,  bool canGoOnline,  String? blockReason,  List<BlockedDocument> blockedDocuments,  List<DriverDocument> documents)  $default,) {final _that = this;
 switch (_that) {
 case _DriverMe():
-return $default(_that.driverId,_that.qrToken,_that.presence,_that.subscriptionStatus,_that.paidUntil,_that.canGoOnline,_that.blockReason,_that.documents);case _:
+return $default(_that.driverId,_that.qrToken,_that.presence,_that.subscriptionStatus,_that.paidUntil,_that.canGoOnline,_that.blockReason,_that.blockedDocuments,_that.documents);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -1005,10 +1272,10 @@ return $default(_that.driverId,_that.qrToken,_that.presence,_that.subscriptionSt
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String driverId,  String qrToken,  DriverPresence presence,  SubscriptionStatus subscriptionStatus,  DateTime? paidUntil,  bool canGoOnline,  String? blockReason,  List<DriverDocument> documents)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String driverId,  String qrToken,  DriverPresence presence,  SubscriptionStatus subscriptionStatus,  DateTime? paidUntil,  bool canGoOnline,  String? blockReason,  List<BlockedDocument> blockedDocuments,  List<DriverDocument> documents)?  $default,) {final _that = this;
 switch (_that) {
 case _DriverMe() when $default != null:
-return $default(_that.driverId,_that.qrToken,_that.presence,_that.subscriptionStatus,_that.paidUntil,_that.canGoOnline,_that.blockReason,_that.documents);case _:
+return $default(_that.driverId,_that.qrToken,_that.presence,_that.subscriptionStatus,_that.paidUntil,_that.canGoOnline,_that.blockReason,_that.blockedDocuments,_that.documents);case _:
   return null;
 
 }
@@ -1020,7 +1287,7 @@ return $default(_that.driverId,_that.qrToken,_that.presence,_that.subscriptionSt
 @JsonSerializable()
 
 class _DriverMe implements DriverMe {
-  const _DriverMe({required this.driverId, required this.qrToken, required this.presence, required this.subscriptionStatus, this.paidUntil, required this.canGoOnline, this.blockReason, final  List<DriverDocument> documents = const <DriverDocument>[]}): _documents = documents;
+  const _DriverMe({required this.driverId, required this.qrToken, required this.presence, required this.subscriptionStatus, this.paidUntil, required this.canGoOnline, this.blockReason, final  List<BlockedDocument> blockedDocuments = const <BlockedDocument>[], final  List<DriverDocument> documents = const <DriverDocument>[]}): _blockedDocuments = blockedDocuments,_documents = documents;
   factory _DriverMe.fromJson(Map<String, dynamic> json) => _$DriverMeFromJson(json);
 
 @override final  String driverId;
@@ -1030,6 +1297,13 @@ class _DriverMe implements DriverMe {
 @override final  DateTime? paidUntil;
 @override final  bool canGoOnline;
 @override final  String? blockReason;
+ final  List<BlockedDocument> _blockedDocuments;
+@override@JsonKey() List<BlockedDocument> get blockedDocuments {
+  if (_blockedDocuments is EqualUnmodifiableListView) return _blockedDocuments;
+  // ignore: implicit_dynamic_type
+  return EqualUnmodifiableListView(_blockedDocuments);
+}
+
  final  List<DriverDocument> _documents;
 @override@JsonKey() List<DriverDocument> get documents {
   if (_documents is EqualUnmodifiableListView) return _documents;
@@ -1051,16 +1325,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _DriverMe&&(identical(other.driverId, driverId) || other.driverId == driverId)&&(identical(other.qrToken, qrToken) || other.qrToken == qrToken)&&(identical(other.presence, presence) || other.presence == presence)&&(identical(other.subscriptionStatus, subscriptionStatus) || other.subscriptionStatus == subscriptionStatus)&&(identical(other.paidUntil, paidUntil) || other.paidUntil == paidUntil)&&(identical(other.canGoOnline, canGoOnline) || other.canGoOnline == canGoOnline)&&(identical(other.blockReason, blockReason) || other.blockReason == blockReason)&&const DeepCollectionEquality().equals(other._documents, _documents));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _DriverMe&&(identical(other.driverId, driverId) || other.driverId == driverId)&&(identical(other.qrToken, qrToken) || other.qrToken == qrToken)&&(identical(other.presence, presence) || other.presence == presence)&&(identical(other.subscriptionStatus, subscriptionStatus) || other.subscriptionStatus == subscriptionStatus)&&(identical(other.paidUntil, paidUntil) || other.paidUntil == paidUntil)&&(identical(other.canGoOnline, canGoOnline) || other.canGoOnline == canGoOnline)&&(identical(other.blockReason, blockReason) || other.blockReason == blockReason)&&const DeepCollectionEquality().equals(other._blockedDocuments, _blockedDocuments)&&const DeepCollectionEquality().equals(other._documents, _documents));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,driverId,qrToken,presence,subscriptionStatus,paidUntil,canGoOnline,blockReason,const DeepCollectionEquality().hash(_documents));
+int get hashCode => Object.hash(runtimeType,driverId,qrToken,presence,subscriptionStatus,paidUntil,canGoOnline,blockReason,const DeepCollectionEquality().hash(_blockedDocuments),const DeepCollectionEquality().hash(_documents));
 
 @override
 String toString() {
-  return 'DriverMe(driverId: $driverId, qrToken: $qrToken, presence: $presence, subscriptionStatus: $subscriptionStatus, paidUntil: $paidUntil, canGoOnline: $canGoOnline, blockReason: $blockReason, documents: $documents)';
+  return 'DriverMe(driverId: $driverId, qrToken: $qrToken, presence: $presence, subscriptionStatus: $subscriptionStatus, paidUntil: $paidUntil, canGoOnline: $canGoOnline, blockReason: $blockReason, blockedDocuments: $blockedDocuments, documents: $documents)';
 }
 
 
@@ -1071,7 +1345,7 @@ abstract mixin class _$DriverMeCopyWith<$Res> implements $DriverMeCopyWith<$Res>
   factory _$DriverMeCopyWith(_DriverMe value, $Res Function(_DriverMe) _then) = __$DriverMeCopyWithImpl;
 @override @useResult
 $Res call({
- String driverId, String qrToken, DriverPresence presence, SubscriptionStatus subscriptionStatus, DateTime? paidUntil, bool canGoOnline, String? blockReason, List<DriverDocument> documents
+ String driverId, String qrToken, DriverPresence presence, SubscriptionStatus subscriptionStatus, DateTime? paidUntil, bool canGoOnline, String? blockReason, List<BlockedDocument> blockedDocuments, List<DriverDocument> documents
 });
 
 
@@ -1088,7 +1362,7 @@ class __$DriverMeCopyWithImpl<$Res>
 
 /// Create a copy of DriverMe
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? driverId = null,Object? qrToken = null,Object? presence = null,Object? subscriptionStatus = null,Object? paidUntil = freezed,Object? canGoOnline = null,Object? blockReason = freezed,Object? documents = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? driverId = null,Object? qrToken = null,Object? presence = null,Object? subscriptionStatus = null,Object? paidUntil = freezed,Object? canGoOnline = null,Object? blockReason = freezed,Object? blockedDocuments = null,Object? documents = null,}) {
   return _then(_DriverMe(
 driverId: null == driverId ? _self.driverId : driverId // ignore: cast_nullable_to_non_nullable
 as String,qrToken: null == qrToken ? _self.qrToken : qrToken // ignore: cast_nullable_to_non_nullable
@@ -1097,7 +1371,8 @@ as DriverPresence,subscriptionStatus: null == subscriptionStatus ? _self.subscri
 as SubscriptionStatus,paidUntil: freezed == paidUntil ? _self.paidUntil : paidUntil // ignore: cast_nullable_to_non_nullable
 as DateTime?,canGoOnline: null == canGoOnline ? _self.canGoOnline : canGoOnline // ignore: cast_nullable_to_non_nullable
 as bool,blockReason: freezed == blockReason ? _self.blockReason : blockReason // ignore: cast_nullable_to_non_nullable
-as String?,documents: null == documents ? _self._documents : documents // ignore: cast_nullable_to_non_nullable
+as String?,blockedDocuments: null == blockedDocuments ? _self._blockedDocuments : blockedDocuments // ignore: cast_nullable_to_non_nullable
+as List<BlockedDocument>,documents: null == documents ? _self._documents : documents // ignore: cast_nullable_to_non_nullable
 as List<DriverDocument>,
   ));
 }
@@ -1109,7 +1384,7 @@ as List<DriverDocument>,
 /// @nodoc
 mixin _$AdminDriver {
 
- String get driverId; String get phoneE164; String get displayName; String get qrToken; String get vehiclePlate; String get vehicleDescription; DriverPresence get presence; DateTime? get paidUntil; SubscriptionStatus get subscriptionStatus; bool get canGoOnline; String? get blockReason; List<DriverDocument> get documents;
+ String get driverId; String get phoneE164; String get displayName; String get qrToken; String get vehiclePlate; String get vehicleDescription; DriverPresence get presence; DateTime? get paidUntil; SubscriptionStatus get subscriptionStatus; bool get canGoOnline; String? get blockReason; List<BlockedDocument> get blockedDocuments; List<DriverDocument> get documents;
 /// Create a copy of AdminDriver
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -1122,16 +1397,16 @@ $AdminDriverCopyWith<AdminDriver> get copyWith => _$AdminDriverCopyWithImpl<Admi
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is AdminDriver&&(identical(other.driverId, driverId) || other.driverId == driverId)&&(identical(other.phoneE164, phoneE164) || other.phoneE164 == phoneE164)&&(identical(other.displayName, displayName) || other.displayName == displayName)&&(identical(other.qrToken, qrToken) || other.qrToken == qrToken)&&(identical(other.vehiclePlate, vehiclePlate) || other.vehiclePlate == vehiclePlate)&&(identical(other.vehicleDescription, vehicleDescription) || other.vehicleDescription == vehicleDescription)&&(identical(other.presence, presence) || other.presence == presence)&&(identical(other.paidUntil, paidUntil) || other.paidUntil == paidUntil)&&(identical(other.subscriptionStatus, subscriptionStatus) || other.subscriptionStatus == subscriptionStatus)&&(identical(other.canGoOnline, canGoOnline) || other.canGoOnline == canGoOnline)&&(identical(other.blockReason, blockReason) || other.blockReason == blockReason)&&const DeepCollectionEquality().equals(other.documents, documents));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is AdminDriver&&(identical(other.driverId, driverId) || other.driverId == driverId)&&(identical(other.phoneE164, phoneE164) || other.phoneE164 == phoneE164)&&(identical(other.displayName, displayName) || other.displayName == displayName)&&(identical(other.qrToken, qrToken) || other.qrToken == qrToken)&&(identical(other.vehiclePlate, vehiclePlate) || other.vehiclePlate == vehiclePlate)&&(identical(other.vehicleDescription, vehicleDescription) || other.vehicleDescription == vehicleDescription)&&(identical(other.presence, presence) || other.presence == presence)&&(identical(other.paidUntil, paidUntil) || other.paidUntil == paidUntil)&&(identical(other.subscriptionStatus, subscriptionStatus) || other.subscriptionStatus == subscriptionStatus)&&(identical(other.canGoOnline, canGoOnline) || other.canGoOnline == canGoOnline)&&(identical(other.blockReason, blockReason) || other.blockReason == blockReason)&&const DeepCollectionEquality().equals(other.blockedDocuments, blockedDocuments)&&const DeepCollectionEquality().equals(other.documents, documents));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,driverId,phoneE164,displayName,qrToken,vehiclePlate,vehicleDescription,presence,paidUntil,subscriptionStatus,canGoOnline,blockReason,const DeepCollectionEquality().hash(documents));
+int get hashCode => Object.hash(runtimeType,driverId,phoneE164,displayName,qrToken,vehiclePlate,vehicleDescription,presence,paidUntil,subscriptionStatus,canGoOnline,blockReason,const DeepCollectionEquality().hash(blockedDocuments),const DeepCollectionEquality().hash(documents));
 
 @override
 String toString() {
-  return 'AdminDriver(driverId: $driverId, phoneE164: $phoneE164, displayName: $displayName, qrToken: $qrToken, vehiclePlate: $vehiclePlate, vehicleDescription: $vehicleDescription, presence: $presence, paidUntil: $paidUntil, subscriptionStatus: $subscriptionStatus, canGoOnline: $canGoOnline, blockReason: $blockReason, documents: $documents)';
+  return 'AdminDriver(driverId: $driverId, phoneE164: $phoneE164, displayName: $displayName, qrToken: $qrToken, vehiclePlate: $vehiclePlate, vehicleDescription: $vehicleDescription, presence: $presence, paidUntil: $paidUntil, subscriptionStatus: $subscriptionStatus, canGoOnline: $canGoOnline, blockReason: $blockReason, blockedDocuments: $blockedDocuments, documents: $documents)';
 }
 
 
@@ -1142,7 +1417,7 @@ abstract mixin class $AdminDriverCopyWith<$Res>  {
   factory $AdminDriverCopyWith(AdminDriver value, $Res Function(AdminDriver) _then) = _$AdminDriverCopyWithImpl;
 @useResult
 $Res call({
- String driverId, String phoneE164, String displayName, String qrToken, String vehiclePlate, String vehicleDescription, DriverPresence presence, DateTime? paidUntil, SubscriptionStatus subscriptionStatus, bool canGoOnline, String? blockReason, List<DriverDocument> documents
+ String driverId, String phoneE164, String displayName, String qrToken, String vehiclePlate, String vehicleDescription, DriverPresence presence, DateTime? paidUntil, SubscriptionStatus subscriptionStatus, bool canGoOnline, String? blockReason, List<BlockedDocument> blockedDocuments, List<DriverDocument> documents
 });
 
 
@@ -1159,7 +1434,7 @@ class _$AdminDriverCopyWithImpl<$Res>
 
 /// Create a copy of AdminDriver
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? driverId = null,Object? phoneE164 = null,Object? displayName = null,Object? qrToken = null,Object? vehiclePlate = null,Object? vehicleDescription = null,Object? presence = null,Object? paidUntil = freezed,Object? subscriptionStatus = null,Object? canGoOnline = null,Object? blockReason = freezed,Object? documents = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? driverId = null,Object? phoneE164 = null,Object? displayName = null,Object? qrToken = null,Object? vehiclePlate = null,Object? vehicleDescription = null,Object? presence = null,Object? paidUntil = freezed,Object? subscriptionStatus = null,Object? canGoOnline = null,Object? blockReason = freezed,Object? blockedDocuments = null,Object? documents = null,}) {
   return _then(_self.copyWith(
 driverId: null == driverId ? _self.driverId : driverId // ignore: cast_nullable_to_non_nullable
 as String,phoneE164: null == phoneE164 ? _self.phoneE164 : phoneE164 // ignore: cast_nullable_to_non_nullable
@@ -1172,7 +1447,8 @@ as DriverPresence,paidUntil: freezed == paidUntil ? _self.paidUntil : paidUntil 
 as DateTime?,subscriptionStatus: null == subscriptionStatus ? _self.subscriptionStatus : subscriptionStatus // ignore: cast_nullable_to_non_nullable
 as SubscriptionStatus,canGoOnline: null == canGoOnline ? _self.canGoOnline : canGoOnline // ignore: cast_nullable_to_non_nullable
 as bool,blockReason: freezed == blockReason ? _self.blockReason : blockReason // ignore: cast_nullable_to_non_nullable
-as String?,documents: null == documents ? _self.documents : documents // ignore: cast_nullable_to_non_nullable
+as String?,blockedDocuments: null == blockedDocuments ? _self.blockedDocuments : blockedDocuments // ignore: cast_nullable_to_non_nullable
+as List<BlockedDocument>,documents: null == documents ? _self.documents : documents // ignore: cast_nullable_to_non_nullable
 as List<DriverDocument>,
   ));
 }
@@ -1258,10 +1534,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String driverId,  String phoneE164,  String displayName,  String qrToken,  String vehiclePlate,  String vehicleDescription,  DriverPresence presence,  DateTime? paidUntil,  SubscriptionStatus subscriptionStatus,  bool canGoOnline,  String? blockReason,  List<DriverDocument> documents)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String driverId,  String phoneE164,  String displayName,  String qrToken,  String vehiclePlate,  String vehicleDescription,  DriverPresence presence,  DateTime? paidUntil,  SubscriptionStatus subscriptionStatus,  bool canGoOnline,  String? blockReason,  List<BlockedDocument> blockedDocuments,  List<DriverDocument> documents)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _AdminDriver() when $default != null:
-return $default(_that.driverId,_that.phoneE164,_that.displayName,_that.qrToken,_that.vehiclePlate,_that.vehicleDescription,_that.presence,_that.paidUntil,_that.subscriptionStatus,_that.canGoOnline,_that.blockReason,_that.documents);case _:
+return $default(_that.driverId,_that.phoneE164,_that.displayName,_that.qrToken,_that.vehiclePlate,_that.vehicleDescription,_that.presence,_that.paidUntil,_that.subscriptionStatus,_that.canGoOnline,_that.blockReason,_that.blockedDocuments,_that.documents);case _:
   return orElse();
 
 }
@@ -1279,10 +1555,10 @@ return $default(_that.driverId,_that.phoneE164,_that.displayName,_that.qrToken,_
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String driverId,  String phoneE164,  String displayName,  String qrToken,  String vehiclePlate,  String vehicleDescription,  DriverPresence presence,  DateTime? paidUntil,  SubscriptionStatus subscriptionStatus,  bool canGoOnline,  String? blockReason,  List<DriverDocument> documents)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String driverId,  String phoneE164,  String displayName,  String qrToken,  String vehiclePlate,  String vehicleDescription,  DriverPresence presence,  DateTime? paidUntil,  SubscriptionStatus subscriptionStatus,  bool canGoOnline,  String? blockReason,  List<BlockedDocument> blockedDocuments,  List<DriverDocument> documents)  $default,) {final _that = this;
 switch (_that) {
 case _AdminDriver():
-return $default(_that.driverId,_that.phoneE164,_that.displayName,_that.qrToken,_that.vehiclePlate,_that.vehicleDescription,_that.presence,_that.paidUntil,_that.subscriptionStatus,_that.canGoOnline,_that.blockReason,_that.documents);case _:
+return $default(_that.driverId,_that.phoneE164,_that.displayName,_that.qrToken,_that.vehiclePlate,_that.vehicleDescription,_that.presence,_that.paidUntil,_that.subscriptionStatus,_that.canGoOnline,_that.blockReason,_that.blockedDocuments,_that.documents);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -1299,10 +1575,10 @@ return $default(_that.driverId,_that.phoneE164,_that.displayName,_that.qrToken,_
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String driverId,  String phoneE164,  String displayName,  String qrToken,  String vehiclePlate,  String vehicleDescription,  DriverPresence presence,  DateTime? paidUntil,  SubscriptionStatus subscriptionStatus,  bool canGoOnline,  String? blockReason,  List<DriverDocument> documents)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String driverId,  String phoneE164,  String displayName,  String qrToken,  String vehiclePlate,  String vehicleDescription,  DriverPresence presence,  DateTime? paidUntil,  SubscriptionStatus subscriptionStatus,  bool canGoOnline,  String? blockReason,  List<BlockedDocument> blockedDocuments,  List<DriverDocument> documents)?  $default,) {final _that = this;
 switch (_that) {
 case _AdminDriver() when $default != null:
-return $default(_that.driverId,_that.phoneE164,_that.displayName,_that.qrToken,_that.vehiclePlate,_that.vehicleDescription,_that.presence,_that.paidUntil,_that.subscriptionStatus,_that.canGoOnline,_that.blockReason,_that.documents);case _:
+return $default(_that.driverId,_that.phoneE164,_that.displayName,_that.qrToken,_that.vehiclePlate,_that.vehicleDescription,_that.presence,_that.paidUntil,_that.subscriptionStatus,_that.canGoOnline,_that.blockReason,_that.blockedDocuments,_that.documents);case _:
   return null;
 
 }
@@ -1314,7 +1590,7 @@ return $default(_that.driverId,_that.phoneE164,_that.displayName,_that.qrToken,_
 @JsonSerializable()
 
 class _AdminDriver implements AdminDriver {
-  const _AdminDriver({required this.driverId, required this.phoneE164, required this.displayName, required this.qrToken, required this.vehiclePlate, required this.vehicleDescription, required this.presence, this.paidUntil, required this.subscriptionStatus, required this.canGoOnline, this.blockReason, final  List<DriverDocument> documents = const <DriverDocument>[]}): _documents = documents;
+  const _AdminDriver({required this.driverId, required this.phoneE164, required this.displayName, required this.qrToken, required this.vehiclePlate, required this.vehicleDescription, required this.presence, this.paidUntil, required this.subscriptionStatus, required this.canGoOnline, this.blockReason, final  List<BlockedDocument> blockedDocuments = const <BlockedDocument>[], final  List<DriverDocument> documents = const <DriverDocument>[]}): _blockedDocuments = blockedDocuments,_documents = documents;
   factory _AdminDriver.fromJson(Map<String, dynamic> json) => _$AdminDriverFromJson(json);
 
 @override final  String driverId;
@@ -1328,6 +1604,13 @@ class _AdminDriver implements AdminDriver {
 @override final  SubscriptionStatus subscriptionStatus;
 @override final  bool canGoOnline;
 @override final  String? blockReason;
+ final  List<BlockedDocument> _blockedDocuments;
+@override@JsonKey() List<BlockedDocument> get blockedDocuments {
+  if (_blockedDocuments is EqualUnmodifiableListView) return _blockedDocuments;
+  // ignore: implicit_dynamic_type
+  return EqualUnmodifiableListView(_blockedDocuments);
+}
+
  final  List<DriverDocument> _documents;
 @override@JsonKey() List<DriverDocument> get documents {
   if (_documents is EqualUnmodifiableListView) return _documents;
@@ -1349,16 +1632,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _AdminDriver&&(identical(other.driverId, driverId) || other.driverId == driverId)&&(identical(other.phoneE164, phoneE164) || other.phoneE164 == phoneE164)&&(identical(other.displayName, displayName) || other.displayName == displayName)&&(identical(other.qrToken, qrToken) || other.qrToken == qrToken)&&(identical(other.vehiclePlate, vehiclePlate) || other.vehiclePlate == vehiclePlate)&&(identical(other.vehicleDescription, vehicleDescription) || other.vehicleDescription == vehicleDescription)&&(identical(other.presence, presence) || other.presence == presence)&&(identical(other.paidUntil, paidUntil) || other.paidUntil == paidUntil)&&(identical(other.subscriptionStatus, subscriptionStatus) || other.subscriptionStatus == subscriptionStatus)&&(identical(other.canGoOnline, canGoOnline) || other.canGoOnline == canGoOnline)&&(identical(other.blockReason, blockReason) || other.blockReason == blockReason)&&const DeepCollectionEquality().equals(other._documents, _documents));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _AdminDriver&&(identical(other.driverId, driverId) || other.driverId == driverId)&&(identical(other.phoneE164, phoneE164) || other.phoneE164 == phoneE164)&&(identical(other.displayName, displayName) || other.displayName == displayName)&&(identical(other.qrToken, qrToken) || other.qrToken == qrToken)&&(identical(other.vehiclePlate, vehiclePlate) || other.vehiclePlate == vehiclePlate)&&(identical(other.vehicleDescription, vehicleDescription) || other.vehicleDescription == vehicleDescription)&&(identical(other.presence, presence) || other.presence == presence)&&(identical(other.paidUntil, paidUntil) || other.paidUntil == paidUntil)&&(identical(other.subscriptionStatus, subscriptionStatus) || other.subscriptionStatus == subscriptionStatus)&&(identical(other.canGoOnline, canGoOnline) || other.canGoOnline == canGoOnline)&&(identical(other.blockReason, blockReason) || other.blockReason == blockReason)&&const DeepCollectionEquality().equals(other._blockedDocuments, _blockedDocuments)&&const DeepCollectionEquality().equals(other._documents, _documents));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,driverId,phoneE164,displayName,qrToken,vehiclePlate,vehicleDescription,presence,paidUntil,subscriptionStatus,canGoOnline,blockReason,const DeepCollectionEquality().hash(_documents));
+int get hashCode => Object.hash(runtimeType,driverId,phoneE164,displayName,qrToken,vehiclePlate,vehicleDescription,presence,paidUntil,subscriptionStatus,canGoOnline,blockReason,const DeepCollectionEquality().hash(_blockedDocuments),const DeepCollectionEquality().hash(_documents));
 
 @override
 String toString() {
-  return 'AdminDriver(driverId: $driverId, phoneE164: $phoneE164, displayName: $displayName, qrToken: $qrToken, vehiclePlate: $vehiclePlate, vehicleDescription: $vehicleDescription, presence: $presence, paidUntil: $paidUntil, subscriptionStatus: $subscriptionStatus, canGoOnline: $canGoOnline, blockReason: $blockReason, documents: $documents)';
+  return 'AdminDriver(driverId: $driverId, phoneE164: $phoneE164, displayName: $displayName, qrToken: $qrToken, vehiclePlate: $vehiclePlate, vehicleDescription: $vehicleDescription, presence: $presence, paidUntil: $paidUntil, subscriptionStatus: $subscriptionStatus, canGoOnline: $canGoOnline, blockReason: $blockReason, blockedDocuments: $blockedDocuments, documents: $documents)';
 }
 
 
@@ -1369,7 +1652,7 @@ abstract mixin class _$AdminDriverCopyWith<$Res> implements $AdminDriverCopyWith
   factory _$AdminDriverCopyWith(_AdminDriver value, $Res Function(_AdminDriver) _then) = __$AdminDriverCopyWithImpl;
 @override @useResult
 $Res call({
- String driverId, String phoneE164, String displayName, String qrToken, String vehiclePlate, String vehicleDescription, DriverPresence presence, DateTime? paidUntil, SubscriptionStatus subscriptionStatus, bool canGoOnline, String? blockReason, List<DriverDocument> documents
+ String driverId, String phoneE164, String displayName, String qrToken, String vehiclePlate, String vehicleDescription, DriverPresence presence, DateTime? paidUntil, SubscriptionStatus subscriptionStatus, bool canGoOnline, String? blockReason, List<BlockedDocument> blockedDocuments, List<DriverDocument> documents
 });
 
 
@@ -1386,7 +1669,7 @@ class __$AdminDriverCopyWithImpl<$Res>
 
 /// Create a copy of AdminDriver
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? driverId = null,Object? phoneE164 = null,Object? displayName = null,Object? qrToken = null,Object? vehiclePlate = null,Object? vehicleDescription = null,Object? presence = null,Object? paidUntil = freezed,Object? subscriptionStatus = null,Object? canGoOnline = null,Object? blockReason = freezed,Object? documents = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? driverId = null,Object? phoneE164 = null,Object? displayName = null,Object? qrToken = null,Object? vehiclePlate = null,Object? vehicleDescription = null,Object? presence = null,Object? paidUntil = freezed,Object? subscriptionStatus = null,Object? canGoOnline = null,Object? blockReason = freezed,Object? blockedDocuments = null,Object? documents = null,}) {
   return _then(_AdminDriver(
 driverId: null == driverId ? _self.driverId : driverId // ignore: cast_nullable_to_non_nullable
 as String,phoneE164: null == phoneE164 ? _self.phoneE164 : phoneE164 // ignore: cast_nullable_to_non_nullable
@@ -1399,7 +1682,8 @@ as DriverPresence,paidUntil: freezed == paidUntil ? _self.paidUntil : paidUntil 
 as DateTime?,subscriptionStatus: null == subscriptionStatus ? _self.subscriptionStatus : subscriptionStatus // ignore: cast_nullable_to_non_nullable
 as SubscriptionStatus,canGoOnline: null == canGoOnline ? _self.canGoOnline : canGoOnline // ignore: cast_nullable_to_non_nullable
 as bool,blockReason: freezed == blockReason ? _self.blockReason : blockReason // ignore: cast_nullable_to_non_nullable
-as String?,documents: null == documents ? _self._documents : documents // ignore: cast_nullable_to_non_nullable
+as String?,blockedDocuments: null == blockedDocuments ? _self._blockedDocuments : blockedDocuments // ignore: cast_nullable_to_non_nullable
+as List<BlockedDocument>,documents: null == documents ? _self._documents : documents // ignore: cast_nullable_to_non_nullable
 as List<DriverDocument>,
   ));
 }

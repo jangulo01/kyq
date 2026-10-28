@@ -54,13 +54,23 @@ func (c *contract) call(method, path, token string, body any, wantStatus int) ma
 		raw, err = json.Marshal(body)
 		require.NoError(c.t, err)
 	}
+	headers := map[string]string{}
+	if token != "" {
+		headers["Authorization"] = "Bearer " + token
+	}
+	return c.callRaw(method, path, headers, raw, wantStatus)
+}
+
+// callRaw is call with explicit headers and a raw JSON body (nil for none).
+func (c *contract) callRaw(method, path string, headers map[string]string, raw []byte, wantStatus int) map[string]any {
+	c.t.Helper()
 	newReq := func() *http.Request {
 		req := httptest.NewRequest(method, "http://localhost:8080"+path, bytes.NewReader(raw))
-		if body != nil {
+		if raw != nil {
 			req.Header.Set("Content-Type", "application/json")
 		}
-		if token != "" {
-			req.Header.Set("Authorization", "Bearer "+token)
+		for k, v := range headers {
+			req.Header.Set(k, v)
 		}
 		return req
 	}
@@ -86,7 +96,7 @@ func (c *contract) call(method, path, token string, body any, wantStatus int) ma
 		Body:                   io.NopCloser(bytes.NewReader(respBody)),
 		Options:                &openapi3filter.Options{IncludeResponseStatus: true},
 	}
-	require.NoError(c.t, openapi3filter.ValidateResponse(context.Background(), out), "respuesta fuera del contrato")
+	require.NoError(c.t, openapi3filter.ValidateResponse(context.Background(), out), "respuesta fuera del contrato: %s %s", method, path)
 
 	var decoded any
 	if len(respBody) > 0 {
@@ -149,4 +159,12 @@ func TestAffiliationsMatchContract(t *testing.T) {
 	c.call(http.MethodGet, "/v1/driver/clients", passenger, nil, http.StatusForbidden)
 	c.call(http.MethodDelete, "/v1/affiliations/"+driverID.String(), passenger, nil, http.StatusNoContent)
 	c.call(http.MethodDelete, "/v1/affiliations/"+driverID.String(), passenger, nil, http.StatusNotFound)
+}
+
+// The 002 view of the contract stays a valid OpenAPI document (its routes are merged in specPath).
+func TestContract002ViewIsValid(t *testing.T) {
+	loader := openapi3.NewLoader()
+	doc, err := loader.LoadFromFile("../../../specs/002-driver-onboarding-billing/contracts/api.yaml")
+	require.NoError(t, err)
+	require.NoError(t, doc.Validate(loader.Context))
 }

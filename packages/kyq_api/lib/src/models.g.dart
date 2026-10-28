@@ -30,7 +30,7 @@ Map<String, dynamic> _$GeoPointToJson(_GeoPoint instance) => <String, dynamic>{
 
 _DriverDocument _$DriverDocumentFromJson(Map<String, dynamic> json) => _DriverDocument(
   docType: $enumDecode(_$DocTypeEnumMap, json['doc_type']),
-  expiresAt: json['expires_at'] as String,
+  expiresAt: json['expires_at'] as String?,
   approved: json['approved'] as bool,
 );
 
@@ -41,9 +41,26 @@ Map<String, dynamic> _$DriverDocumentToJson(_DriverDocument instance) => <String
 };
 
 const _$DocTypeEnumMap = {
+  DocType.nationalId: 'national_id',
   DocType.license: 'license',
   DocType.mandatoryInsurance: 'mandatory_insurance',
+  DocType.technicalInspection: 'technical_inspection',
   DocType.vehicleRegistration: 'vehicle_registration',
+};
+
+_BlockedDocument _$BlockedDocumentFromJson(Map<String, dynamic> json) => _BlockedDocument(
+  docType: $enumDecode(_$DocTypeEnumMap, json['doc_type']),
+  problem: $enumDecode(_$BlockedDocumentProblemEnumMap, json['problem']),
+);
+
+Map<String, dynamic> _$BlockedDocumentToJson(_BlockedDocument instance) => <String, dynamic>{
+  'doc_type': _$DocTypeEnumMap[instance.docType]!,
+  'problem': _$BlockedDocumentProblemEnumMap[instance.problem]!,
+};
+
+const _$BlockedDocumentProblemEnumMap = {
+  BlockedDocumentProblem.missing: 'missing',
+  BlockedDocumentProblem.expired: 'expired',
 };
 
 _DriverMe _$DriverMeFromJson(Map<String, dynamic> json) => _DriverMe(
@@ -54,6 +71,11 @@ _DriverMe _$DriverMeFromJson(Map<String, dynamic> json) => _DriverMe(
   paidUntil: json['paid_until'] == null ? null : DateTime.parse(json['paid_until'] as String),
   canGoOnline: json['can_go_online'] as bool,
   blockReason: json['block_reason'] as String?,
+  blockedDocuments:
+      (json['blocked_documents'] as List<dynamic>?)
+          ?.map((e) => BlockedDocument.fromJson(e as Map<String, dynamic>))
+          .toList() ??
+      const <BlockedDocument>[],
   documents:
       (json['documents'] as List<dynamic>?)?.map((e) => DriverDocument.fromJson(e as Map<String, dynamic>)).toList() ??
       const <DriverDocument>[],
@@ -67,6 +89,7 @@ Map<String, dynamic> _$DriverMeToJson(_DriverMe instance) => <String, dynamic>{
   'paid_until': instance.paidUntil?.toIso8601String(),
   'can_go_online': instance.canGoOnline,
   'block_reason': instance.blockReason,
+  'blocked_documents': instance.blockedDocuments.map((e) => e.toJson()).toList(),
   'documents': instance.documents.map((e) => e.toJson()).toList(),
 };
 
@@ -94,6 +117,11 @@ _AdminDriver _$AdminDriverFromJson(Map<String, dynamic> json) => _AdminDriver(
   subscriptionStatus: $enumDecode(_$SubscriptionStatusEnumMap, json['subscription_status']),
   canGoOnline: json['can_go_online'] as bool,
   blockReason: json['block_reason'] as String?,
+  blockedDocuments:
+      (json['blocked_documents'] as List<dynamic>?)
+          ?.map((e) => BlockedDocument.fromJson(e as Map<String, dynamic>))
+          .toList() ??
+      const <BlockedDocument>[],
   documents:
       (json['documents'] as List<dynamic>?)?.map((e) => DriverDocument.fromJson(e as Map<String, dynamic>)).toList() ??
       const <DriverDocument>[],
@@ -111,6 +139,7 @@ Map<String, dynamic> _$AdminDriverToJson(_AdminDriver instance) => <String, dyna
   'subscription_status': _$SubscriptionStatusEnumMap[instance.subscriptionStatus]!,
   'can_go_online': instance.canGoOnline,
   'block_reason': instance.blockReason,
+  'blocked_documents': instance.blockedDocuments.map((e) => e.toJson()).toList(),
   'documents': instance.documents.map((e) => e.toJson()).toList(),
 };
 

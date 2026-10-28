@@ -32,6 +32,7 @@ Future<MockApi> _pumpSignedIn(
 }) async {
   final api = MockApi();
   when(() => api.currentSession()).thenAnswer((_) async => _session);
+  stubOnboardingDefaults(api);
   when(() => api.driverMe()).thenAnswer((_) async => me ?? _me());
   when(() => api.driverClients()).thenAnswer((_) async => clients);
   final auth = AuthCubit(api, allowedRoles: {UserRole.driver}, wrongRoleMessage: '')..start();

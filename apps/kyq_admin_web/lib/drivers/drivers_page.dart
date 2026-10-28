@@ -6,15 +6,17 @@ import 'package:kyq_ui/kyq_ui.dart';
 
 import 'drivers_cubit.dart';
 
-const _docLabels = {
-  DocType.license: 'Licencia',
-  DocType.mandatoryInsurance: 'Seguro obligatorio',
-  DocType.vehicleRegistration: 'Tarjeta del vehículo',
-};
-
 const _blockLabels = {'subscription_suspended': 'Suscripción suspendida', 'kyc_expired': 'Documentos'};
 
 String _date(DateTime d) => '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
+/// Secciones del panel (T023, T037, T040), en la barra superior de la lista de conductores.
+const adminSections = [
+  (path: '/kyc', label: 'Validación', icon: Icons.fact_check_outlined),
+  (path: '/billing', label: 'Suscripciones', icon: Icons.receipt_long_outlined),
+  (path: '/costs', label: 'Costos', icon: Icons.query_stats),
+  (path: '/fares', label: 'Tarifas', icon: Icons.payments),
+];
 
 class DriversPage extends StatelessWidget {
   const DriversPage({super.key});
@@ -25,11 +27,30 @@ class DriversPage extends StatelessWidget {
       appBar: AppBar(
         title: const Text('Conductores'),
         actions: [
-          TextButton.icon(
-            onPressed: () => context.go('/fares'),
-            icon: const Icon(Icons.payments),
-            label: const Text('Tarifas'),
-          ),
+          // En ventanas estrechas las secciones van en un menú para no desbordar la barra.
+          if (MediaQuery.sizeOf(context).width >= 1000)
+            for (final s in adminSections)
+              TextButton.icon(
+                key: Key('nav${s.path}'),
+                onPressed: () => context.go(s.path),
+                icon: Icon(s.icon),
+                label: Text(s.label),
+              )
+          else
+            PopupMenuButton<String>(
+              key: const Key('nav.menu'),
+              tooltip: 'Secciones',
+              icon: const Icon(Icons.menu),
+              onSelected: context.go,
+              itemBuilder: (_) => [
+                for (final s in adminSections)
+                  PopupMenuItem(
+                    key: Key('nav${s.path}'),
+                    value: s.path,
+                    child: ListTile(leading: Icon(s.icon), title: Text(s.label)),
+                  ),
+              ],
+            ),
           IconButton(
             tooltip: 'Recargar',
             icon: const Icon(Icons.refresh),
@@ -109,7 +130,9 @@ class DriversPage extends StatelessWidget {
                 Chip(
                   visualDensity: VisualDensity.compact,
                   avatar: Icon(docs[type]?.approved == true ? Icons.check_circle : Icons.pending, size: 16),
-                  label: Text('${_docLabels[type]}${docs[type] == null ? '' : ' · ${docs[type]!.expiresAt}'}'),
+                  label: Text(
+                    '${docTypeLabel(type)}${docs[type]?.expiresAt == null ? '' : ' · ${docs[type]!.expiresAt}'}',
+                  ),
                 ),
             ],
           ),
@@ -121,37 +144,18 @@ class DriversPage extends StatelessWidget {
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              TextButton(onPressed: () => _pickPaidThrough(context, d), child: const Text('Registrar pago')),
-              TextButton(onPressed: () => _showDocumentDialog(context, d), child: const Text('Documentos')),
+              // 002: los pagos y documentos se gestionan en sus pantallas, con historial y auditoría.
+              TextButton(
+                onPressed: () => context.push('/billing/drivers/${d.driverId}', extra: d.displayName),
+                child: const Text('Pagos'),
+              ),
+              TextButton(onPressed: () => context.push('/kyc/drivers/${d.driverId}'), child: const Text('Documentos')),
             ],
           ),
         ),
       ],
     );
   }
-
-  Future<void> _pickPaidThrough(BuildContext context, AdminDriver d) async {
-    final cubit = context.read<DriversCubit>();
-    final now = DateTime.now();
-    final picked = await showDatePicker(
-      context: context,
-      helpText: 'Pagado hasta',
-      initialDate: (d.paidUntil?.toLocal().isAfter(now) ?? false)
-          ? d.paidUntil!.toLocal().add(const Duration(days: 30))
-          : now.add(const Duration(days: 30)),
-      firstDate: now.subtract(const Duration(days: 365)),
-      lastDate: now.add(const Duration(days: 730)),
-    );
-    if (picked != null) await cubit.setPaidThrough(d.driverId, picked);
-  }
-
-  Future<void> _showDocumentDialog(BuildContext context, AdminDriver d) => showDialog<void>(
-    context: context,
-    builder: (_) => BlocProvider.value(
-      value: context.read<DriversCubit>(),
-      child: _DocumentDialog(driver: d),
-    ),
-  );
 
   Future<void> _showCreateDialog(BuildContext context) => showDialog<void>(
     context: context,
@@ -243,106 +247,6 @@ class _CreateDriverDialogState extends State<_CreateDriverDialog> {
       actions: [
         TextButton(onPressed: _saving ? null : () => Navigator.of(context).pop(), child: const Text('Cancelar')),
         FilledButton(onPressed: _saving ? null : _save, child: const Text('Crear')),
-      ],
-    );
-  }
-}
-
-class _DocumentDialog extends StatefulWidget {
-  const _DocumentDialog({required this.driver});
-
-  final AdminDriver driver;
-
-  @override
-  State<_DocumentDialog> createState() => _DocumentDialogState();
-}
-
-class _DocumentDialogState extends State<_DocumentDialog> {
-  DocType _type = DocType.license;
-  DateTime? _expiresAt;
-  bool _approved = true;
-  bool _saving = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadExisting();
-  }
-
-  void _loadExisting() {
-    final existing = widget.driver.documents.where((d) => d.docType == _type).firstOrNull;
-    _expiresAt = existing == null ? null : DateTime.parse(existing.expiresAt);
-    _approved = existing?.approved ?? true;
-  }
-
-  Future<void> _pickDate() async {
-    final now = DateTime.now();
-    final picked = await showDatePicker(
-      context: context,
-      helpText: 'Vence el',
-      initialDate: _expiresAt ?? now.add(const Duration(days: 365)),
-      firstDate: now.subtract(const Duration(days: 365)),
-      lastDate: now.add(const Duration(days: 365 * 10)),
-    );
-    if (picked != null) setState(() => _expiresAt = picked);
-  }
-
-  Future<void> _save() async {
-    final expires = _expiresAt;
-    if (expires == null) return;
-    setState(() => _saving = true);
-    final ok = await context.read<DriversCubit>().setDocument(
-      widget.driver.driverId,
-      _type,
-      expiresAt: expires,
-      approved: _approved,
-    );
-    if (!mounted) return;
-    if (ok) {
-      Navigator.of(context).pop();
-    } else {
-      setState(() => _saving = false);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      title: Text('Documentos de ${widget.driver.displayName}'),
-      scrollable: true,
-      content: SizedBox(
-        width: 400,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            DropdownButtonFormField<DocType>(
-              initialValue: _type,
-              decoration: const InputDecoration(labelText: 'Documento'),
-              items: [for (final t in DocType.values) DropdownMenuItem(value: t, child: Text(_docLabels[t]!))],
-              onChanged: (t) => setState(() {
-                _type = t!;
-                _loadExisting();
-              }),
-            ),
-            const SizedBox(height: 12),
-            OutlinedButton.icon(
-              onPressed: _pickDate,
-              icon: const Icon(Icons.event),
-              label: Text(_expiresAt == null ? 'Elegir fecha de vencimiento' : 'Vence el ${_date(_expiresAt!)}'),
-            ),
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              title: const Text('Revisado y aprobado'),
-              value: _approved,
-              onChanged: (v) => setState(() => _approved = v),
-            ),
-          ],
-        ),
-      ),
-      actions: [
-        TextButton(onPressed: _saving ? null : () => Navigator.of(context).pop(), child: const Text('Cancelar')),
-        FilledButton(onPressed: _saving || _expiresAt == null ? null : _save, child: const Text('Guardar')),
       ],
     );
   }

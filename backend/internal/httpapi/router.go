@@ -8,7 +8,10 @@ import (
 	"github.com/kyq/backend/internal/admin"
 	"github.com/kyq/backend/internal/affiliations"
 	"github.com/kyq/backend/internal/auth"
+	"github.com/kyq/backend/internal/billing"
 	"github.com/kyq/backend/internal/drivers"
+	"github.com/kyq/backend/internal/kyc"
+	"github.com/kyq/backend/internal/notify"
 	"github.com/kyq/backend/internal/ptt"
 	"github.com/kyq/backend/internal/realtime"
 	"github.com/kyq/backend/internal/telemetry"
@@ -28,6 +31,11 @@ type Deps struct {
 	Trips    *trips.Handlers
 	PTT      *ptt.Handlers
 	Usage    *telemetry.Handlers
+	// 002: alta y KYC, suscripción y pagos (incluye el webhook público de Bold), avisos y costos.
+	KYC     *kyc.Handlers
+	Billing *billing.Handlers
+	Notices *notify.Handlers
+	Costs   *telemetry.CostHandlers
 	// LiveKitWebhook is public: LiveKit authenticates it with its own signature.
 	LiveKitWebhook *telemetry.LiveKitWebhook
 }
@@ -75,6 +83,18 @@ func NewRouter(d Deps) http.Handler {
 		}
 		if d.Usage != nil {
 			d.Usage.Register(mux, requireAuth)
+		}
+		if d.KYC != nil {
+			d.KYC.Register(mux, requireAuth)
+		}
+		if d.Billing != nil {
+			d.Billing.Register(mux, requireAuth)
+		}
+		if d.Notices != nil {
+			d.Notices.Register(mux, requireAuth)
+		}
+		if d.Costs != nil {
+			d.Costs.Register(mux, requireAuth)
 		}
 	}
 

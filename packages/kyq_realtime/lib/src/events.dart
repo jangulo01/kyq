@@ -1,4 +1,4 @@
-// Eventos de specs/001-chosen-driver-trip-ptt/contracts/realtime.md.
+// Eventos de specs/001-chosen-driver-trip-ptt/contracts/realtime.md y `notice.created` de 002.
 
 /// Nombres de canal autorizados por el backend.
 abstract final class Channels {
@@ -67,6 +67,13 @@ sealed class RealtimeEvent {
         speedMps: (data['speed_mps'] as num?)?.toDouble(),
       ),
       'ptt.closed' => PttClosed(at, tripId: data['trip_id'] as String),
+      'notice.created' => NoticeCreated(
+        at,
+        noticeId: (data['id'] ?? data['notice_id']) as String,
+        kind: data['kind'] as String? ?? '',
+        title: data['title'] as String? ?? '',
+        body: data['body'] as String? ?? '',
+      ),
       _ => UnknownEvent(at, type: type, data: data),
     };
   }
@@ -184,6 +191,24 @@ final class PttClosed extends RealtimeEvent {
   const PttClosed(super.occurredAt, {required this.tripId});
 
   final String tripId;
+}
+
+/// Aviso nuevo para el conductor (documentos, pagos) en `user:{id}` (002, R5).
+final class NoticeCreated extends RealtimeEvent {
+  const NoticeCreated(
+    super.occurredAt, {
+    required this.noticeId,
+    required this.kind,
+    required this.title,
+    required this.body,
+  });
+
+  final String noticeId;
+
+  /// p. ej. `doc_rejected`, `payment_approved`.
+  final String kind;
+  final String title;
+  final String body;
 }
 
 final class UnknownEvent extends RealtimeEvent {

@@ -14,7 +14,15 @@ import (
 var (
 	ErrDriverNotFound = errors.New("driver not found for qr token")
 	ErrNotAffiliated  = errors.New("not affiliated")
+	// ErrDriverNotAvailable: the driver may not take new clients until their documents and
+	// subscription allow them to work (FR-004 of 002).
+	ErrDriverNotAvailable = errors.New("driver cannot take new clients")
 )
+
+// Eligibility tells whether a driver may take new clients.
+type Eligibility interface {
+	CanWork(ctx context.Context, driverID uuid.UUID) (bool, error)
+}
 
 // ChosenDriver is a driver as the passenger sees it (contracts/api.yaml#ChosenDriver).
 type ChosenDriver struct {
@@ -54,7 +62,11 @@ type Repo interface {
 }
 
 // Service implements the affiliation use cases.
-type Service struct{ repo Repo }
+type Service struct {
+	repo Repo
+	// Eligibility, when set, blocks new affiliations to drivers who cannot work yet.
+	Eligibility Eligibility
+}
 
 // NewService returns a service over repo.
 func NewService(repo Repo) *Service { return &Service{repo: repo} }
@@ -70,9 +82,19 @@ func (s *Service) Affiliate(ctx context.Context, passengerID uuid.UUID, qrToken 
 	if err != nil {
 		return ChosenDriver{}, false, fmt.Errorf("affiliation state: %w", err)
 	}
-	switch state {
-	case StateActive:
+	if state == StateActive {
 		return driver, false, nil
+	}
+	if s.Eligibility != nil {
+		ok, err := s.Eligibility.CanWork(ctx, driver.DriverID)
+		if err != nil {
+			return ChosenDriver{}, false, fmt.Errorf("driver eligibility: %w", err)
+		}
+		if !ok {
+			return ChosenDriver{}, false, ErrDriverNotAvailable
+		}
+	}
+	switch state {
 	case StateRemoved:
 		err = s.repo.Reactivate(ctx, passengerID, driver.DriverID)
 	default:

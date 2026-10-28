@@ -21,6 +21,14 @@ import (
 // KYQ_TEST_DATABASE_URL is not set. The schema is dropped when the test ends.
 func New(t *testing.T) *store.Store {
 	t.Helper()
+	st, _ := NewAt(t, -1)
+	return st
+}
+
+// NewAt is New migrated only up to version (-1: latest). The returned function migrates the
+// same schema further, to test data migrations.
+func NewAt(t *testing.T, version int64) (*store.Store, func(version int64)) {
+	t.Helper()
 	base := os.Getenv("KYQ_TEST_DATABASE_URL")
 	if base == "" {
 		t.Skip("KYQ_TEST_DATABASE_URL no definido; prueba de integración omitida")
@@ -57,13 +65,17 @@ func New(t *testing.T) *store.Store {
 
 	db := stdlib.OpenDBFromPool(pool)
 	t.Cleanup(func() { _ = db.Close() })
-	if err := migrate(db, schema); err != nil {
-		t.Fatalf("migrate: %v", err)
+	migrateTo := func(version int64) {
+		t.Helper()
+		if err := migrate(db, schema, version); err != nil {
+			t.Fatalf("migrate: %v", err)
+		}
 	}
-	return store.Wrap(pool)
+	migrateTo(version)
+	return store.Wrap(pool), migrateTo
 }
 
-func migrate(db *sql.DB, schema string) error {
+func migrate(db *sql.DB, schema string, version int64) error {
 	goose.SetBaseFS(migrations.FS)
 	goose.SetLogger(goose.NopLogger())
 	// Tabla de versiones dentro del esquema de la prueba: si quedara en public, goose vería
@@ -72,5 +84,8 @@ func migrate(db *sql.DB, schema string) error {
 	if err := goose.SetDialect("postgres"); err != nil {
 		return err
 	}
-	return goose.Up(db, ".")
+	if version < 0 {
+		return goose.Up(db, ".")
+	}
+	return goose.UpTo(db, ".", version)
 }

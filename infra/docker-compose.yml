@@ -55,12 +55,51 @@ services:
       KYQ_OSRM_URL: http://osrm:5000
       KYQ_DEV_OTP_CODE: ${KYQ_DEV_OTP_CODE}
       KYQ_SENTRY_DSN: ${KYQ_SENTRY_DSN:-}
+      # Fotos de documentos (002): bucket privado; las URLs firmadas usan el endpoint público
+      # para que el móvil llegue por la LAN.
+      KYQ_S3_ENDPOINT: http://minio:9000
+      KYQ_S3_PUBLIC_ENDPOINT: ${KYQ_S3_PUBLIC_ENDPOINT:-http://${KYQ_PUBLIC_HOST}:9000}
+      KYQ_S3_ACCESS_KEY: ${KYQ_S3_ACCESS_KEY}
+      KYQ_S3_SECRET_KEY: ${KYQ_S3_SECRET_KEY}
+      KYQ_S3_BUCKET: ${KYQ_S3_BUCKET:-kyq-kyc}
+      # Bold (002). Vacío KYQ_BOLD_ENV: pagos con Bold desactivados.
+      KYQ_BOLD_ENV: ${KYQ_BOLD_ENV:-}
+      KYQ_BOLD_IDENTITY_KEY: ${KYQ_BOLD_IDENTITY_KEY:-}
+      KYQ_BOLD_SECRET_KEY: ${KYQ_BOLD_SECRET_KEY:-}
     ports:
       - "8080:8080"
     depends_on:
       migrate:
         condition: service_completed_successfully
+      minio-init:
+        condition: service_completed_successfully
     restart: unless-stopped
+
+  # Almacenamiento S3 compatible para las fotos KYC (research R4). La imagen oficial de MinIO ya
+  # no se publica en Docker Hub; se usa la compilación de Chainguard fijada por digest.
+  minio:
+    image: cgr.dev/chainguard/minio@sha256:e70b2b1e74d79457f808710483bd726ff364529ca30736eaa15a6ab547d3a5a7
+    command: server /data --address :9000 --console-address :9001
+    environment:
+      MINIO_ROOT_USER: ${KYQ_S3_ACCESS_KEY}
+      MINIO_ROOT_PASSWORD: ${KYQ_S3_SECRET_KEY}
+    volumes:
+      - miniodata:/data
+    ports:
+      # 9000 en la LAN: el móvil sube y descarga con URLs firmadas. Consola solo en la VM.
+      - "9000:9000"
+      - "127.0.0.1:9001:9001"
+    restart: unless-stopped
+
+  # Crea el bucket privado (idempotente). Sin política anónima: nada es público.
+  minio-init:
+    image: cgr.dev/chainguard/minio-client@sha256:799a60aa839c0d79b53f1dccdddc974d0fe94282cca712fbfbad3b196f88d0ee
+    command: ["mb", "--ignore-existing", "local/${KYQ_S3_BUCKET:-kyq-kyc}"]
+    environment:
+      MC_HOST_local: http://${KYQ_S3_ACCESS_KEY}:${KYQ_S3_SECRET_KEY}@minio:9000
+    depends_on:
+      - minio
+    restart: on-failure
 
   centrifugo:
     image: centrifugo/centrifugo:v6
@@ -112,3 +151,4 @@ services:
 
 volumes:
   pgdata:
+  miniodata:

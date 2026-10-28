@@ -17,6 +17,22 @@ final _otpField = RegExp(
 );
 final _otpPath = RegExp(r'/v1/auth/otp\b');
 final _bareOtp = RegExp(r'(?<![\w+]|\d\.)\d{4,8}(?!\w|\.\d)');
+// URL firmada del almacenamiento (fotos de documentos): la consulta lleva la firma, que da acceso
+// a la foto mientras no caduca. Se tapa la URL entera (002, T042).
+final _urlWithQuery = RegExp(r'''https?://[^\s"'<>]*\?[^\s"'<>]*''', caseSensitive: false);
+final _signatureParam = RegExp(
+  r'[?&](?:x-amz-signature|x-amz-credential|x-amz-security-token|x-goog-signature|signature|sig)=',
+  caseSensitive: false,
+);
+// Número de documento declarado (cédula, licencia, SOAT…) en JSON, formularios o texto libre.
+final _docNumberField = RegExp(
+  r'''(["\x27]?\b(?:number|document_number|doc_number|id_number|license_number|numero)\b["\x27]?\s*[:=]\s*["\x27]?)[A-Za-z0-9.-]{4,20}''',
+  caseSensitive: false,
+);
+final _docNumberWords = RegExp(
+  r'(\b(?:c[ée]dula|c\.c\.|licencia|soat)\s*(?:n[o°º.]*\s*)?[:#]?\s*)[A-Za-z]{0,3}-?\d[\d.-]{3,14}',
+  caseSensitive: false,
+);
 final _uuid = RegExp(r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$');
 
 // Claves cuyo valor nunca se envía (comparación sin mayúsculas, `-` equivale a `_`).
@@ -47,6 +63,17 @@ const _sensitiveKeys = {
   'passenger_name',
   'email',
   'ip_address',
+  // Documentos del conductor (002): números declarados y URLs firmadas de sus fotos.
+  'number',
+  'document_number',
+  'doc_number',
+  'id_number',
+  'license_number',
+  'upload_url',
+  'signed_url',
+  'photo_url',
+  'uploads',
+  'photos',
 };
 
 // Claves de cuerpos y consultas HTTP que se descartan siempre.
@@ -73,9 +100,13 @@ bool _isSensitiveKey(String key) => _sensitiveKeys.contains(_normKey(key));
 bool _isOtpCode(String key, Object? value) =>
     _normKey(key) == 'code' && (value is int || value is String) && RegExp(r'^\d{4,8}$').hasMatch('$value');
 
-/// Elimina de [text] teléfonos, JWT, credenciales y códigos OTP.
+/// Elimina de [text] teléfonos, JWT, credenciales, códigos OTP, URLs firmadas y números de
+/// documento.
 String scrubText(String text) {
   var out = text
+      .replaceAllMapped(_urlWithQuery, (m) => _signatureParam.hasMatch(m[0]!) ? '[signed-url]' : m[0]!)
+      .replaceAllMapped(_docNumberField, (m) => '${m[1]}[doc]')
+      .replaceAllMapped(_docNumberWords, (m) => '${m[1]}[doc]')
       .replaceAll(_jwt, '[jwt]')
       .replaceAllMapped(_bearer, (m) => '${m[1]} $redacted')
       .replaceAllMapped(_authHeader, (m) => '${m[1]}${m[2]}$redacted')

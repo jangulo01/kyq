@@ -35,6 +35,30 @@ void main() {
       expect(scrubText('otp=4821'), 'otp=[otp]');
     });
 
+    test('tapa URLs firmadas de fotos de documentos enteras', () {
+      const signed =
+          'https://s3.kyq.co/kyq-kyc/kyc/d1/doc1/front.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256'
+          '&X-Amz-Credential=AKIA%2F20261027&X-Amz-Expires=600&X-Amz-Signature=abc123';
+      expect(scrubText('PUT $signed falló: 403'), 'PUT [signed-url] falló: 403');
+      expect(scrubText('{"url":"$signed"}'), '{"url":"[signed-url]"}');
+      expect(scrubText('ver https://r2.test/a.jpg?sig=zz&e=1'), 'ver [signed-url]');
+      // Una URL con consulta sin firma solo pierde lo que ya tapaban las demás reglas.
+      expect(
+        scrubText('https://api.kyq.co/v1/driver/costs?month=2026-10'),
+        'https://api.kyq.co/v1/driver/costs?month=2026-10',
+      );
+    });
+
+    test('tapa números de documento declarados', () {
+      expect(scrubText('{"doc_type":"license","number":"1023456789"}'), '{"doc_type":"license","number":"[doc]"}');
+      expect(scrubText('number=ABC12345'), 'number=[doc]');
+      expect(scrubText('cédula 1.023.456.789 no coincide'), 'cédula [doc] no coincide');
+      expect(scrubText('Cedula: 80123456'), 'Cedula: [doc]');
+      expect(scrubText('licencia No. 1023456789'), 'licencia No. [doc]');
+      expect(scrubText('SOAT #AT-1234567'), 'SOAT #[doc]');
+      expect(scrubText('documento rechazado: foto borrosa'), 'documento rechazado: foto borrosa');
+    });
+
     test('scrubUrl quita consulta y fragmento', () {
       expect(scrubUrl('https://api.kyq.co/v1/trips?phone=+573001234567#x'), 'https://api.kyq.co/v1/trips');
     });
@@ -59,6 +83,37 @@ void main() {
         'headers': {'Authorization': redacted, 'X-Request-Id': 'r1'},
         'code': 'subscription_suspended',
         'otp_code': redacted,
+      });
+    });
+
+    test('documentos: número y fotos firmadas nunca salen', () {
+      final out = scrubValue({
+        'document': {
+          'id': _uuid,
+          'doc_type': 'national_id',
+          'number': '1023456789',
+          'expires_at': null,
+          'photos': [
+            {'side': 'front', 'url': 'https://s3.test/a.jpg?X-Amz-Signature=1'},
+          ],
+        },
+        'uploads': [
+          {'side': 'front', 'url': 'https://s3.test/a.jpg?X-Amz-Signature=1'},
+        ],
+        'photo': {'side': 'back', 'url': 'https://s3.test/b.jpg?X-Amz-Signature=2'},
+        'reject_reason': 'Foto borrosa',
+      });
+      expect(out, {
+        'document': {
+          'id': _uuid,
+          'doc_type': 'national_id',
+          'number': redacted,
+          'expires_at': null,
+          'photos': redacted,
+        },
+        'uploads': redacted,
+        'photo': {'side': 'back', 'url': '[signed-url]'},
+        'reject_reason': 'Foto borrosa',
       });
     });
 
@@ -123,6 +178,30 @@ void main() {
           ],
         },
       });
+    });
+
+    test('http a una URL firmada: solo queda la ruta, sin la firma', () {
+      final crumb = Breadcrumb.http(
+        url: Uri.parse('https://s3.kyq.co/kyq-kyc/kyc/d1/doc1/front.jpg?X-Amz-Signature=abc&X-Amz-Expires=600'),
+        method: 'PUT',
+        statusCode: 200,
+      );
+      final out = scrubBreadcrumb(crumb)!;
+      expect(out.data!['url'], 'https://s3.kyq.co/kyq-kyc/kyc/d1/doc1/front.jpg');
+    });
+
+    test('excepción con la URL firmada en el mensaje', () {
+      final event = scrubEvent(
+        SentryEvent(
+          exceptions: [
+            SentryException(
+              type: 'DioException',
+              value: 'DioException [bad response]: PUT https://s3.test/x.jpg?X-Amz-Signature=abc status 403',
+            ),
+          ],
+        ),
+      );
+      expect(event.exceptions!.single.value, 'DioException [bad response]: PUT [signed-url] status 403');
     });
 
     test('null se mantiene null', () => expect(scrubBreadcrumb(null), isNull));

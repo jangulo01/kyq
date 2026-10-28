@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
-  title: Kyq API (MVP 001)
-  version: 0.1.0
+  title: Kyq API (MVP 001 + 002 alta, KYC y suscripción)
+  version: 0.2.0
   description: |
     API REST del MVP Conductor Elegido + Viaje + PTT. Todas las rutas salvo /v1/auth/* exigen
     `Authorization: Bearer <access_token>`. Errores con cuerpo `Error`.
@@ -49,10 +49,22 @@ paths:
                 phone_e164: { type: string, example: '+573001234567' }
                 code: { type: string, pattern: '^[0-9]{6}$' }
                 display_name: { type: string, description: Obligatorio en el primer registro }
+                role:
+                  type: string
+                  enum: [passenger, driver]
+                  description: |
+                    002 (FR-001, FR-003). Sin `role`: entra con el rol que ya tiene (un teléfono
+                    nuevo queda como pasajero). `driver` en un teléfono nuevo crea el conductor
+                    (sin vehículo, con QR). Si el teléfono ya existe con otro rol: 409.
       responses:
         '200': { $ref: '#/components/responses/Tokens' }
         '400': { $ref: '#/components/responses/Error' }
         '401': { $ref: '#/components/responses/Error' }
+        '409':
+          description: '`phone_has_other_role`: el teléfono ya existe con otro rol'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
   /v1/auth/refresh:
     post:
       summary: Rota el token de refresco
@@ -123,7 +135,9 @@ paths:
                 properties:
                   presence: { $ref: '#/components/schemas/Presence' }
         '409':
-          description: Bloqueado; `code` = subscription_suspended | kyc_expired | trip_in_progress
+          description: |
+            Bloqueado; `code` = subscription_suspended | kyc_expired | trip_in_progress. Con
+            `kyc_expired`, `message` nombra el documento (p. ej. "SOAT vencido: envía el nuevo").
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
@@ -190,6 +204,7 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/ChosenDriver' }
         '404': { $ref: '#/components/responses/Error' }
+        '409': { description: '`driver_not_available`: el conductor aún no puede recibir clientes (documentos o suscripción, FR-004 de 002)' }
   /v1/affiliations/{driverId}:
     delete:
       summary: Elimina un conductor de la lista (FR-006)
@@ -445,6 +460,10 @@ paths:
   /v1/admin/drivers/{driverId}/subscription:
     put:
       summary: Registra el pago de la suscripción (FR-004)
+      deprecated: true
+      description: |
+        Heredada de 001 para el panel actual: fija `paid_until` sin pago asociado. Desde 002 se usa
+        el pago manual (`POST /v1/admin/drivers/{driverId}/payments`), que queda auditado.
       parameters: [ { $ref: '#/components/parameters/DriverId' } ]
       requestBody:
         required: true
@@ -460,6 +479,10 @@ paths:
   /v1/admin/drivers/{driverId}/documents/{docType}:
     put:
       summary: Aprueba un documento y su vencimiento (FR-004)
+      description: |
+        Heredada de 001. Desde 002 aprobar crea una versión aprobada nueva sin fotos (reemplaza la
+        anterior) y `approved: false` retira la aprobación vigente. `expires_at` es obligatorio al
+        aprobar salvo `national_id` y `vehicle_registration`. El flujo nuevo es la cola KYC.
       parameters:
         - { $ref: '#/components/parameters/DriverId' }
         - { name: docType, in: path, required: true, schema: { $ref: '#/components/schemas/DocType' } }
@@ -469,9 +492,9 @@ paths:
           application/json:
             schema:
               type: object
-              required: [expires_at, approved]
+              required: [approved]
               properties:
-                expires_at: { type: string, format: date }
+                expires_at: { type: [string, 'null'], format: date }
                 approved: { type: boolean }
       responses:
         '200': { description: OK }
@@ -488,6 +511,380 @@ paths:
       responses:
         '200': { description: OK }
 
+  # --- 002: alta autónoma, KYC, suscripción con Bold, avisos y costos -------------------------
+
+  /v1/driver/vehicle:
+    put:
+      summary: Datos del vehículo (FR-002); obligatorios antes de enviar documentos
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/Vehicle' }
+      responses:
+        '200':
+          description: Vehículo guardado (placa normalizada en mayúsculas)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Vehicle' }
+        '400': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+
+  /v1/driver/onboarding:
+    get:
+      summary: Estado de alta, documentos por tipo, bloqueos y suscripción
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Onboarding' }
+        '403': { $ref: '#/components/responses/Error' }
+
+  /v1/driver/documents:
+    post:
+      summary: Inicia un envío de documento y devuelve URLs firmadas de subida por foto
+      description: |
+        `expires_at` es obligatorio salvo `national_id` y `vehicle_registration` (se ignora en
+        esos tipos) y debe ser posterior a hoy. Cada URL admite un `PUT` con
+        `Content-Type: image/jpeg` (≤ 2 MB) durante 10 min. Un envío a medias del mismo tipo se
+        descarta; si hay uno en revisión, 409 `document_in_review`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [doc_type, number, sides]
+              properties:
+                doc_type: { $ref: '#/components/schemas/DocType' }
+                number: { type: string, maxLength: 40 }
+                expires_at: { type: [string, 'null'], format: date }
+                sides: { type: array, items: { type: string, enum: [front, back] }, minItems: 1, maxItems: 2 }
+      responses:
+        '201':
+          description: Documento en `uploading`
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  document: { $ref: '#/components/schemas/Document' }
+                  uploads:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        side: { type: string, enum: [front, back] }
+                        url: { type: string, description: 'PUT image/jpeg, ≤ 2 MB, caduca a los 10 min' }
+        '400': { $ref: '#/components/responses/Error' }
+        '409':
+          description: '`vehicle_required` o `document_in_review`'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /v1/driver/documents/{documentId}/submit:
+    post:
+      summary: Confirma que las fotos están subidas; pasa a `submitted` (entra en la cola)
+      parameters: [ { $ref: '#/components/parameters/DocumentId' } ]
+      responses:
+        '200':
+          description: Documento en revisión
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Document' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409':
+          description: '`photos_missing`, `photo_invalid` (no JPEG o > 2 MB; se borra) o `invalid_state`'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /v1/driver/subscription:
+    get:
+      summary: Estado, precio vigente y pagos del conductor (FR-019, FR-020)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SubscriptionView' }
+        '403': { $ref: '#/components/responses/Error' }
+
+  /v1/driver/payments:
+    post:
+      summary: Crea un pago con Bold al precio vigente y devuelve la URL de checkout (FR-014)
+      description: El enlace de Bold caduca a los 30 min. Abrir `checkout_url` en una Custom Tab.
+      responses:
+        '201':
+          description: Pago `created`
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Payment' }
+        '409':
+          description: '`documents_not_ok`, `payment_in_progress` o `price_not_set`'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '503':
+          description: '`bold_unavailable`: Bold desactivado o sin respuesta'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /v1/driver/payments/{paymentId}/refresh:
+    post:
+      summary: Consulta a Bold el estado del pago ahora (al volver de la Custom Tab)
+      parameters: [ { $ref: '#/components/parameters/PaymentId' } ]
+      responses:
+        '200':
+          description: Pago actualizado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Payment' }
+        '404': { $ref: '#/components/responses/Error' }
+
+  /v1/driver/costs:
+    get:
+      summary: Costo medido del conductor en un mes frente a lo pagado (RN-KYQ-004)
+      parameters:
+        - { name: month, in: query, schema: { type: string, pattern: '^[0-9]{4}-[0-9]{2}$' }, description: 'Por defecto el mes en curso (UTC)' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CostBreakdown' }
+        '400': { $ref: '#/components/responses/Error' }
+
+  /v1/driver/notices:
+    get:
+      summary: Avisos del conductor, recientes primero (máx. 100)
+      description: También llegan en vivo como `notice.created` por el canal `user:{id}`.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/Notice' } }
+  /v1/driver/notices/{noticeId}/read:
+    post:
+      summary: Marca un aviso como leído
+      parameters: [ { name: noticeId, in: path, required: true, schema: { type: string, format: uuid } } ]
+      responses:
+        '204': { description: OK }
+        '404': { $ref: '#/components/responses/Error' }
+
+  /v1/billing/bold/webhook:
+    post:
+      summary: Webhook de Bold (producción). Firma `x-bold-signature`
+      description: |
+        Sin token Kyq. Firma = hex(HMAC-SHA256(llave secreta, base64(cuerpo))); en sandbox la llave
+        es vacía. Solo existe si `KYQ_BOLD_ENV` tiene valor. Eventos: SALE_APPROVED, SALE_REJECTED,
+        VOID_APPROVED (VOID_REJECTED y referencias desconocidas se aceptan y se ignoran).
+      security: []
+      parameters:
+        - { name: x-bold-signature, in: header, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        '200': { description: Recibido (también si ya estaba procesado) }
+        '400': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+
+  /v1/admin/kyc/queue:
+    get:
+      summary: Conductores con documentos en revisión, del más antiguo al más reciente (FR-008)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/KycQueueEntry' } }
+        '403': { $ref: '#/components/responses/Error' }
+  /v1/admin/kyc/drivers/{driverId}:
+    get:
+      summary: Expediente con documentos y URLs firmadas de lectura de sus fotos (5 min)
+      parameters: [ { $ref: '#/components/parameters/DriverId' } ]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/KycDriverFile' }
+        '404': { $ref: '#/components/responses/Error' }
+  /v1/admin/kyc/documents/{documentId}/review:
+    post:
+      summary: Aprueba o rechaza un documento (FR-008, FR-009, FR-012)
+      description: |
+        Al aprobar se pueden corregir `number`, `expires_at` y `exempt_until` (solo revisión
+        técnico-mecánica); un campo ausente se conserva y `null` lo borra. Aprobar reemplaza
+        (`superseded`) el aprobado anterior del mismo tipo.
+      parameters: [ { $ref: '#/components/parameters/DocumentId' } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [decision]
+              properties:
+                decision: { type: string, enum: [approve, reject] }
+                reason: { type: string, description: Obligatorio al rechazar (máx. 200) }
+                number: { type: string }
+                expires_at: { type: [string, 'null'], format: date }
+                exempt_until: { type: [string, 'null'], format: date }
+      responses:
+        '200':
+          description: Documento revisado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Document' }
+        '400': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409':
+          description: '`invalid_state`: no está en `submitted`'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /v1/admin/subscriptions:
+    get:
+      summary: Suscripciones por estado con vencimiento y último pago (FR-022)
+      parameters:
+        - { name: status, in: query, schema: { type: string, enum: [active, grace, suspended, unpaid] } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/SubscriptionRow' } }
+        '400': { $ref: '#/components/responses/Error' }
+  /v1/admin/drivers/{driverId}/payments:
+    get:
+      summary: Historial de pagos de un conductor
+      parameters: [ { $ref: '#/components/parameters/DriverId' } ]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/AdminPayment' } }
+        '404': { $ref: '#/components/responses/Error' }
+    post:
+      summary: Registra un pago manual al precio vigente y extiende la suscripción (FR-021)
+      parameters: [ { $ref: '#/components/parameters/DriverId' } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [method_detail, reference]
+              properties:
+                method_detail: { type: string, example: efectivo, maxLength: 40 }
+                reference: { type: string, maxLength: 80 }
+      responses:
+        '201':
+          description: Pago aprobado y suscripción extendida
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdminPayment' }
+        '400': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+  /v1/admin/payments/{paymentId}/void:
+    post:
+      summary: Anula un pago aprobado con motivo y recalcula el vencimiento (FR-021)
+      parameters: [ { $ref: '#/components/parameters/PaymentId' } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, required: [reason], properties: { reason: { type: string, maxLength: 200 } } }
+      responses:
+        '200':
+          description: Pago anulado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdminPayment' }
+        '400': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409':
+          description: '`not_approved`: solo pagos aprobados'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+  /v1/admin/subscription-prices/{cityCode}:
+    put:
+      summary: Nuevo precio mensual con fecha de vigencia (FR-013)
+      description: COP en centavos y sin fracción de peso (múltiplo de 100). Sin `effective_from`, desde ya.
+      parameters: [ { name: cityCode, in: path, required: true, schema: { type: string } } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [currency, amount_minor]
+              properties:
+                currency: { type: string }
+                amount_minor: { type: integer, minimum: 1 }
+                effective_from: { type: string, format: date-time }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  city_code: { type: string }
+                  currency: { type: string }
+                  amount_minor: { type: integer }
+                  effective_from: { type: string, format: date-time }
+        '400': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+  /v1/admin/cost-rates:
+    get:
+      summary: Tarifas de costo vigentes e históricas
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/CostRate' } }
+    put:
+      summary: Nueva tarifa de un concepto con fecha de vigencia (FR-024)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CostRate' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CostRate' }
+        '400': { $ref: '#/components/responses/Error' }
+  /v1/admin/costs:
+    get:
+      summary: Precio cobrado, costo por concepto y margen por conductor y mes (FR-026)
+      parameters:
+        - { name: month, in: query, required: true, schema: { type: string, pattern: '^[0-9]{4}-[0-9]{2}$' } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/DriverCost' } }
+        '400': { $ref: '#/components/responses/Error' }
+
 components:
   securitySchemes:
     bearer: { type: http, scheme: bearer, bearerFormat: JWT }
@@ -495,6 +892,8 @@ components:
   parameters:
     TripId: { name: tripId, in: path, required: true, schema: { type: string, format: uuid } }
     DriverId: { name: driverId, in: path, required: true, schema: { type: string, format: uuid } }
+    DocumentId: { name: documentId, in: path, required: true, schema: { type: string, format: uuid } }
+    PaymentId: { name: paymentId, in: path, required: true, schema: { type: string, format: uuid } }
 
   requestBodies:
     Phone:
@@ -591,7 +990,8 @@ components:
       enum: [offline, free, busy]
     DocType:
       type: string
-      enum: [license, mandatory_insurance, vehicle_registration]
+      description: 'Cédula, licencia, SOAT, revisión técnico-mecánica y tarjeta de propiedad (002)'
+      enum: [national_id, license, mandatory_insurance, technical_inspection, vehicle_registration]
     ChosenDriver:
       type: object
       properties:
@@ -607,11 +1007,18 @@ components:
         qr_token: { type: string }
         presence: { $ref: '#/components/schemas/Presence' }
         subscription_status: { type: string, enum: [active, grace_period, suspended] }
-        paid_until: { type: string, format: date-time }
+        paid_until: { type: [string, 'null'], format: date-time }
         can_go_online: { type: boolean }
         block_reason: { type: [string, 'null'], enum: [subscription_suspended, kyc_expired, null] }
+        blocked_documents:
+          type: array
+          description: 002. Documentos obligatorios que bloquean ONLINE; vacío si están al día
+          items: { $ref: '#/components/schemas/DocumentProblem' }
         documents:
           type: array
+          description: |
+            Vista de 001: aprobados de license, mandatory_insurance y vehicle_registration con
+            vencimiento. El detalle completo de 002 está en GET /v1/driver/onboarding.
           items:
             type: object
             properties:
@@ -652,3 +1059,186 @@ components:
           description: Plazo de la respuesta pendiente (oferta 25 s; confirmación, aceptar negociar o propuesta 30 s)
         negotiation_expires_at: { type: [string, 'null'], format: date-time }
         cancel_reason: { type: [string, 'null'] }
+
+    # --- 002 ---------------------------------------------------------------------------------
+    DocumentProblem:
+      type: object
+      description: 'Documento obligatorio que bloquea ONLINE (RN-KYQ-016): falta aprobado o vencido'
+      properties:
+        doc_type: { $ref: '#/components/schemas/DocType' }
+        problem: { type: string, enum: [missing, expired] }
+    Vehicle:
+      type: object
+      required: [plate, brand, model, color, year]
+      properties:
+        plate: { type: string, description: 'ABC123 o ABC12D (se normaliza a mayúsculas sin espacios)' }
+        brand: { type: string, maxLength: 40 }
+        model: { type: string, maxLength: 40 }
+        color: { type: string, maxLength: 30 }
+        year: { type: integer, description: '1990 a año actual + 1' }
+    Document:
+      type: object
+      description: Envío de un documento. `number` solo lo ven el conductor y los administradores (FR-011).
+      properties:
+        id: { type: string, format: uuid }
+        doc_type: { $ref: '#/components/schemas/DocType' }
+        number: { type: string }
+        expires_at: { type: [string, 'null'], format: date }
+        exempt_until: { type: [string, 'null'], format: date }
+        status: { type: string, enum: [uploading, submitted, approved, rejected, superseded] }
+        expired: { type: boolean, description: 'Solo aprobados: ya no está vigente' }
+        legacy: { type: boolean, description: 'Migrado de 001 o marcador sin fotos: hay que subir el real' }
+        reject_reason: { type: [string, 'null'] }
+        submitted_at: { type: [string, 'null'], format: date-time }
+        reviewed_at: { type: [string, 'null'], format: date-time }
+        photos:
+          type: array
+          description: URLs firmadas de lectura (5 min) de las fotos subidas
+          items:
+            type: object
+            properties:
+              side: { type: string, enum: [front, back] }
+              url: { type: string }
+    DocumentSlot:
+      type: object
+      description: Un tipo obligatorio; `current` es el aprobado y `latest` el envío más reciente si no es el aprobado
+      properties:
+        doc_type: { $ref: '#/components/schemas/DocType' }
+        label: { type: string }
+        current: { oneOf: [ { $ref: '#/components/schemas/Document' }, { type: 'null' } ] }
+        latest: { oneOf: [ { $ref: '#/components/schemas/Document' }, { type: 'null' } ] }
+        rejected_count: { type: integer }
+        suggest_support: { type: boolean, description: 'Tras 3 rechazos del mismo documento' }
+    Onboarding:
+      type: object
+      properties:
+        status: { type: string, enum: [profile_incomplete, documents_pending, in_review, documents_ok] }
+        vehicle: { oneOf: [ { $ref: '#/components/schemas/Vehicle' }, { type: 'null' } ] }
+        documents: { type: array, items: { $ref: '#/components/schemas/DocumentSlot' } }
+        blocked_documents: { type: array, items: { $ref: '#/components/schemas/DocumentProblem' } }
+        subscription_status: { $ref: '#/components/schemas/BillingStatus' }
+        paid_until: { type: [string, 'null'], format: date-time }
+        can_go_online: { type: boolean }
+    KycQueueEntry:
+      type: object
+      properties:
+        driver_id: { type: string, format: uuid }
+        display_name: { type: string }
+        vehicle_plate: { type: string }
+        pending_documents: { type: integer }
+        oldest_submitted_at: { type: string, format: date-time }
+    KycDriverFile:
+      type: object
+      properties:
+        driver_id: { type: string, format: uuid }
+        display_name: { type: string }
+        phone_e164: { type: string }
+        status: { type: string, enum: [profile_incomplete, documents_pending, in_review, documents_ok] }
+        vehicle: { oneOf: [ { $ref: '#/components/schemas/Vehicle' }, { type: 'null' } ] }
+        documents: { type: array, items: { $ref: '#/components/schemas/DocumentSlot' } }
+        blocked_documents: { type: array, items: { $ref: '#/components/schemas/DocumentProblem' } }
+    BillingStatus:
+      type: string
+      description: 'Estado de la suscripción en 002; `unpaid` = nunca ha pagado'
+      enum: [active, grace, suspended, unpaid]
+    Price:
+      type: object
+      properties:
+        amount_minor: { type: integer }
+        currency: { type: string }
+    Payment:
+      type: object
+      properties:
+        id: { type: string, format: uuid, description: También es la referencia en Bold }
+        amount_minor: { type: integer }
+        currency: { type: string }
+        method: { type: string, enum: [bold, manual] }
+        status: { type: string, enum: [created, processing, approved, rejected, expired, voided, needs_review] }
+        checkout_url: { type: [string, 'null'], description: Solo mientras está en curso }
+        payment_method_detail: { type: [string, 'null'], description: 'CREDIT_CARD, PSE, NEQUI…; en manuales, el medio' }
+        covers_from: { type: [string, 'null'], format: date-time }
+        covers_until: { type: [string, 'null'], format: date-time }
+        void_reason: { type: [string, 'null'] }
+        created_at: { type: string, format: date-time }
+    AdminPayment:
+      allOf:
+        - $ref: '#/components/schemas/Payment'
+        - type: object
+          properties:
+            manual_reference: { type: [string, 'null'] }
+            review_note: { type: [string, 'null'], description: 'Por qué quedó en needs_review' }
+            created_by: { type: string, format: uuid }
+            voided_by: { type: [string, 'null'], format: uuid }
+    SubscriptionView:
+      type: object
+      properties:
+        status: { $ref: '#/components/schemas/BillingStatus' }
+        paid_until: { type: [string, 'null'], format: date-time }
+        grace_until: { type: [string, 'null'], format: date-time }
+        price: { oneOf: [ { $ref: '#/components/schemas/Price' }, { type: 'null' } ] }
+        can_pay: { type: boolean, description: 'Documentos al día, precio definido y Bold activo' }
+        payments: { type: array, items: { $ref: '#/components/schemas/Payment' } }
+    SubscriptionRow:
+      type: object
+      properties:
+        driver_id: { type: string, format: uuid }
+        display_name: { type: string }
+        phone_e164: { type: string }
+        vehicle_plate: { type: string }
+        status: { $ref: '#/components/schemas/BillingStatus' }
+        paid_until: { type: [string, 'null'], format: date-time }
+        grace_until: { type: [string, 'null'], format: date-time }
+        last_payment:
+          oneOf:
+            - type: 'null'
+            - type: object
+              properties:
+                id: { type: string, format: uuid }
+                amount_minor: { type: integer }
+                currency: { type: string }
+                method: { type: string, enum: [bold, manual] }
+                status: { type: string }
+                created_at: { type: string, format: date-time }
+    Notice:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        kind:
+          type: string
+          description: 'doc_expiring, doc_expired, doc_rejected, doc_approved, doc_legacy, sub_expiring, sub_grace, payment_approved, payment_rejected, payment_voided'
+        title: { type: string }
+        body: { type: string }
+        created_at: { type: string, format: date-time }
+        read_at: { type: [string, 'null'], format: date-time }
+    CostRate:
+      type: object
+      required: [concept, currency, unit_cost_micro, effective_from]
+      properties:
+        concept: { type: string, enum: [voice_minute, realtime_event, route_request, fixed_monthly] }
+        currency: { type: string }
+        unit_cost_micro: { type: integer, minimum: 0, description: Millonésimas de unidad mínima }
+        effective_from: { type: string, format: date }
+    CostBreakdown:
+      type: object
+      properties:
+        month: { type: string }
+        currency: { type: string }
+        paid_minor: { type: integer, description: 'Pagos aprobados cuyo periodo empieza en el mes' }
+        items:
+          type: array
+          items:
+            type: object
+            properties:
+              concept: { type: string, enum: [voice_minute, realtime_event, route_request, fixed_monthly] }
+              usage: { type: number, description: 'minutos, eventos o peticiones; 1 para el fijo' }
+              cost_minor: { type: number }
+        total_cost_minor: { type: number }
+        margin_minor: { type: number }
+    DriverCost:
+      allOf:
+        - $ref: '#/components/schemas/CostBreakdown'
+        - type: object
+          properties:
+            driver_id: { type: string, format: uuid }
+            display_name: { type: string }
+            negative_margin: { type: boolean }

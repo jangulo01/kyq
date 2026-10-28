@@ -3,11 +3,10 @@ package admin
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/base64"
 	"errors"
 	"net/http"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -108,13 +107,10 @@ func ListDrivers(ctx context.Context, q *store.Queries, now time.Time) ([]Driver
 			paidUntil = row.PaidUntil.Time
 			s.PaidUntil = &paidUntil
 		}
-		gateDocs := make([]drivers.Document, 0, len(docs[row.ID]))
-		for _, d := range docs[row.ID] {
-			s.Documents = append(s.Documents, DriverDocument{
-				DocType: string(d.DocType), ExpiresAt: d.ExpiresAt.Format(time.DateOnly), Approved: d.Approved,
-			})
-			gateDocs = append(gateDocs, drivers.Document{Type: string(d.DocType), ExpiresAt: d.ExpiresAt, Approved: d.Approved})
+		for _, d := range drivers.LegacyDocumentViews(docs[row.ID]) {
+			s.Documents = append(s.Documents, DriverDocument(d))
 		}
+		gateDocs := drivers.GateDocuments(docs[row.ID])
 		s.SubscriptionStatus = string(drivers.SubscriptionStatusAt(paidUntil, now))
 		// La lista de admin no conoce viajes en curso; se evalúa como si no hubiera.
 		if reason := drivers.EvaluateOnline(paidUntil, gateDocs, false, now); reason == drivers.BlockNone {
@@ -158,7 +154,7 @@ func (h *Handlers) createDriver(w http.ResponseWriter, r *http.Request) {
 		httpx.InternalError(w, r, err)
 		return
 	}
-	qr, err := newQRToken()
+	qr, err := auth.NewQRToken()
 	if err != nil {
 		httpx.InternalError(w, r, err)
 		return
@@ -207,7 +203,7 @@ func (h *Handlers) putSubscription(w http.ResponseWriter, r *http.Request) {
 	}
 	admin, _ := auth.FromContext(r.Context())
 	err := h.Store.UpsertSubscription(r.Context(), store.UpsertSubscriptionParams{
-		DriverID: driverID, PaidUntil: body.PaidUntil, UpdatedBy: admin.UserID,
+		DriverID: driverID, PaidUntil: body.PaidUntil, UpdatedBy: uuid.NullUUID{UUID: admin.UserID, Valid: true},
 	})
 	if err != nil {
 		httpx.InternalError(w, r, err)
@@ -220,28 +216,37 @@ func (h *Handlers) putSubscription(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// putDocument is the 001 route kept for the admin web: approving records a new approved version
+// of the document (without photos); approved=false revokes the approved one. New flows use the
+// KYC review queue (POST /v1/admin/kyc/documents/{id}/review).
 func (h *Handlers) putDocument(w http.ResponseWriter, r *http.Request) {
 	driverID, ok := h.driverID(w, r)
 	if !ok {
 		return
 	}
 	docType := r.PathValue("docType")
-	switch docType {
-	case drivers.DocLicense, drivers.DocMandatoryInsurance, drivers.DocVehicleRegistration:
-	default:
+	if !slices.Contains(drivers.MandatoryDocuments, docType) {
 		httpx.WriteError(w, http.StatusBadRequest, "invalid_doc_type", "tipo de documento desconocido")
 		return
 	}
 	var body struct {
-		ExpiresAt string `json:"expires_at"`
-		Approved  bool   `json:"approved"`
+		ExpiresAt *string `json:"expires_at"`
+		Approved  bool    `json:"approved"`
 	}
 	if !httpx.DecodeJSON(w, r, &body) {
 		return
 	}
-	expires, err := time.Parse(time.DateOnly, body.ExpiresAt)
-	if err != nil {
-		httpx.WriteError(w, http.StatusBadRequest, "invalid_expires_at", "expires_at debe ser AAAA-MM-DD")
+	var expires pgtype.Date
+	if body.ExpiresAt != nil && *body.ExpiresAt != "" {
+		t, err := time.Parse(time.DateOnly, *body.ExpiresAt)
+		if err != nil {
+			httpx.WriteError(w, http.StatusBadRequest, "invalid_expires_at", "expires_at debe ser AAAA-MM-DD")
+			return
+		}
+		expires = pgtype.Date{Time: t, Valid: true}
+	}
+	if body.Approved && drivers.DocumentExpires(docType) && !expires.Valid {
+		httpx.WriteError(w, http.StatusBadRequest, "invalid_expires_at", "indica expires_at en AAAA-MM-DD")
 		return
 	}
 	id, err := uuid.NewV7()
@@ -249,19 +254,35 @@ func (h *Handlers) putDocument(w http.ResponseWriter, r *http.Request) {
 		httpx.InternalError(w, r, err)
 		return
 	}
-	params := store.UpsertDriverDocumentParams{
-		ID: id, DriverID: driverID, DocType: store.DriverDocType(docType), ExpiresAt: expires,
-	}
-	if body.Approved {
-		admin, _ := auth.FromContext(r.Context())
-		params.ApprovedBy = uuid.NullUUID{UUID: admin.UserID, Valid: true}
-		params.ApprovedAt = pgtype.Timestamptz{Time: h.now(), Valid: true}
-	}
-	if err := h.Store.UpsertDriverDocument(r.Context(), params); err != nil {
+	admin, _ := auth.FromContext(r.Context())
+	now := h.now()
+	err = h.Store.WithTx(r.Context(), func(q *store.Queries) error {
+		if err := q.SupersedeApprovedDocument(r.Context(), store.SupersedeApprovedDocumentParams{
+			DriverID: driverID, DocType: store.DriverDocType(docType),
+		}); err != nil {
+			return err
+		}
+		if !body.Approved {
+			return nil
+		}
+		_, err := q.InsertDocument(r.Context(), store.InsertDocumentParams{
+			ID: id, DriverID: driverID, DocType: store.DriverDocType(docType), ExpiresAt: expires,
+			Status:      store.DocumentStatusApproved,
+			SubmittedAt: pgtype.Timestamptz{Time: now, Valid: true},
+			ReviewedBy:  uuid.NullUUID{UUID: admin.UserID, Valid: true},
+			ReviewedAt:  pgtype.Timestamptz{Time: now, Valid: true},
+		})
+		return err
+	})
+	if err != nil {
 		httpx.InternalError(w, r, err)
 		return
 	}
-	httpx.WriteJSON(w, http.StatusOK, DriverDocument{DocType: docType, ExpiresAt: body.ExpiresAt, Approved: body.Approved})
+	out := DriverDocument{DocType: docType, Approved: body.Approved}
+	if expires.Valid {
+		out.ExpiresAt = expires.Time.Format(time.DateOnly)
+	}
+	httpx.WriteJSON(w, http.StatusOK, out)
 }
 
 func (h *Handlers) driverID(w http.ResponseWriter, r *http.Request) (uuid.UUID, bool) {
@@ -280,13 +301,4 @@ func (h *Handlers) driverID(w http.ResponseWriter, r *http.Request) (uuid.UUID, 
 		return uuid.Nil, false
 	}
 	return id, true
-}
-
-// newQRToken returns 128 random bits, URL-safe (FR-005).
-func newQRToken() (string, error) {
-	var b [16]byte
-	if _, err := rand.Read(b[:]); err != nil {
-		return "", err
-	}
-	return base64.RawURLEncoding.EncodeToString(b[:]), nil
 }

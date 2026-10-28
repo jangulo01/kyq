@@ -32,7 +32,28 @@ type Config struct {
 	TwilioAccountSID       string
 	TwilioAuthToken        string
 	TwilioVerifyServiceSID string
+	TwilioSMSFrom          string // remitente de los avisos por SMS (002); vacío: solo log
+
+	// Almacenamiento S3 compatible para fotos KYC (002). Endpoints como URL con esquema.
+	S3Endpoint       string
+	S3PublicEndpoint string // el que va en las URLs firmadas; por defecto S3Endpoint
+	S3AccessKey      string
+	S3SecretKey      string
+	S3Bucket         string
+	S3Region         string
+
+	// Bold (002). BoldEnv vacío desactiva los pagos con Bold.
+	BoldEnv         string // "" | sandbox | production
+	BoldAPIURL      string
+	BoldIdentityKey string
+	BoldSecretKey   string
 }
+
+// Bold environments.
+const (
+	BoldSandbox    = "sandbox"
+	BoldProduction = "production"
+)
 
 // Load reads the configuration from the environment and validates it.
 func Load() (Config, error) {
@@ -55,8 +76,34 @@ func Load() (Config, error) {
 		TwilioAccountSID:       os.Getenv("KYQ_TWILIO_ACCOUNT_SID"),
 		TwilioAuthToken:        os.Getenv("KYQ_TWILIO_AUTH_TOKEN"),
 		TwilioVerifyServiceSID: os.Getenv("KYQ_TWILIO_VERIFY_SERVICE_SID"),
+		TwilioSMSFrom:          os.Getenv("KYQ_TWILIO_SMS_FROM"),
+		S3Endpoint:             os.Getenv("KYQ_S3_ENDPOINT"),
+		S3PublicEndpoint:       os.Getenv("KYQ_S3_PUBLIC_ENDPOINT"),
+		S3AccessKey:            os.Getenv("KYQ_S3_ACCESS_KEY"),
+		S3SecretKey:            os.Getenv("KYQ_S3_SECRET_KEY"),
+		S3Bucket:               getenv("KYQ_S3_BUCKET", "kyq-kyc"),
+		S3Region:               getenv("KYQ_S3_REGION", "us-east-1"),
+		BoldEnv:                os.Getenv("KYQ_BOLD_ENV"),
+		BoldAPIURL:             getenv("KYQ_BOLD_API_URL", "https://integrations.api.bold.co"),
+		BoldIdentityKey:        os.Getenv("KYQ_BOLD_IDENTITY_KEY"),
+		BoldSecretKey:          os.Getenv("KYQ_BOLD_SECRET_KEY"),
+	}
+	if c.S3PublicEndpoint == "" {
+		c.S3PublicEndpoint = c.S3Endpoint
 	}
 	return c, c.Validate()
+}
+
+// BoldEnabled reports whether drivers can pay with Bold.
+func (c Config) BoldEnabled() bool { return c.BoldEnv != "" }
+
+// BoldWebhookSecret is the key that signs Bold webhooks: Bold signs sandbox notifications with
+// an empty key.
+func (c Config) BoldWebhookSecret() string {
+	if c.BoldEnv == BoldSandbox {
+		return ""
+	}
+	return c.BoldSecretKey
 }
 
 // UsesDevOTP reports whether OTP codes are checked against a fixed development code.
@@ -81,6 +128,17 @@ func (c Config) Validate() error {
 	}
 	if len(c.CentrifugoTokenSecret) == 0 {
 		errs = append(errs, errors.New("KYQ_CENTRIFUGO_TOKEN_SECRET is required"))
+	}
+	require("KYQ_S3_ENDPOINT", c.S3Endpoint)
+	require("KYQ_S3_ACCESS_KEY", c.S3AccessKey)
+	require("KYQ_S3_SECRET_KEY", c.S3SecretKey)
+	switch c.BoldEnv {
+	case "":
+	case BoldSandbox, BoldProduction:
+		require("KYQ_BOLD_IDENTITY_KEY", c.BoldIdentityKey)
+		require("KYQ_BOLD_SECRET_KEY", c.BoldSecretKey)
+	default:
+		errs = append(errs, errors.New("KYQ_BOLD_ENV must be empty, sandbox or production"))
 	}
 	if !c.UsesDevOTP() {
 		require("KYQ_TWILIO_ACCOUNT_SID", c.TwilioAccountSID)

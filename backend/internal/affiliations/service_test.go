@@ -80,3 +80,28 @@ func TestRemoveUnknownIsNotFound(t *testing.T) {
 	svc, _, passenger, driver := newService()
 	assert.ErrorIs(t, svc.Remove(context.Background(), passenger, driver), ErrNotAffiliated)
 }
+
+type fixedEligibility bool
+
+func (f fixedEligibility) CanWork(context.Context, uuid.UUID) (bool, error) { return bool(f), nil }
+
+// FR-004 (002): un conductor sin documentos o suscripción al día no recibe clientes nuevos, pero
+// quien ya lo tenía elegido lo conserva.
+func TestAffiliateRequiresDriverWhoCanWork(t *testing.T) {
+	svc, _, passenger, _ := newService()
+	ctx := context.Background()
+
+	svc.Eligibility = fixedEligibility(false)
+	_, _, err := svc.Affiliate(ctx, passenger, "qr-carlos")
+	assert.ErrorIs(t, err, ErrDriverNotAvailable)
+
+	svc.Eligibility = fixedEligibility(true)
+	_, created, err := svc.Affiliate(ctx, passenger, "qr-carlos")
+	require.NoError(t, err)
+	assert.True(t, created)
+
+	svc.Eligibility = fixedEligibility(false)
+	_, created, err = svc.Affiliate(ctx, passenger, "qr-carlos")
+	require.NoError(t, err, "volver a escanear a un conductor ya elegido no se bloquea")
+	assert.False(t, created)
+}

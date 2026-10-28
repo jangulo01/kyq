@@ -9,12 +9,21 @@ import 'package:kyq_realtime/kyq_realtime.dart';
 import 'package:kyq_ui/kyq_ui.dart';
 
 import '../background/location_reporter.dart';
+import '../notices/notices_cubit.dart';
+import '../notices/notices_page.dart';
 import '../offers/offer_cubit.dart';
 import '../offers/offer_page.dart';
 import '../onboarding/clients_page.dart';
+import '../onboarding/document_capture_cubit.dart';
+import '../onboarding/document_capture_page.dart';
+import '../onboarding/documents_page.dart';
 import '../onboarding/my_qr_page.dart';
+import '../onboarding/onboarding_cubit.dart';
+import '../onboarding/vehicle_page.dart';
 import '../presence/presence_cubit.dart';
 import '../realtime/driver_events.dart';
+import '../subscription/subscription_cubit.dart';
+import '../subscription/subscription_page.dart';
 import '../trip/trip_cubit.dart';
 import '../trip/trip_page.dart';
 import 'driver_services.dart';
@@ -41,6 +50,8 @@ const realtimeUrl = String.fromEnvironment(
     api,
     allowedRoles: {UserRole.driver},
     wrongRoleMessage: 'Esta app es para conductores. Usa Kyq Pasajero.',
+    // "Soy conductor": un teléfono nuevo se registra como conductor (FR-001).
+    signUpRole: UserRole.driver,
   )..start();
   final realtime = KyqRealtime(
     url: realtimeUrl,
@@ -81,18 +92,61 @@ class _KyqDriverAppState extends State<KyqDriverApp> {
       onError: (e) => debugPrint('Ubicación: $e'),
     ),
   );
+  late final OnboardingCubit _onboarding = OnboardingCubit(widget.api);
+  late final NoticesCubit _notices = NoticesCubit(widget.api, _events.stream, onNotice: _onNotice);
   late final StreamSubscription<AuthState> _authSub;
+  late final StreamSubscription<OnboardingStatus?> _onboardingSub;
 
   late final GoRouter _router = buildAuthRouter(
     auth: widget.auth,
     title: 'Kyq Conductor',
+    subtitle: 'Soy conductor',
+    newAccountHint: 'Crearemos tu cuenta de conductor. Luego te pediremos tu vehículo y tus documentos.',
+    guard: (context, state) => _onboardingRedirect(state.matchedLocation),
     routes: [
+      GoRoute(path: '/onboarding/vehicle', builder: (context, state) => const VehiclePage()),
+      GoRoute(
+        path: '/onboarding/documents',
+        builder: (context, state) => const DocumentsPage(),
+        routes: [
+          GoRoute(
+            path: ':type',
+            builder: (context, state) {
+              final type = DocType.values.firstWhere(
+                (t) => docTypeToApi(t) == state.pathParameters['type'],
+                orElse: () => DocType.nationalId,
+              );
+              return BlocProvider(
+                create: (_) => DocumentCaptureCubit(
+                  api: widget.api,
+                  photos: widget.services.photos,
+                  docType: type,
+                  onSubmitted: _onboarding.load,
+                ),
+                child: DocumentCapturePage(rejectReason: state.extra is String ? state.extra! as String : null),
+              );
+            },
+          ),
+        ],
+      ),
       GoRoute(
         path: '/',
         builder: (context, state) => const HomePage(),
         routes: [
           GoRoute(path: 'qr', builder: (context, state) => const MyQrPage()),
           GoRoute(path: 'clients', builder: (context, state) => const ClientsPage()),
+          GoRoute(path: 'notices', builder: (context, state) => const NoticesPage()),
+          GoRoute(
+            path: 'subscription',
+            builder: (context, state) => BlocProvider(
+              create: (_) => SubscriptionCubit(
+                widget.api,
+                widget.services.checkout,
+                onApproved: () => unawaited(_presence.refreshMe()),
+              )..load(),
+              child: const SubscriptionPage(),
+            ),
+          ),
           GoRoute(path: 'offer', builder: (context, state) => const OfferPage()),
           GoRoute(
             path: 'trip/:id',
@@ -129,6 +183,12 @@ class _KyqDriverAppState extends State<KyqDriverApp> {
   void initState() {
     super.initState();
     _authSub = widget.auth.stream.listen(_onAuth);
+    // Sin refreshListenable: refrescar el router reconstruye las páginas apiladas (un viaje, una
+    // captura a medias). Basta con salir del inicio cuando el alta queda pendiente.
+    _onboardingSub = _onboarding.stream.map((s) => s.status).distinct().listen((_) {
+      final target = _onboardingRedirect(_router.routerDelegate.currentConfiguration.uri.path);
+      if (target != null && _router.routerDelegate.currentConfiguration.uri.path == '/') _router.go(target);
+    });
     _onAuth(widget.auth.state);
   }
 
@@ -136,11 +196,40 @@ class _KyqDriverAppState extends State<KyqDriverApp> {
     switch (state) {
       case AuthSignedIn():
         if (_presence.state.me == null && !_presence.state.loading) unawaited(_presence.load());
+        if (_onboarding.state.onboarding == null && !_onboarding.state.loading) unawaited(_onboarding.load());
+        unawaited(_notices.load());
       case AuthSignedOut():
         if (_presence.state.me != null) unawaited(_presence.reset());
+        _onboarding.reset();
+        _notices.reset();
       default:
         break;
     }
+  }
+
+  /// Alta sin terminar (T018): sin vehículo → vehículo; documentos pendientes → documentos. En
+  /// revisión o al día se deja usar el inicio, que explica por qué aún no puede conectarse.
+  /// Nunca durante un viaje u oferta: no se interrumpe un viaje en curso (RN-KYQ-003).
+  String? _onboardingRedirect(String location) {
+    if (location.startsWith('/trip') || location.startsWith('/offer')) return null;
+    return switch (_onboarding.state.status) {
+      OnboardingStatus.profileIncomplete when location != '/onboarding/vehicle' => '/onboarding/vehicle',
+      OnboardingStatus.documentsPending when !location.startsWith('/onboarding') => '/onboarding/documents',
+      _ => null,
+    };
+  }
+
+  /// Un aviso en vivo suele acompañar un cambio de estado: se recarga lo que depende de él.
+  void _onNotice(Notice notice) {
+    if (notice.kind.startsWith('doc_')) unawaited(_onboarding.load());
+    unawaited(_presence.refreshMe());
+    final route = noticeRoute(notice.kind);
+    _messenger.currentState?.showSnackBar(
+      SnackBar(
+        content: Text(notice.title),
+        action: route == null ? null : SnackBarAction(label: 'Ver', onPressed: () => _router.push(route)),
+      ),
+    );
   }
 
   void _onOffer(BuildContext context, OfferState state) {
@@ -159,8 +248,11 @@ class _KyqDriverAppState extends State<KyqDriverApp> {
   void dispose() {
     _authSub.cancel();
     _router.dispose();
+    _onboardingSub.cancel();
     _offers.close();
     _presence.close();
+    _onboarding.close();
+    _notices.close();
     _events.dispose();
     super.dispose();
   }
@@ -177,6 +269,8 @@ class _KyqDriverAppState extends State<KyqDriverApp> {
           BlocProvider.value(value: widget.auth),
           BlocProvider.value(value: _presence),
           BlocProvider.value(value: _offers),
+          BlocProvider.value(value: _onboarding),
+          BlocProvider.value(value: _notices),
         ],
         child: MaterialApp.router(
           title: 'Kyq Conductor',

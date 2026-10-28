@@ -46,6 +46,8 @@ type Me struct {
 	CanGoOnline        bool           `json:"can_go_online"`
 	BlockReason        *string        `json:"block_reason"`
 	Documents          []DocumentView `json:"documents"`
+	// Motivo de bloqueo por documento (002); vacío si los documentos están al día.
+	BlockedDocuments []DocumentProblem `json:"blocked_documents"`
 }
 
 func (h *Handlers) me(w http.ResponseWriter, r *http.Request) {
@@ -66,16 +68,18 @@ func (h *Handlers) me(w http.ResponseWriter, r *http.Request) {
 	}
 
 	now := h.now()
-	out := Me{DriverID: profile.UserID, QRToken: profile.QrToken, Presence: string(profile.Presence), Documents: []DocumentView{}}
+	out := Me{
+		DriverID: profile.UserID, QRToken: profile.QrToken, Presence: string(profile.Presence),
+		Documents: LegacyDocumentViews(docs), BlockedDocuments: []DocumentProblem{},
+	}
 	var paidUntil time.Time
 	if profile.PaidUntil.Valid {
 		paidUntil = profile.PaidUntil.Time
 		out.PaidUntil = &paidUntil
 	}
-	gateDocs := make([]Document, 0, len(docs))
-	for _, d := range docs {
-		out.Documents = append(out.Documents, DocumentView{DocType: string(d.DocType), ExpiresAt: d.ExpiresAt.Format(time.DateOnly), Approved: d.Approved})
-		gateDocs = append(gateDocs, Document{Type: string(d.DocType), ExpiresAt: d.ExpiresAt, Approved: d.Approved})
+	gateDocs := GateDocuments(docs)
+	if problems := DocumentProblems(gateDocs, now); problems != nil {
+		out.BlockedDocuments = problems
 	}
 	out.SubscriptionStatus = string(SubscriptionStatusAt(paidUntil, now))
 	// Sin viajes todavía (US2): nunca hay viaje en curso.
@@ -86,4 +90,23 @@ func (h *Handlers) me(w http.ResponseWriter, r *http.Request) {
 		out.BlockReason = &s
 	}
 	httpx.WriteJSON(w, http.StatusOK, out)
+}
+
+// LegacyDocumentViews is the 001 shape of the approved documents (DriverMe.documents and the
+// admin driver list): only the 001 types with an expiry date, so 001 clients keep parsing it.
+// The full detail is in GET /v1/driver/onboarding and GET /v1/admin/kyc/drivers/{id}.
+func LegacyDocumentViews(rows []store.ListDocumentsForDriversRow) []DocumentView {
+	out := []DocumentView{}
+	for _, d := range rows {
+		switch string(d.DocType) {
+		case DocLicense, DocMandatoryInsurance, DocVehicleRegistration:
+		default:
+			continue
+		}
+		if !d.ExpiresAt.Valid {
+			continue
+		}
+		out = append(out, DocumentView{DocType: string(d.DocType), ExpiresAt: d.ExpiresAt.Time.Format(time.DateOnly), Approved: true})
+	}
+	return out
 }

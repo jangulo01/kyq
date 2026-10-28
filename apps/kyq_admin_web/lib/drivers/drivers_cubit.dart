@@ -9,7 +9,7 @@ class DriversState {
   final String? error;
 }
 
-/// Alta de conductores, registro de pagos y aprobación de documentos (FR-004).
+/// Alta de conductores (FR-004). Pagos y documentos tienen sus pantallas desde 002.
 class DriversCubit extends Cubit<DriversState> {
   DriversCubit(this._api) : super(const DriversState());
 
@@ -30,15 +30,6 @@ class DriversCubit extends Cubit<DriversState> {
       vehicleDescription: vehicleDescription,
     ),
   );
-
-  /// Registra la suscripción pagada hasta el final del día [paidThrough] (hora local).
-  Future<bool> setPaidThrough(String driverId, DateTime paidThrough) {
-    final endOfDay = DateTime(paidThrough.year, paidThrough.month, paidThrough.day, 23, 59, 59);
-    return _run(() => _api.adminSetSubscription(driverId, endOfDay));
-  }
-
-  Future<bool> setDocument(String driverId, DocType type, {required DateTime expiresAt, required bool approved}) =>
-      _run(() => _api.adminSetDocument(driverId, type, expiresAt: expiresAt, approved: approved));
 
   /// Ejecuta [action] y recarga la lista. Devuelve false y deja el error en el estado si falla.
   Future<bool> _run(Future<void> Function() action) async {
