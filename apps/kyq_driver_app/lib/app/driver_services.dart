@@ -4,6 +4,7 @@ import '../background/foreground_service.dart';
 import '../background/geolocator_source.dart';
 import '../background/location_reporter.dart';
 import '../background/online_permissions.dart';
+import '../handsfree/platform_hands_free.dart';
 import '../onboarding/photo_source.dart';
 import '../realtime/driver_events.dart';
 import '../subscription/checkout_launcher.dart';
@@ -19,6 +20,10 @@ class DriverServices {
     required this.ptt,
     required this.photos,
     required this.checkout,
+    required this.preconsultPtt,
+    required this.handsFree,
+    required this.handsFreePrefs,
+    required this.overlayPermission,
   });
 
   factory DriverServices.platform(DriverEventSource events) => DriverServices(
@@ -29,6 +34,10 @@ class DriverServices {
     ptt: PttController.live,
     photos: PlatformPhotoSource(),
     checkout: const CustomTabCheckout(),
+    preconsultPtt: PttController.livePreconsult,
+    handsFree: const MethodChannelHandsFree(),
+    handsFreePrefs: const SharedPrefsHandsFreeStore(),
+    overlayPermission: const PlatformOverlayPermission(),
   );
 
   final DriverEventSource events;
@@ -45,4 +54,12 @@ class DriverServices {
 
   /// Checkout de Bold (T032).
   final CheckoutLauncher checkout;
+
+  /// Walkie-talkie de cada pre-consulta de voz (005, RN-KYQ-010).
+  final PttControllerFactory preconsultPtt;
+
+  /// Botón físico y burbuja flotante (005, RN-KYQ-012).
+  final HandsFreePlatform handsFree;
+  final HandsFreePrefsStore handsFreePrefs;
+  final OverlayPermission overlayPermission;
 }

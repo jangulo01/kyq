@@ -7,6 +7,7 @@ import 'package:kyq_ui/kyq_ui.dart';
 import '../notices/notices_cubit.dart';
 import '../onboarding/onboarding_cubit.dart';
 import '../onboarding/onboarding_texts.dart';
+import '../preconsult/preconsult_page.dart';
 import '../presence/presence_cubit.dart';
 import 'online_switch_card.dart';
 
@@ -52,6 +53,8 @@ class HomePage extends StatelessWidget {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
+            // Consulta de voz en curso de un cliente (005, RN-KYQ-010).
+            const ActivePreconsultCard(),
             BlocBuilder<PresenceCubit, PresenceState>(
               builder: (context, state) {
                 final me = state.me;
@@ -123,6 +126,16 @@ class HomePage extends StatelessWidget {
                 subtitle: const Text('Pasajeros que te guardaron'),
                 trailing: const Icon(Icons.chevron_right),
                 onTap: () => context.push('/clients'),
+              ),
+            ),
+            Card(
+              child: ListTile(
+                key: const Key('home.preconsults'),
+                leading: const Icon(Icons.record_voice_over),
+                title: const Text('Consultas de voz'),
+                subtitle: const Text('Tus clientes te preguntan por voz antes de pedir el viaje'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => context.push('/preconsults'),
               ),
             ),
           ],

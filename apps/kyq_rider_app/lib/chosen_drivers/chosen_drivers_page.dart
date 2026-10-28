@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:kyq_api/kyq_api.dart';
 import 'package:kyq_ui/kyq_ui.dart';
 
+import '../preconsult/preconsult_page.dart';
 import '../request/request_page.dart';
 import '../trip/trip_route.dart';
 import 'chosen_drivers_cubit.dart';
@@ -81,7 +82,8 @@ class ChosenDriversPage extends StatelessWidget {
                   padding: const EdgeInsets.only(bottom: 96),
                   itemCount: state.drivers.length,
                   separatorBuilder: (_, _) => const Divider(height: 1),
-                  itemBuilder: (context, i) => _DriverTile(driver: state.drivers[i]),
+                  itemBuilder: (context, i) =>
+                      _DriverTile(driver: state.drivers[i], canAskByVoice: state.canAskByVoice(state.drivers[i])),
                 ),
         );
       },
@@ -90,9 +92,12 @@ class ChosenDriversPage extends StatelessWidget {
 }
 
 class _DriverTile extends StatelessWidget {
-  const _DriverTile({required this.driver});
+  const _DriverTile({required this.driver, this.canAskByVoice = false});
 
   final ChosenDriver driver;
+
+  /// Acepta consultas de voz y está libre (005, RN-KYQ-010).
+  final bool canAskByVoice;
 
   Future<void> _confirmRemove(BuildContext context) async {
     final cubit = context.read<ChosenDriversCubit>();
@@ -125,6 +130,13 @@ class _DriverTile extends StatelessWidget {
             children: [
               PresenceChip(presence: driver.presence, busyUntil: driver.busyUntilEstimate),
               const Spacer(),
+              if (canAskByVoice)
+                IconButton(
+                  key: Key('chosen.voice.${driver.driverId}'),
+                  tooltip: 'Preguntar por voz',
+                  icon: const Icon(Icons.record_voice_over),
+                  onPressed: () => context.push(preconsultLocation(driver.driverId, driver.displayName)),
+                ),
               // Solo se pide viaje a conductores libres (FR-009, FR-012).
               if (driver.presence == DriverPresence.free)
                 FilledButton.tonal(

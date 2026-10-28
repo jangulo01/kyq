@@ -155,3 +155,37 @@ PttControllerFactory fakePttFactory(List<FakePtt> created, {FakePttApi Function(
       created.add(ptt);
       return ptt.controller;
     };
+
+/// [HandsFreePlatform] en memoria: registra lo que pide [HandsFreePtt] y permite simular
+/// pulsaciones.
+class FakeHandsFreePlatform implements HandsFreePlatform {
+  final _signals = StreamController<HandsFreeSignal>.broadcast(sync: true);
+
+  /// Últimas peticiones: `media:on`, `media:off`, `bubble:<look>`, `bubble:hide`.
+  final log = <String>[];
+  bool mediaActive = false;
+  BubbleLook? bubble;
+
+  void emit(HandsFreeSignal s) => _signals.add(s);
+
+  @override
+  Stream<HandsFreeSignal> get signals => _signals.stream;
+
+  @override
+  Future<void> setMediaButtonActive(bool active) async {
+    mediaActive = active;
+    log.add(active ? 'media:on' : 'media:off');
+  }
+
+  @override
+  Future<void> showBubble(BubbleLook look) async {
+    bubble = look;
+    log.add('bubble:${look.name}');
+  }
+
+  @override
+  Future<void> hideBubble() async {
+    bubble = null;
+    log.add('bubble:hide');
+  }
+}

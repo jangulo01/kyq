@@ -86,6 +86,30 @@ void main() {
     );
   });
 
+  test('preconsult.*', () {
+    final opened = RealtimeEvent.fromEnvelope(
+      envelope('preconsult.opened', {
+        'preconsult_id': 'pc1',
+        'passenger_id': 'p1',
+        'passenger_name': 'Ana',
+        'join_deadline': '2026-10-27T12:00:30Z',
+        'closes_at': '2026-10-27T12:02:00Z',
+      }),
+    );
+    expect(opened, isA<PreconsultOpened>());
+    opened as PreconsultOpened;
+    expect(opened.passengerName, 'Ana');
+    expect(opened.closesAt, DateTime.utc(2026, 10, 27, 12, 2));
+    expect(
+      RealtimeEvent.fromEnvelope(envelope('preconsult.joined', {'preconsult_id': 'pc1'})),
+      isA<PreconsultJoined>().having((e) => e.preconsultId, 'id', 'pc1'),
+    );
+    expect(
+      RealtimeEvent.fromEnvelope(envelope('preconsult.closed', {'preconsult_id': 'pc1', 'reason': 'missed'})),
+      isA<PreconsultClosed>().having((e) => e.reason, 'reason', 'missed'),
+    );
+  });
+
   test('notice.created', () {
     final e =
         RealtimeEvent.fromEnvelope(

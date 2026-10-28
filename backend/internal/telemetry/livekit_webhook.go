@@ -93,14 +93,34 @@ func (h *LiveKitWebhook) serve(w http.ResponseWriter, r *http.Request) {
 
 func (h *LiveKitWebhook) countVoice(r *http.Request, ev webhookEvent) {
 	seconds := int64(ev.CreatedAt - ev.Participant.JoinedAt)
-	tripID, err := uuid.Parse(strings.TrimPrefix(ev.Room.Name, "trip-"))
-	if err != nil || seconds <= 0 || ev.Participant.JoinedAt == 0 {
+	if seconds <= 0 || ev.Participant.JoinedAt == 0 {
 		return
 	}
-	parties, err := h.Store.GetTripParties(r.Context(), tripID)
+	driverID, err := h.roomDriver(r, ev.Room.Name)
 	if err != nil {
 		slog.WarnContext(r.Context(), "voice usage without trip", "room", ev.Room.Name, "err", err)
 		return
 	}
-	Add(h.Usage, parties.DriverID, VoiceSeconds, seconds)
+	Add(h.Usage, driverID, VoiceSeconds, seconds)
+}
+
+// roomDriver devuelve el conductor que paga la sala: la del viaje (`trip-{id}`) o la de una
+// pre-consulta (`pre-{id}`, specs/005-ptt-extras).
+func (h *LiveKitWebhook) roomDriver(r *http.Request, room string) (uuid.UUID, error) {
+	if rest, ok := strings.CutPrefix(room, "pre-"); ok {
+		id, err := uuid.Parse(rest)
+		if err != nil {
+			return uuid.Nil, err
+		}
+		return h.Store.GetPreconsultDriver(r.Context(), id)
+	}
+	tripID, err := uuid.Parse(strings.TrimPrefix(room, "trip-"))
+	if err != nil {
+		return uuid.Nil, err
+	}
+	parties, err := h.Store.GetTripParties(r.Context(), tripID)
+	if err != nil {
+		return uuid.Nil, err
+	}
+	return parties.DriverID, nil
 }

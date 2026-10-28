@@ -9,6 +9,7 @@ import 'package:kyq_realtime/kyq_realtime.dart';
 import 'package:kyq_ui/kyq_ui.dart';
 
 import '../background/location_reporter.dart';
+import '../handsfree/hands_free_settings_cubit.dart';
 import '../notices/notices_cubit.dart';
 import '../notices/notices_page.dart';
 import '../offers/offer_cubit.dart';
@@ -20,6 +21,10 @@ import '../onboarding/documents_page.dart';
 import '../onboarding/my_qr_page.dart';
 import '../onboarding/onboarding_cubit.dart';
 import '../onboarding/vehicle_page.dart';
+import '../preconsult/preconsult_cubit.dart';
+import '../preconsult/preconsult_page.dart';
+import '../preconsult/preconsult_settings_cubit.dart';
+import '../preconsult/preconsult_settings_page.dart';
 import '../presence/presence_cubit.dart';
 import '../realtime/driver_events.dart';
 import '../subscription/subscription_cubit.dart';
@@ -94,6 +99,20 @@ class _KyqDriverAppState extends State<KyqDriverApp> {
   );
   late final OnboardingCubit _onboarding = OnboardingCubit(widget.api);
   late final NoticesCubit _notices = NoticesCubit(widget.api, _events.stream, onNotice: _onNotice);
+  // 005: botón físico y burbuja para el canal abierto, y pre-consultas de voz.
+  late final HandsFreePtt _handsFree = HandsFreePtt(widget.services.handsFree);
+  late final HandsFreeSettingsCubit _handsFreeSettings = HandsFreeSettingsCubit(
+    store: widget.services.handsFreePrefs,
+    overlay: widget.services.overlayPermission,
+    handsFree: _handsFree,
+  );
+  late final PreconsultCubit _preconsults = PreconsultCubit(
+    api: widget.api,
+    events: _events.stream,
+    ptt: widget.services.preconsultPtt,
+    handsFree: _handsFree,
+  );
+  late final AppLifecycleListener _lifecycle;
   late final StreamSubscription<AuthState> _authSub;
   late final StreamSubscription<OnboardingStatus?> _onboardingSub;
 
@@ -137,6 +156,19 @@ class _KyqDriverAppState extends State<KyqDriverApp> {
           GoRoute(path: 'clients', builder: (context, state) => const ClientsPage()),
           GoRoute(path: 'notices', builder: (context, state) => const NoticesPage()),
           GoRoute(
+            path: 'preconsults',
+            builder: (context, state) => const PreconsultPage(),
+            routes: [
+              GoRoute(
+                path: 'settings',
+                builder: (context, state) => BlocProvider(
+                  create: (_) => PreconsultSettingsCubit(widget.api)..load(),
+                  child: const PreconsultSettingsPage(),
+                ),
+              ),
+            ],
+          ),
+          GoRoute(
             path: 'subscription',
             builder: (context, state) => BlocProvider(
               create: (_) => SubscriptionCubit(
@@ -170,7 +202,14 @@ class _KyqDriverAppState extends State<KyqDriverApp> {
                     ),
                   ),
                 ],
-                child: Builder(builder: (context) => TripPage(ptt: context.read<PttController>())),
+                // El botón físico y la burbuja hablan por el canal del viaje (RN-KYQ-012).
+                child: Builder(
+                  builder: (context) => HandsFreeAttachment(
+                    handsFree: _handsFree,
+                    controller: context.read<PttController>(),
+                    child: TripPage(ptt: context.read<PttController>()),
+                  ),
+                ),
               );
             },
           ),
@@ -183,6 +222,8 @@ class _KyqDriverAppState extends State<KyqDriverApp> {
   void initState() {
     super.initState();
     _authSub = widget.auth.stream.listen(_onAuth);
+    _lifecycle = AppLifecycleListener(onStateChange: _onLifecycle);
+    unawaited(_handsFreeSettings.load());
     // Sin refreshListenable: refrescar el router reconstruye las páginas apiladas (un viaje, una
     // captura a medias). Basta con salir del inicio cuando el alta queda pendiente.
     _onboardingSub = _onboarding.stream.map((s) => s.status).distinct().listen((_) {
@@ -198,6 +239,7 @@ class _KyqDriverAppState extends State<KyqDriverApp> {
         if (_presence.state.me == null && !_presence.state.loading) unawaited(_presence.load());
         if (_onboarding.state.onboarding == null && !_onboarding.state.loading) unawaited(_onboarding.load());
         unawaited(_notices.load());
+        unawaited(_preconsults.load());
       case AuthSignedOut():
         if (_presence.state.me != null) unawaited(_presence.reset());
         _onboarding.reset();
@@ -205,6 +247,13 @@ class _KyqDriverAppState extends State<KyqDriverApp> {
       default:
         break;
     }
+  }
+
+  /// La burbuja solo se muestra con Kyq en segundo plano (FR-014); al volver se revisa el permiso.
+  void _onLifecycle(AppLifecycleState state) {
+    final foreground = state == AppLifecycleState.resumed;
+    _handsFree.setForeground(foreground);
+    if (foreground) unawaited(_handsFreeSettings.refreshPermission());
   }
 
   /// Alta sin terminar (T018): sin vehículo → vehículo; documentos pendientes → documentos. En
@@ -253,6 +302,10 @@ class _KyqDriverAppState extends State<KyqDriverApp> {
     _presence.close();
     _onboarding.close();
     _notices.close();
+    _lifecycle.dispose();
+    _preconsults.close();
+    _handsFreeSettings.close();
+    _handsFree.dispose();
     _events.dispose();
     super.dispose();
   }
@@ -271,16 +324,28 @@ class _KyqDriverAppState extends State<KyqDriverApp> {
           BlocProvider.value(value: _offers),
           BlocProvider.value(value: _onboarding),
           BlocProvider.value(value: _notices),
+          BlocProvider.value(value: _preconsults),
+          BlocProvider.value(value: _handsFreeSettings),
         ],
         child: MaterialApp.router(
           title: 'Kyq Conductor',
           theme: kyqTheme(),
           routerConfig: _router,
           scaffoldMessengerKey: _messenger,
-          builder: (context, child) => BlocListener<OfferCubit, OfferState>(
-            bloc: _offers,
-            listenWhen: (a, b) => a.runtimeType != b.runtimeType,
-            listener: _onOffer,
+          builder: (context, child) => MultiBlocListener(
+            listeners: [
+              BlocListener<OfferCubit, OfferState>(
+                bloc: _offers,
+                listenWhen: (a, b) => a.runtimeType != b.runtimeType,
+                listener: _onOffer,
+              ),
+              // Motivo de cierre de una consulta de voz (005).
+              BlocListener<PreconsultCubit, PreconsultState>(
+                bloc: _preconsults,
+                listenWhen: (a, b) => b.notice != null && a.notice != b.notice,
+                listener: (context, s) => _messenger.currentState?.showSnackBar(SnackBar(content: Text(s.notice!))),
+              ),
+            ],
             child: child!,
           ),
         ),

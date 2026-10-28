@@ -1,4 +1,5 @@
-// Eventos de specs/001-chosen-driver-trip-ptt/contracts/realtime.md y `notice.created` de 002.
+// Eventos de specs/001-chosen-driver-trip-ptt/contracts/realtime.md, `notice.created` de 002 y
+// `preconsult.*` de 005.
 
 /// Nombres de canal autorizados por el backend.
 abstract final class Channels {
@@ -67,6 +68,20 @@ sealed class RealtimeEvent {
         speedMps: (data['speed_mps'] as num?)?.toDouble(),
       ),
       'ptt.closed' => PttClosed(at, tripId: data['trip_id'] as String),
+      'preconsult.opened' => PreconsultOpened(
+        at,
+        preconsultId: data['preconsult_id'] as String,
+        passengerId: data['passenger_id'] as String,
+        passengerName: data['passenger_name'] as String? ?? '',
+        joinDeadline: DateTime.parse(data['join_deadline'] as String),
+        closesAt: DateTime.parse(data['closes_at'] as String),
+      ),
+      'preconsult.joined' => PreconsultJoined(at, preconsultId: data['preconsult_id'] as String),
+      'preconsult.closed' => PreconsultClosed(
+        at,
+        preconsultId: data['preconsult_id'] as String,
+        reason: data['reason'] as String? ?? '',
+      ),
       'notice.created' => NoticeCreated(
         at,
         noticeId: (data['id'] ?? data['notice_id']) as String,
@@ -191,6 +206,39 @@ final class PttClosed extends RealtimeEvent {
   const PttClosed(super.occurredAt, {required this.tripId});
 
   final String tripId;
+}
+
+/// Un cliente abrió una consulta de voz con el conductor (005, RN-KYQ-010).
+final class PreconsultOpened extends RealtimeEvent {
+  const PreconsultOpened(
+    super.occurredAt, {
+    required this.preconsultId,
+    required this.passengerId,
+    required this.passengerName,
+    required this.joinDeadline,
+    required this.closesAt,
+  });
+
+  final String preconsultId;
+  final String passengerId;
+  final String passengerName;
+  final DateTime joinDeadline;
+  final DateTime closesAt;
+}
+
+/// La app del conductor se unió a la consulta: el pasajero ya puede hablar (005).
+final class PreconsultJoined extends RealtimeEvent {
+  const PreconsultJoined(super.occurredAt, {required this.preconsultId});
+
+  final String preconsultId;
+}
+
+/// La consulta se cerró; [reason] es el motivo del contrato, p. ej. `missed` (005).
+final class PreconsultClosed extends RealtimeEvent {
+  const PreconsultClosed(super.occurredAt, {required this.preconsultId, required this.reason});
+
+  final String preconsultId;
+  final String reason;
 }
 
 /// Aviso nuevo para el conductor (documentos, pagos) en `user:{id}` (002, R5).

@@ -588,11 +588,12 @@ func (ns NullUserRole) Value() (driver.Value, error) {
 }
 
 type Affiliation struct {
-	PassengerID uuid.UUID
-	DriverID    uuid.UUID
-	Source      AffiliationSource
-	CreatedAt   time.Time
-	RemovedAt   pgtype.Timestamptz
+	PassengerID        uuid.UUID
+	DriverID           uuid.UUID
+	Source             AffiliationSource
+	CreatedAt          time.Time
+	RemovedAt          pgtype.Timestamptz
+	PreconsultsBlocked bool
 }
 
 type CostRate struct {
@@ -627,6 +628,7 @@ type Driver struct {
 	VehicleModel          pgtype.Text
 	VehicleColor          pgtype.Text
 	VehicleYear           pgtype.Int2
+	AcceptsPreconsults    bool
 }
 
 type DriverDocument struct {
@@ -717,6 +719,22 @@ type PttChannel struct {
 	OpenedAt       time.Time
 	ClosesAt       pgtype.Timestamptz
 	ClosedAt       pgtype.Timestamptz
+	FloorHolderID  uuid.NullUUID
+	FloorExpiresAt pgtype.Timestamptz
+}
+
+type PttPreconsult struct {
+	ID             uuid.UUID
+	PassengerID    uuid.UUID
+	DriverID       uuid.UUID
+	RoomName       string
+	OpenedAt       time.Time
+	JoinDeadline   time.Time
+	ClosesAt       time.Time
+	JoinedAt       pgtype.Timestamptz
+	AnsweredAt     pgtype.Timestamptz
+	ClosedAt       pgtype.Timestamptz
+	CloseReason    pgtype.Text
 	FloorHolderID  uuid.NullUUID
 	FloorExpiresAt pgtype.Timestamptz
 }

@@ -54,6 +54,8 @@ type Service struct {
 	Usage     telemetry.Usage
 	Now       func() time.Time
 	Logger    *slog.Logger
+
+	lastPurge time.Time // último borrado de pre-consultas viejas (solo el barrido)
 }
 
 func (s *Service) now() time.Time {
@@ -168,16 +170,11 @@ func (s *Service) TakeFloor(ctx context.Context, userID, tripID uuid.UUID) (time
 	if err != nil {
 		return time.Time{}, err
 	}
-	if err := s.Rooms.SetCanPublish(ctx, ch.RoomName, userID.String(), true); err != nil {
-		s.logger().ErrorContext(ctx, "grant livekit publish", "room", ch.RoomName, "err", err)
-		// LiveKit pudo aplicar el permiso aunque la llamada fallara: se suelta el turno solo si
-		// el permiso queda retirado; si no, caduca y el barrido lo retira.
-		if s.Rooms.SetCanPublish(ctx, ch.RoomName, userID.String(), false) == nil {
-			if err := s.Store.ReleasePTTFloor(ctx, store.ReleasePTTFloorParams{TripID: tripID, FloorHolderID: holder(userID)}); err != nil {
-				return time.Time{}, err
-			}
-		}
-		return time.Time{}, ErrUnavailable
+	undo := func() error {
+		return s.Store.ReleasePTTFloor(ctx, store.ReleasePTTFloorParams{TripID: tripID, FloorHolderID: holder(userID)})
+	}
+	if err := s.grantPublish(ctx, ch.RoomName, userID, undo); err != nil {
+		return time.Time{}, err
 	}
 	return expires.Time, nil
 }
@@ -199,11 +196,9 @@ func (s *Service) ReleaseFloor(ctx context.Context, userID, tripID uuid.UUID) er
 	if ch.FloorHolderID != holder(userID) {
 		return nil
 	}
-	if err := s.Rooms.SetCanPublish(ctx, ch.RoomName, userID.String(), false); err != nil {
-		s.logger().ErrorContext(ctx, "revoke livekit publish", "room", ch.RoomName, "err", err)
-		return ErrUnavailable
-	}
-	return s.Store.ReleasePTTFloor(ctx, store.ReleasePTTFloorParams{TripID: tripID, FloorHolderID: holder(userID)})
+	return s.revokeThenRelease(ctx, ch.RoomName, userID, func() error {
+		return s.Store.ReleasePTTFloor(ctx, store.ReleasePTTFloorParams{TripID: tripID, FloorHolderID: holder(userID)})
+	})
 }
 
 // ExpireFloors frees turns past their FloorTTL and revokes their holders' publishing, so an app
@@ -214,20 +209,13 @@ func (s *Service) ExpireFloors(ctx context.Context) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	count := 0
-	for _, f := range expired {
-		// Primero se retira el permiso: si falla, el turno sigue vencido y se reintenta.
-		if err := s.Rooms.SetCanPublish(ctx, f.RoomName, f.FloorHolderID.UUID.String(), false); err != nil {
-			s.logger().WarnContext(ctx, "revoke expired floor", "room", f.RoomName, "err", err)
-			continue
-		}
-		n, err := s.Store.ClearExpiredPTTFloor(ctx, store.ClearExpiredPTTFloorParams{TripID: f.TripID, HolderID: f.FloorHolderID, Now: ts(now)})
-		if err != nil {
-			return count, err
-		}
-		count += int(n)
+	floors := make([]expiredFloor, len(expired))
+	for i, f := range expired {
+		floors[i] = expiredFloor{room: f.RoomName, holder: f.FloorHolderID, clear: func() (int64, error) {
+			return s.Store.ClearExpiredPTTFloor(ctx, store.ClearExpiredPTTFloorParams{TripID: f.TripID, HolderID: f.FloorHolderID, Now: ts(now)})
+		}}
 	}
-	return count, nil
+	return s.expire(ctx, floors)
 }
 
 // CloseDue closes every channel whose closes_at has passed: deletes the LiveKit room, marks the
@@ -284,6 +272,7 @@ func (s *Service) RunSweeper(ctx context.Context, interval time.Duration) {
 			} else if n > 0 {
 				s.logger().InfoContext(ctx, "closed ptt channels", "count", n)
 			}
+			s.sweepPreconsults(ctx)
 		}
 	}
 }
