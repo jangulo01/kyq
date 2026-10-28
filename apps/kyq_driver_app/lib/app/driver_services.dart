@@ -1,3 +1,4 @@
+import 'package:kyq_api/kyq_api.dart';
 import 'package:kyq_ptt/kyq_ptt.dart';
 
 import '../background/foreground_service.dart';
@@ -24,6 +25,7 @@ class DriverServices {
     required this.handsFree,
     required this.handsFreePrefs,
     required this.overlayPermission,
+    this.cooperativePtt = PttController.cooperative,
   });
 
   factory DriverServices.platform(DriverEventSource events) => DriverServices(
@@ -62,4 +64,7 @@ class DriverServices {
   final HandsFreePlatform handsFree;
   final HandsFreePrefsStore handsFreePrefs;
   final OverlayPermission overlayPermission;
+
+  /// Walkie-talkie de grupo de la cooperativa (006, COOP_GROUP).
+  final PttController Function(KyqApiClient api) cooperativePtt;
 }

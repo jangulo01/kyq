@@ -11,6 +11,7 @@ import (
 	"github.com/kyq/backend/internal/billing"
 	"github.com/kyq/backend/internal/control"
 	"github.com/kyq/backend/internal/crm"
+	"github.com/kyq/backend/internal/cooperatives"
 	"github.com/kyq/backend/internal/drivers"
 	"github.com/kyq/backend/internal/health"
 	"github.com/kyq/backend/internal/kyc"
@@ -43,6 +44,9 @@ type Deps struct {
 	Tower  *control.Handlers
 	CRM    *crm.Handlers
 	Health *health.Handlers
+	// 006: cooperativas, membresías y canal PTT de grupo.
+	Cooperatives *cooperatives.Handlers
+	GroupPTT     *ptt.GroupHandlers
 	// LiveKitWebhook is public: LiveKit authenticates it with its own signature.
 	LiveKitWebhook *telemetry.LiveKitWebhook
 }
@@ -111,6 +115,12 @@ func NewRouter(d Deps) http.Handler {
 		}
 		if d.Health != nil {
 			d.Health.Register(mux, requireAuth)
+		}
+		if d.Cooperatives != nil {
+			d.Cooperatives.Register(mux, requireAuth)
+		}
+		if d.GroupPTT != nil {
+			d.GroupPTT.Register(mux, requireAuth)
 		}
 	}
 

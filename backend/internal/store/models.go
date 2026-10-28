@@ -54,6 +54,90 @@ func (ns NullAffiliationSource) Value() (driver.Value, error) {
 	return string(ns.AffiliationSource), nil
 }
 
+type CooperativeRole string
+
+const (
+	CooperativeRoleMember      CooperativeRole = "member"
+	CooperativeRoleCoordinator CooperativeRole = "coordinator"
+)
+
+func (e *CooperativeRole) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = CooperativeRole(s)
+	case string:
+		*e = CooperativeRole(s)
+	default:
+		return fmt.Errorf("unsupported scan type for CooperativeRole: %T", src)
+	}
+	return nil
+}
+
+type NullCooperativeRole struct {
+	CooperativeRole CooperativeRole
+	Valid           bool // Valid is true if CooperativeRole is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullCooperativeRole) Scan(value interface{}) error {
+	if value == nil {
+		ns.CooperativeRole, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.CooperativeRole.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullCooperativeRole) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.CooperativeRole), nil
+}
+
+type CooperativeStatus string
+
+const (
+	CooperativeStatusActive    CooperativeStatus = "active"
+	CooperativeStatusSuspended CooperativeStatus = "suspended"
+)
+
+func (e *CooperativeStatus) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = CooperativeStatus(s)
+	case string:
+		*e = CooperativeStatus(s)
+	default:
+		return fmt.Errorf("unsupported scan type for CooperativeStatus: %T", src)
+	}
+	return nil
+}
+
+type NullCooperativeStatus struct {
+	CooperativeStatus CooperativeStatus
+	Valid             bool // Valid is true if CooperativeStatus is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullCooperativeStatus) Scan(value interface{}) error {
+	if value == nil {
+		ns.CooperativeStatus, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.CooperativeStatus.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullCooperativeStatus) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.CooperativeStatus), nil
+}
+
 type CostConcept string
 
 const (
@@ -360,6 +444,52 @@ func (ns NullFareProposalStatus) Value() (driver.Value, error) {
 	return string(ns.FareProposalStatus), nil
 }
 
+type MembershipStatus string
+
+const (
+	MembershipStatusPending   MembershipStatus = "pending"
+	MembershipStatusActive    MembershipStatus = "active"
+	MembershipStatusRejected  MembershipStatus = "rejected"
+	MembershipStatusCancelled MembershipStatus = "cancelled"
+	MembershipStatusLeft      MembershipStatus = "left"
+	MembershipStatusRemoved   MembershipStatus = "removed"
+)
+
+func (e *MembershipStatus) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = MembershipStatus(s)
+	case string:
+		*e = MembershipStatus(s)
+	default:
+		return fmt.Errorf("unsupported scan type for MembershipStatus: %T", src)
+	}
+	return nil
+}
+
+type NullMembershipStatus struct {
+	MembershipStatus MembershipStatus
+	Valid            bool // Valid is true if MembershipStatus is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullMembershipStatus) Scan(value interface{}) error {
+	if value == nil {
+		ns.MembershipStatus, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.MembershipStatus.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullMembershipStatus) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.MembershipStatus), nil
+}
+
 type ModerationKind string
 
 const (
@@ -491,6 +621,47 @@ func (ns NullPaymentStatus) Value() (driver.Value, error) {
 	return string(ns.PaymentStatus), nil
 }
 
+type PttChannelType string
+
+const (
+	PttChannelTypeCOOPGROUP PttChannelType = "COOP_GROUP"
+)
+
+func (e *PttChannelType) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = PttChannelType(s)
+	case string:
+		*e = PttChannelType(s)
+	default:
+		return fmt.Errorf("unsupported scan type for PttChannelType: %T", src)
+	}
+	return nil
+}
+
+type NullPttChannelType struct {
+	PttChannelType PttChannelType
+	Valid          bool // Valid is true if PttChannelType is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullPttChannelType) Scan(value interface{}) error {
+	if value == nil {
+		ns.PttChannelType, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.PttChannelType.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullPttChannelType) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.PttChannelType), nil
+}
+
 type TripCancelReason string
 
 const (
@@ -500,6 +671,7 @@ const (
 	TripCancelReasonOfferRejected     TripCancelReason = "offer_rejected"
 	TripCancelReasonFareRejected      TripCancelReason = "fare_rejected"
 	TripCancelReasonNegotiationFailed TripCancelReason = "negotiation_failed"
+	TripCancelReasonNoDriverAvailable TripCancelReason = "no_driver_available"
 )
 
 func (e *TripCancelReason) Scan(src interface{}) error {
@@ -535,6 +707,48 @@ func (ns NullTripCancelReason) Value() (driver.Value, error) {
 		return nil, nil
 	}
 	return string(ns.TripCancelReason), nil
+}
+
+type TripDispatch string
+
+const (
+	TripDispatchChosenDriver TripDispatch = "chosen_driver"
+	TripDispatchCooperative  TripDispatch = "cooperative"
+)
+
+func (e *TripDispatch) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = TripDispatch(s)
+	case string:
+		*e = TripDispatch(s)
+	default:
+		return fmt.Errorf("unsupported scan type for TripDispatch: %T", src)
+	}
+	return nil
+}
+
+type NullTripDispatch struct {
+	TripDispatch TripDispatch
+	Valid        bool // Valid is true if TripDispatch is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullTripDispatch) Scan(value interface{}) error {
+	if value == nil {
+		ns.TripDispatch, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.TripDispatch.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullTripDispatch) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.TripDispatch), nil
 }
 
 type TripStatus string
@@ -638,6 +852,31 @@ type Affiliation struct {
 	PreconsultsBlocked bool
 }
 
+type Cooperative struct {
+	ID        uuid.UUID
+	Name      string
+	CityCode  string
+	Nit       pgtype.Text
+	Status    CooperativeStatus
+	CreatedBy uuid.UUID
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
+type CooperativeMembership struct {
+	ID            uuid.UUID
+	CooperativeID uuid.UUID
+	DriverID      uuid.UUID
+	Role          CooperativeRole
+	Status        MembershipStatus
+	RejectReason  pgtype.Text
+	RequestedAt   time.Time
+	DecidedBy     uuid.NullUUID
+	DecidedAt     pgtype.Timestamptz
+	EndedBy       uuid.NullUUID
+	EndedAt       pgtype.Timestamptz
+}
+
 type CostRate struct {
 	Concept       CostConcept
 	Currency      string
@@ -717,6 +956,15 @@ type FareTable struct {
 	RoundingMinor  int64
 	UpdatedBy      uuid.UUID
 	UpdatedAt      time.Time
+}
+
+type GroupPttChannel struct {
+	CooperativeID  uuid.UUID
+	ChannelType    PttChannelType
+	RoomName       string
+	FloorHolderID  uuid.NullUUID
+	FloorExpiresAt pgtype.Timestamptz
+	CreatedAt      time.Time
 }
 
 type ModerationAction struct {
@@ -841,6 +1089,18 @@ type Trip struct {
 	StartedAt               pgtype.Timestamptz
 	CompletedAt             pgtype.Timestamptz
 	CancelledAt             pgtype.Timestamptz
+	Dispatch                TripDispatch
+	RequestedDriverID       uuid.UUID
+	CooperativeID           uuid.NullUUID
+	AllowDelegation         bool
+	HandoverCount           int16
+}
+
+type TripOffer struct {
+	TripID    uuid.UUID
+	DriverID  uuid.UUID
+	OfferedAt time.Time
+	Handover  bool
 }
 
 type User struct {

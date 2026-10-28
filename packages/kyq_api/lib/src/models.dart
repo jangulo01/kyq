@@ -1,6 +1,8 @@
 // Modelos de specs/001-chosen-driver-trip-ptt/contracts/api.yaml.
 import 'package:freezed_annotation/freezed_annotation.dart';
 
+import 'cooperative_models.dart';
+
 part 'models.freezed.dart';
 part 'models.g.dart';
 
@@ -153,6 +155,9 @@ abstract class ChosenDriver with _$ChosenDriver {
     required String vehicleDescription,
     required DriverPresence presence,
     DateTime? busyUntilEstimate,
+
+    /// 006: cooperativa activa del conductor, si tiene (selector de despacho).
+    CooperativeRef? cooperative,
   }) = _ChosenDriver;
 
   factory ChosenDriver.fromJson(Map<String, dynamic> json) => _$ChosenDriverFromJson(json);
@@ -234,6 +239,17 @@ abstract class Trip with _$Trip {
     DateTime? offerExpiresAt,
     DateTime? negotiationExpiresAt,
     String? cancelReason,
+    // 006: despacho y delegación (RN-KYQ-008).
+    @Default(TripDispatch.chosenDriver) TripDispatch dispatch,
+    String? requestedDriverId,
+
+    /// Nombre del conductor actual; cambia si la solicitud pasa a un compañero.
+    String? driverName,
+    String? cooperativeId,
+    String? cooperativeName,
+    @Default(false) bool allowDelegation,
+    @Default(0) int handoverCount,
+    @Default(false) bool canDelegate,
   }) = _Trip;
 
   factory Trip.fromJson(Map<String, dynamic> json) => _$TripFromJson(json);
@@ -246,4 +262,10 @@ abstract class PttCredentials with _$PttCredentials {
       _PttCredentials;
 
   factory PttCredentials.fromJson(Map<String, dynamic> json) => _$PttCredentialsFromJson(json);
+}
+
+/// 006: lectura de la delegación del viaje.
+extension TripDelegation on Trip {
+  /// La solicitud la atiende un compañero de la cooperativa y no el Conductor Elegido pedido.
+  bool get isDelegated => requestedDriverId != null && requestedDriverId != driverId;
 }

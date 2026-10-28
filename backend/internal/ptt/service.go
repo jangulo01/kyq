@@ -46,9 +46,11 @@ type Credentials struct {
 // LiveKit must run with room auto-creation off (infra/livekit.yaml): rooms exist only while
 // this service keeps them, so a token issued before the channel closed cannot reopen it.
 type Service struct {
-	Store     *store.Store
-	LiveKit   LiveKit
-	Rooms     Rooms
+	Store   *store.Store
+	LiveKit LiveKit
+	Rooms   Rooms
+	// Groups serves the cooperative group channel (006); nil disables it.
+	Groups    GroupRooms
 	PublicURL string // LiveKit WebSocket URL handed to the apps
 	Publisher realtime.Publisher
 	Usage     telemetry.Usage
@@ -266,6 +268,9 @@ func (s *Service) RunSweeper(ctx context.Context, interval time.Duration) {
 		case <-ticker.C:
 			if _, err := s.ExpireFloors(ctx); err != nil {
 				s.logger().ErrorContext(ctx, "expire ptt floors", "err", err)
+			}
+			if _, err := s.ExpireGroupFloors(ctx); err != nil {
+				s.logger().ErrorContext(ctx, "expire group ptt floors", "err", err)
 			}
 			if n, err := s.CloseDue(ctx); err != nil {
 				s.logger().ErrorContext(ctx, "close due ptt channels", "err", err)

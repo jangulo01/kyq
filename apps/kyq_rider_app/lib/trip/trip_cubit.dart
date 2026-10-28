@@ -78,6 +78,7 @@ class TripCubit extends Cubit<TripState> {
     }
     final forThisTrip = switch (e) {
       TripStatusChanged(:final tripId) ||
+      TripDelegated(:final tripId) ||
       FareProposed(:final tripId) ||
       NegotiationRequested(:final tripId) => tripId == this.tripId,
       _ => false,

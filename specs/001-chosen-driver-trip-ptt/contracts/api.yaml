@@ -237,7 +237,7 @@ paths:
 
   /v1/trips:
     post:
-      summary: Solicita un viaje a un Conductor Elegido libre (FR-009, FR-011)
+      summary: Solicita un viaje al Conductor Elegido o a su cooperativa (FR-009–FR-015)
       requestBody:
         required: true
         content:
@@ -249,10 +249,19 @@ paths:
                   required: [driver_id]
                   properties:
                     driver_id: { type: string, format: uuid }
+                    dispatch:
+                      type: string
+                      enum: [chosen_driver, cooperative]
+                      default: chosen_driver
+                      description: '`nearest_independent` (opción 3) queda fuera de 006'
+                    allow_delegation:
+                      type: boolean
+                      default: false
+                      description: Consentimiento para pasar a la cooperativa del conductor (RN-KYQ-008)
       responses:
         '201': { $ref: '#/components/responses/Trip' }
         '409':
-          description: '`code` = driver_not_free | not_affiliated | passenger_has_active_trip'
+          description: '`code` = driver_not_free | not_affiliated | passenger_has_active_trip | no_cooperative | no_driver_available'
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
@@ -896,6 +905,8 @@ paths:
               schema: { type: array, items: { $ref: '#/components/schemas/DriverCost' } }
         '400': { $ref: '#/components/responses/Error' }
 
+  # --- 006 cooperativas y delegación ----------------------------------------------------
+
   /v1/driver/preconsults/settings:
     get:
       summary: Ajustes de consultas de voz del conductor (FR-001, FR-002)
@@ -1176,6 +1187,242 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/HealthReport' }
         '403': { $ref: '#/components/responses/Error' }
+  /v1/trips/{tripId}/delegate:
+    post:
+      summary: El conductor con la oferta la pasa a su cooperativa (FR-013)
+      parameters: [ { $ref: '#/components/parameters/TripId' } ]
+      responses:
+        '200': { $ref: '#/components/responses/Trip' }
+        '403': { $ref: '#/components/responses/Error' }
+        '409': { description: '`delegation_not_allowed`, `expired` o `invalid_transition`' }
+  /v1/cooperatives:
+    get:
+      summary: Cooperativas activas a las que un conductor puede pedir entrar (FR-004)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  cooperatives:
+                    type: array
+                    items: { $ref: '#/components/schemas/Cooperative' }
+  /v1/driver/cooperative:
+    get:
+      summary: Mi cooperativa, mis compañeros y, si soy coordinador, las solicitudes (FR-007)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DriverCooperative' }
+  /v1/driver/cooperative/requests:
+    post:
+      summary: Pide entrar a una cooperativa (FR-003, FR-004)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [cooperative_id]
+              properties:
+                cooperative_id: { type: string, format: uuid }
+      responses:
+        '201':
+          description: Solicitud pendiente
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Membership' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { description: '`already_in_cooperative`: ya es miembro o tiene una solicitud en curso' }
+    delete:
+      summary: Retira la solicitud pendiente
+      responses:
+        '204': { description: Retirada }
+        '404': { $ref: '#/components/responses/Error' }
+  /v1/driver/cooperative/membership:
+    delete:
+      summary: Sale de la cooperativa (FR-004)
+      responses:
+        '204': { description: Salió }
+        '404': { $ref: '#/components/responses/Error' }
+  /v1/driver/cooperative/requests/{membershipId}/decision:
+    post:
+      summary: El coordinador aprueba o rechaza una solicitud de su cooperativa (FR-005)
+      parameters: [ { $ref: '#/components/parameters/MembershipId' } ]
+      requestBody: { $ref: '#/components/requestBodies/Decision' }
+      responses:
+        '204': { description: Decidida }
+        '400': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+  /v1/driver/cooperative/members/{driverId}:
+    delete:
+      summary: El coordinador retira a un miembro que no es coordinador (FR-006)
+      parameters: [ { $ref: '#/components/parameters/DriverId' } ]
+      responses:
+        '204': { description: Retirado }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+  /v1/driver/cooperative/ptt/token:
+    post:
+      summary: Credenciales del canal de voz de grupo de mi cooperativa (FR-022)
+      responses:
+        '200':
+          description: Token para escuchar y enviar datos; publicar audio lo concede el turno
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PttCredentials' }
+        '404': { description: '`no_cooperative`: sin cooperativa activa' }
+        '503': { description: '`ptt_unavailable`' }
+  /v1/driver/cooperative/ptt/floor:
+    post:
+      summary: Pide el turno único del grupo (FR-023)
+      responses:
+        '200':
+          description: Turno concedido
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  expires_at: { type: string, format: date-time }
+        '404': { description: '`no_cooperative`' }
+        '409': { description: '`ptt_busy`: otro miembro habla' }
+        '503': { description: '`ptt_unavailable`' }
+    delete:
+      summary: Libera el turno (sin efecto si el llamante no lo tiene)
+      responses:
+        '204': { description: Liberado }
+        '404': { description: '`no_cooperative`' }
+        '503': { description: '`ptt_unavailable`' }
+  /v1/admin/cooperatives:
+    get:
+      summary: Cooperativas con miembros y solicitudes pendientes (FR-002)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  cooperatives:
+                    type: array
+                    items: { $ref: '#/components/schemas/Cooperative' }
+    post:
+      summary: Crea una cooperativa (FR-001)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CooperativeInput' }
+      responses:
+        '201':
+          description: Creada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Cooperative' }
+        '400': { $ref: '#/components/responses/Error' }
+        '409': { description: '`cooperative_name_taken`' }
+  /v1/admin/cooperatives/{cooperativeId}:
+    get:
+      summary: Detalle con miembros y solicitudes pendientes (FR-002)
+      parameters: [ { $ref: '#/components/parameters/CooperativeId' } ]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CooperativeDetail' }
+        '404': { $ref: '#/components/responses/Error' }
+    patch:
+      summary: Edita nombre, NIT, ciudad o estado (suspender o reactivar)
+      parameters: [ { $ref: '#/components/parameters/CooperativeId' } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string }
+                city_code: { type: string }
+                nit: { type: [string, 'null'] }
+                status: { type: string, enum: [active, suspended] }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Cooperative' }
+        '400': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { description: '`cooperative_name_taken`' }
+  /v1/admin/cooperatives/{cooperativeId}/members:
+    post:
+      summary: Agrega directamente a un conductor sin cooperativa (FR-006)
+      parameters: [ { $ref: '#/components/parameters/CooperativeId' } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [driver_id]
+              properties:
+                driver_id: { type: string, format: uuid }
+                role: { $ref: '#/components/schemas/CooperativeRole' }
+      responses:
+        '201':
+          description: Miembro activo
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Membership' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { description: '`already_in_cooperative`' }
+  /v1/admin/cooperatives/{cooperativeId}/members/{driverId}:
+    delete:
+      summary: Retira a un miembro (FR-006)
+      parameters:
+        - { $ref: '#/components/parameters/CooperativeId' }
+        - { $ref: '#/components/parameters/DriverId' }
+      responses:
+        '204': { description: Retirado }
+        '404': { $ref: '#/components/responses/Error' }
+  /v1/admin/cooperatives/{cooperativeId}/members/{driverId}/role:
+    put:
+      summary: Nombra o quita coordinador (FR-006)
+      parameters:
+        - { $ref: '#/components/parameters/CooperativeId' }
+        - { $ref: '#/components/parameters/DriverId' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [role]
+              properties:
+                role: { $ref: '#/components/schemas/CooperativeRole' }
+      responses:
+        '204': { description: Rol cambiado }
+        '400': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+  /v1/admin/memberships/{membershipId}/decision:
+    post:
+      summary: El administrador aprueba o rechaza una solicitud (FR-005)
+      parameters: [ { $ref: '#/components/parameters/MembershipId' } ]
+      requestBody: { $ref: '#/components/requestBodies/Decision' }
+      responses:
+        '204': { description: Decidida }
+        '400': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
 
 components:
   securitySchemes:
@@ -1189,6 +1436,8 @@ components:
     PassengerId: { name: passengerId, in: path, required: true, schema: { type: string, format: uuid } }
     PreconsultId: { name: preconsultId, in: path, required: true, schema: { type: string, format: uuid } }
     UserId: { name: userId, in: path, required: true, schema: { type: string, format: uuid } }
+    CooperativeId: { name: cooperativeId, in: path, required: true, schema: { type: string, format: uuid } }
+    MembershipId: { name: membershipId, in: path, required: true, schema: { type: string, format: uuid } }
 
   requestBodies:
     Phone:
@@ -1214,6 +1463,16 @@ components:
             required: [reason]
             properties:
               reason: { type: string, description: '3 a 500 caracteres tras recortar espacios' }
+    Decision:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [decision]
+            properties:
+              decision: { type: string, enum: [approve, reject] }
+              reason: { type: string, description: Obligatorio al rechazar }
 
   responses:
     Error:
@@ -1320,6 +1579,9 @@ components:
         vehicle_description: { type: string }
         presence: { $ref: '#/components/schemas/Presence' }
         busy_until_estimate: { type: [string, 'null'], format: date-time }
+        cooperative:
+          description: 006. Cooperativa activa del conductor, para el selector de despacho
+          oneOf: [ { $ref: '#/components/schemas/CooperativeRef' }, { type: 'null' } ]
     DriverMe:
       type: object
       properties:
@@ -1378,7 +1640,17 @@ components:
           format: date-time
           description: Plazo de la respuesta pendiente (oferta 25 s; confirmación, aceptar negociar o propuesta 30 s)
         negotiation_expires_at: { type: [string, 'null'], format: date-time }
-        cancel_reason: { type: [string, 'null'] }
+        cancel_reason:
+          type: [string, 'null']
+          description: 006 añade `no_driver_available` (la delegación no encontró compañero)
+        dispatch: { type: string, enum: [chosen_driver, cooperative], description: '006' }
+        requested_driver_id: { type: string, format: uuid, description: 006. Conductor Elegido pedido }
+        driver_name: { type: string, description: 006. Nombre del conductor actual (cambia al derivar) }
+        cooperative_id: { type: [string, 'null'], format: uuid }
+        cooperative_name: { type: [string, 'null'] }
+        allow_delegation: { type: boolean, description: 006. Consentimiento del pasajero (RN-KYQ-008) }
+        handover_count: { type: integer, minimum: 0, maximum: 3 }
+        can_delegate: { type: boolean, description: 006. El conductor actual puede pasar la oferta }
 
     # --- 002 ---------------------------------------------------------------------------------
     DocumentProblem:
@@ -1782,3 +2054,88 @@ components:
         status: { type: string, enum: [ok, degraded, down] }
         checked_at: { type: string, format: date-time }
         checks: { type: array, items: { $ref: '#/components/schemas/HealthCheck' } }
+    CooperativeRef:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+    CooperativeStatus:
+      type: string
+      enum: [active, suspended]
+    CooperativeRole:
+      type: string
+      enum: [member, coordinator]
+    MembershipStatus:
+      type: string
+      enum: [pending, active, rejected, cancelled, left, removed]
+    CooperativeInput:
+      type: object
+      required: [name, city_code]
+      properties:
+        name: { type: string, minLength: 3, maxLength: 80 }
+        city_code: { type: string }
+        nit: { type: [string, 'null'], maxLength: 20 }
+    Cooperative:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        city_code: { type: string }
+        nit: { type: [string, 'null'] }
+        status: { $ref: '#/components/schemas/CooperativeStatus' }
+        members_count: { type: integer }
+        pending_count: { type: integer }
+        created_at: { type: string, format: date-time }
+    CooperativeMember:
+      type: object
+      properties:
+        membership_id: { type: string, format: uuid }
+        driver_id: { type: string, format: uuid }
+        display_name: { type: string }
+        vehicle_plate: { type: string }
+        role: { $ref: '#/components/schemas/CooperativeRole' }
+        presence: { $ref: '#/components/schemas/Presence' }
+        since: { type: string, format: date-time }
+    MembershipRequest:
+      type: object
+      properties:
+        membership_id: { type: string, format: uuid }
+        driver_id: { type: string, format: uuid }
+        display_name: { type: string }
+        vehicle_plate: { type: string }
+        requested_at: { type: string, format: date-time }
+    Membership:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        cooperative: { $ref: '#/components/schemas/CooperativeRef' }
+        cooperative_status: { $ref: '#/components/schemas/CooperativeStatus' }
+        role: { $ref: '#/components/schemas/CooperativeRole' }
+        status: { $ref: '#/components/schemas/MembershipStatus' }
+        reject_reason: { type: [string, 'null'] }
+        requested_at: { type: string, format: date-time }
+        decided_at: { type: [string, 'null'], format: date-time }
+    CooperativeDetail:
+      type: object
+      properties:
+        cooperative: { $ref: '#/components/schemas/Cooperative' }
+        members:
+          type: array
+          items: { $ref: '#/components/schemas/CooperativeMember' }
+        requests:
+          type: array
+          items: { $ref: '#/components/schemas/MembershipRequest' }
+    DriverCooperative:
+      type: object
+      properties:
+        membership:
+          description: Membresía activa o pendiente; si no hay, la última rechazada (para ver el motivo) o null
+          oneOf: [ { $ref: '#/components/schemas/Membership' }, { type: 'null' } ]
+        members:
+          type: array
+          description: Compañeros (solo con membresía activa)
+          items: { $ref: '#/components/schemas/CooperativeMember' }
+        requests:
+          type: array
+          description: Solicitudes pendientes (solo coordinadores)
+          items: { $ref: '#/components/schemas/MembershipRequest' }

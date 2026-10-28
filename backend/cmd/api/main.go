@@ -18,6 +18,7 @@ import (
 	"github.com/kyq/backend/internal/config"
 	"github.com/kyq/backend/internal/control"
 	"github.com/kyq/backend/internal/crm"
+	"github.com/kyq/backend/internal/cooperatives"
 	"github.com/kyq/backend/internal/drivers"
 	"github.com/kyq/backend/internal/fares"
 	"github.com/kyq/backend/internal/health"
@@ -88,9 +89,10 @@ func run(logger *slog.Logger) error {
 	}
 	livekit := ptt.LiveKit{APIURL: apiURL, APIKey: cfg.LiveKitAPIKey, APISecret: cfg.LiveKitAPISecret}
 	pttService := &ptt.Service{
-		Store: st, LiveKit: livekit, Rooms: livekit, PublicURL: cfg.LiveKitURL, Publisher: publisher, Usage: usage, Logger: logger,
+		Store: st, LiveKit: livekit, Rooms: livekit, Groups: livekit, PublicURL: cfg.LiveKitURL, Publisher: publisher, Usage: usage, Logger: logger,
 	}
 	go pttService.RunSweeper(ctx, time.Second)
+	coopService := &cooperatives.Service{Store: st, Publisher: publisher, Group: pttService, Usage: usage, Logger: logger}
 
 	objects, err := storage.NewS3(storage.S3Options{
 		Endpoint: cfg.S3Endpoint, PublicEndpoint: cfg.S3PublicEndpoint, AccessKey: cfg.S3AccessKey,
@@ -163,6 +165,8 @@ func run(logger *slog.Logger) error {
 		Tower:    &control.Handlers{Store: st},
 		CRM:      &crm.Handlers{Store: st, Moderation: &crm.Moderation{Store: st, Publisher: publisher, Logger: logger}},
 		Health:   &health.Handlers{Checker: checker},
+		Cooperatives: &cooperatives.Handlers{Service: coopService},
+		GroupPTT:     &ptt.GroupHandlers{Service: pttService},
 		LiveKitWebhook: &telemetry.LiveKitWebhook{
 			APIKey: cfg.LiveKitAPIKey, APISecret: cfg.LiveKitAPISecret, Store: st, Usage: usage,
 		},

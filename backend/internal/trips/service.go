@@ -79,6 +79,13 @@ func (s *Service) quote(ctx context.Context, driverID uuid.UUID, pickup, dropoff
 
 // Request creates a nominal trip to a chosen, free driver (FR-009, FR-011, FR-012).
 func (s *Service) Request(ctx context.Context, passengerID, driverID uuid.UUID, pickup, dropoff Point) (*Trip, error) {
+	return s.RequestWith(ctx, passengerID, driverID, pickup, dropoff, RequestOptions{Dispatch: DispatchChosenDriver})
+}
+
+// RequestWith creates a trip with the passenger's dispatch choice: to the chosen driver, with
+// optional consent to pass it to his cooperative, or straight to that cooperative (006,
+// RN-KYQ-008). The first offer goes to whoever the dispatch picks.
+func (s *Service) RequestWith(ctx context.Context, passengerID, driverID uuid.UUID, pickup, dropoff Point, opts RequestOptions) (*Trip, error) {
 	table, route, fare, err := s.quote(ctx, driverID, pickup, dropoff)
 	if err != nil {
 		return nil, err
@@ -100,17 +107,23 @@ func (s *Service) Request(ctx context.Context, passengerID, driverID uuid.UUID, 
 		if !affiliated {
 			return ErrNotAffiliated
 		}
-		driver, err := q.GetDriverForPresence(ctx, driverID)
-		if err != nil {
-			return err
-		}
-		if driver.Presence != store.DriverPresenceFree {
-			return ErrDriverNotFree
-		}
 		if _, err := q.GetActiveTripForPassenger(ctx, passengerID); err == nil {
 			return ErrPassengerHasTrip
 		} else if !store.IsNotFound(err) {
 			return err
+		}
+		if err := dispatchNew(ctx, q, trip, opts, now); err != nil {
+			return err
+		}
+		if trip.DriverID != driverID {
+			// El compañero elegido ya quedó bloqueado por la búsqueda; se confirma que sigue libre.
+			d, err := q.GetDriverForPresence(ctx, trip.DriverID)
+			if err != nil {
+				return err
+			}
+			if d.Presence != store.DriverPresenceFree {
+				return ErrNoDriverAvailable
+			}
 		}
 		if passengerName, err = q.GetUserDisplayName(ctx, passengerID); err != nil {
 			return err
@@ -121,19 +134,30 @@ func (s *Service) Request(ctx context.Context, passengerID, driverID uuid.UUID, 
 			}
 			return err
 		}
+		if err := q.InsertTripOffer(ctx, store.InsertTripOfferParams{
+			TripID: trip.ID, DriverID: trip.DriverID, OfferedAt: now, Handover: trip.Handovers > 0,
+		}); err != nil {
+			return err
+		}
+		if err := loadNames(ctx, q, trip); err != nil {
+			return err
+		}
 		// La oferta reserva al conductor: nadie más puede pedirle viaje (FR-012).
-		return q.SetDriverPresence(ctx, store.SetDriverPresenceParams{UserID: driverID, Presence: store.DriverPresenceBusy})
+		return q.SetDriverPresence(ctx, store.SetDriverPresenceParams{UserID: trip.DriverID, Presence: store.DriverPresenceBusy})
 	})
 	if errors.Is(err, errUniqueActiveViolation) {
+		if trip.DriverID != driverID {
+			return nil, ErrNoDriverAvailable
+		}
 		return nil, ErrDriverNotFree
 	}
 	if err != nil {
 		return nil, err
 	}
 	msgs := eventsFor("", nil, trip, true, passengerName, nil, now)
-	msgs = append(msgs, presenceMessage(driverID, store.DriverPresenceBusy, nil, now))
+	msgs = append(msgs, presenceMessage(trip.DriverID, store.DriverPresenceBusy, nil, now))
 	s.publish(ctx, msgs)
-	telemetry.Add(s.Usage, driverID, telemetry.Events, int64(len(msgs)))
+	telemetry.Add(s.Usage, trip.DriverID, telemetry.Events, int64(len(msgs)))
 	return trip, nil
 }
 
@@ -253,8 +277,17 @@ func snapshot(t *Trip) (Status, *uuid.UUID) {
 
 // persist saves the trip, frees or reserves the driver and returns the events to publish.
 func (s *Service) persist(ctx context.Context, q *store.Queries, t *Trip, before Status, beforeProposal *uuid.UUID, now time.Time) ([]Message, error) {
+	// RN-KYQ-008: una oferta que terminó sin conductor pasa a un compañero o se da por perdida.
+	if t.AwaitsHandOver(before) {
+		if err := handOverOrGiveUp(ctx, q, t, now); err != nil {
+			return nil, err
+		}
+	}
 	if err := save(ctx, q, t); err != nil {
 		return nil, err
+	}
+	if t.PreviousDriverID != nil {
+		return afterHandOver(ctx, q, t, now)
 	}
 	if err := syncPTTChannel(ctx, q, t, before, now); err != nil {
 		return nil, err

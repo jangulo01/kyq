@@ -66,6 +66,23 @@ class _Requested extends StatelessWidget {
     final expires = trip.offerExpiresAt;
     return Column(
       children: [
+        if (trip.isDelegated) ...[
+          Card(
+            child: ListTile(
+              key: const Key('trip.delegated'),
+              leading: const Icon(Icons.groups),
+              title: Text('Tu solicitud pasó a un compañero de ${trip.cooperativeName ?? 'la cooperativa'}'),
+              subtitle: const Text('Tu conductor no podía atenderte ahora.'),
+            ),
+          ),
+        ] else if (trip.dispatch == TripDispatch.cooperative)
+          Card(
+            child: ListTile(
+              key: const Key('trip.cooperativeDispatch'),
+              leading: const Icon(Icons.groups),
+              title: Text('Solicitud a ${trip.cooperativeName ?? 'la cooperativa'}'),
+            ),
+          ),
         const SizedBox(height: 24),
         const CircularProgressIndicator(),
         const SizedBox(height: 24),

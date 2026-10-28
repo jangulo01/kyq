@@ -138,6 +138,16 @@ class HomePage extends StatelessWidget {
                 onTap: () => context.push('/preconsults'),
               ),
             ),
+            Card(
+              child: ListTile(
+                key: const Key('home.cooperative'),
+                leading: const Icon(Icons.diversity_3),
+                title: const Text('Mi cooperativa'),
+                subtitle: const Text('Compañeros, solicitudes derivadas y canal de voz del grupo'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => context.push('/cooperative'),
+              ),
+            ),
           ],
         ),
       ),

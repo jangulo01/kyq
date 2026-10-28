@@ -14,7 +14,7 @@ import (
 )
 
 const getActiveTripForDriver = `-- name: GetActiveTripForDriver :one
-SELECT id, passenger_id, driver_id, city_code, currency, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, route_distance_m, route_duration_s, suggested_fare_minor, agreed_fare_minor, driver_payout_minor, platform_commission_minor, status, cancel_reason, respond_by, negotiation_expires_at, created_at, accepted_at, arrived_at, started_at, completed_at, cancelled_at FROM trips
+SELECT id, passenger_id, driver_id, city_code, currency, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, route_distance_m, route_duration_s, suggested_fare_minor, agreed_fare_minor, driver_payout_minor, platform_commission_minor, status, cancel_reason, respond_by, negotiation_expires_at, created_at, accepted_at, arrived_at, started_at, completed_at, cancelled_at, dispatch, requested_driver_id, cooperative_id, allow_delegation, handover_count FROM trips
 WHERE driver_id = $1 AND status NOT IN ('COMPLETED', 'CANCELLED')
 `
 
@@ -47,12 +47,17 @@ func (q *Queries) GetActiveTripForDriver(ctx context.Context, driverID uuid.UUID
 		&i.StartedAt,
 		&i.CompletedAt,
 		&i.CancelledAt,
+		&i.Dispatch,
+		&i.RequestedDriverID,
+		&i.CooperativeID,
+		&i.AllowDelegation,
+		&i.HandoverCount,
 	)
 	return i, err
 }
 
 const getActiveTripForPassenger = `-- name: GetActiveTripForPassenger :one
-SELECT id, passenger_id, driver_id, city_code, currency, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, route_distance_m, route_duration_s, suggested_fare_minor, agreed_fare_minor, driver_payout_minor, platform_commission_minor, status, cancel_reason, respond_by, negotiation_expires_at, created_at, accepted_at, arrived_at, started_at, completed_at, cancelled_at FROM trips
+SELECT id, passenger_id, driver_id, city_code, currency, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, route_distance_m, route_duration_s, suggested_fare_minor, agreed_fare_minor, driver_payout_minor, platform_commission_minor, status, cancel_reason, respond_by, negotiation_expires_at, created_at, accepted_at, arrived_at, started_at, completed_at, cancelled_at, dispatch, requested_driver_id, cooperative_id, allow_delegation, handover_count FROM trips
 WHERE passenger_id = $1 AND status NOT IN ('COMPLETED', 'CANCELLED')
 `
 
@@ -85,6 +90,11 @@ func (q *Queries) GetActiveTripForPassenger(ctx context.Context, passengerID uui
 		&i.StartedAt,
 		&i.CompletedAt,
 		&i.CancelledAt,
+		&i.Dispatch,
+		&i.RequestedDriverID,
+		&i.CooperativeID,
+		&i.AllowDelegation,
+		&i.HandoverCount,
 	)
 	return i, err
 }
@@ -172,7 +182,7 @@ func (q *Queries) GetOpenProposal(ctx context.Context, tripID uuid.UUID) (FarePr
 }
 
 const getTrip = `-- name: GetTrip :one
-SELECT id, passenger_id, driver_id, city_code, currency, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, route_distance_m, route_duration_s, suggested_fare_minor, agreed_fare_minor, driver_payout_minor, platform_commission_minor, status, cancel_reason, respond_by, negotiation_expires_at, created_at, accepted_at, arrived_at, started_at, completed_at, cancelled_at FROM trips WHERE id = $1
+SELECT id, passenger_id, driver_id, city_code, currency, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, route_distance_m, route_duration_s, suggested_fare_minor, agreed_fare_minor, driver_payout_minor, platform_commission_minor, status, cancel_reason, respond_by, negotiation_expires_at, created_at, accepted_at, arrived_at, started_at, completed_at, cancelled_at, dispatch, requested_driver_id, cooperative_id, allow_delegation, handover_count FROM trips WHERE id = $1
 `
 
 func (q *Queries) GetTrip(ctx context.Context, id uuid.UUID) (Trip, error) {
@@ -204,12 +214,17 @@ func (q *Queries) GetTrip(ctx context.Context, id uuid.UUID) (Trip, error) {
 		&i.StartedAt,
 		&i.CompletedAt,
 		&i.CancelledAt,
+		&i.Dispatch,
+		&i.RequestedDriverID,
+		&i.CooperativeID,
+		&i.AllowDelegation,
+		&i.HandoverCount,
 	)
 	return i, err
 }
 
 const getTripForUpdate = `-- name: GetTripForUpdate :one
-SELECT id, passenger_id, driver_id, city_code, currency, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, route_distance_m, route_duration_s, suggested_fare_minor, agreed_fare_minor, driver_payout_minor, platform_commission_minor, status, cancel_reason, respond_by, negotiation_expires_at, created_at, accepted_at, arrived_at, started_at, completed_at, cancelled_at FROM trips WHERE id = $1 FOR UPDATE
+SELECT id, passenger_id, driver_id, city_code, currency, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, route_distance_m, route_duration_s, suggested_fare_minor, agreed_fare_minor, driver_payout_minor, platform_commission_minor, status, cancel_reason, respond_by, negotiation_expires_at, created_at, accepted_at, arrived_at, started_at, completed_at, cancelled_at, dispatch, requested_driver_id, cooperative_id, allow_delegation, handover_count FROM trips WHERE id = $1 FOR UPDATE
 `
 
 func (q *Queries) GetTripForUpdate(ctx context.Context, id uuid.UUID) (Trip, error) {
@@ -241,7 +256,35 @@ func (q *Queries) GetTripForUpdate(ctx context.Context, id uuid.UUID) (Trip, err
 		&i.StartedAt,
 		&i.CompletedAt,
 		&i.CancelledAt,
+		&i.Dispatch,
+		&i.RequestedDriverID,
+		&i.CooperativeID,
+		&i.AllowDelegation,
+		&i.HandoverCount,
 	)
+	return i, err
+}
+
+const getTripNames = `-- name: GetTripNames :one
+SELECT u.display_name AS driver_name, r.display_name AS requested_driver_name, c.name AS cooperative_name
+FROM trips t
+JOIN users u ON u.id = t.driver_id
+JOIN users r ON r.id = t.requested_driver_id
+LEFT JOIN cooperatives c ON c.id = t.cooperative_id
+WHERE t.id = $1
+`
+
+type GetTripNamesRow struct {
+	DriverName          string
+	RequestedDriverName string
+	CooperativeName     pgtype.Text
+}
+
+// Nombre del conductor actual y de la cooperativa del viaje, para la vista (006).
+func (q *Queries) GetTripNames(ctx context.Context, id uuid.UUID) (GetTripNamesRow, error) {
+	row := q.db.QueryRow(ctx, getTripNames, id)
+	var i GetTripNamesRow
+	err := row.Scan(&i.DriverName, &i.RequestedDriverName, &i.CooperativeName)
 	return i, err
 }
 
@@ -261,12 +304,17 @@ INSERT INTO trips (
     id, passenger_id, driver_id, city_code, currency,
     pickup_lat, pickup_lng, dropoff_lat, dropoff_lng,
     route_distance_m, route_duration_s, suggested_fare_minor,
-    status, respond_by, created_at
+    status, respond_by, created_at,
+    dispatch, requested_driver_id, cooperative_id, allow_delegation, handover_count
 ) VALUES (
     $1, $2, $3, $4, $5,
     $6, $7, $8, $9,
     $10, $11, $12,
-    $13, $14, $15
+    $13, $14, $15,
+    -- Valores vacíos (llamadas anteriores a 006) quedan como despacho directo al conductor.
+    coalesce(nullif($16::text, ''), 'chosen_driver')::trip_dispatch,
+    coalesce(nullif($17::uuid, '00000000-0000-0000-0000-000000000000'::uuid), $3),
+    $18, $19, $20
 )
 `
 
@@ -286,6 +334,11 @@ type InsertTripParams struct {
 	Status             TripStatus
 	RespondBy          pgtype.Timestamptz
 	CreatedAt          time.Time
+	Dispatch           string
+	RequestedDriverID  uuid.UUID
+	CooperativeID      uuid.NullUUID
+	AllowDelegation    bool
+	HandoverCount      int16
 }
 
 func (q *Queries) InsertTrip(ctx context.Context, arg InsertTripParams) error {
@@ -305,6 +358,11 @@ func (q *Queries) InsertTrip(ctx context.Context, arg InsertTripParams) error {
 		arg.Status,
 		arg.RespondBy,
 		arg.CreatedAt,
+		arg.Dispatch,
+		arg.RequestedDriverID,
+		arg.CooperativeID,
+		arg.AllowDelegation,
+		arg.HandoverCount,
 	)
 	return err
 }
@@ -366,7 +424,9 @@ SET status = $2,
     arrived_at = $9,
     started_at = $10,
     completed_at = $11,
-    cancelled_at = $12
+    cancelled_at = $12,
+    driver_id = $13,
+    handover_count = $14
 WHERE id = $1
 `
 
@@ -383,6 +443,8 @@ type UpdateTripParams struct {
 	StartedAt            pgtype.Timestamptz
 	CompletedAt          pgtype.Timestamptz
 	CancelledAt          pgtype.Timestamptz
+	DriverID             uuid.UUID
+	HandoverCount        int16
 }
 
 func (q *Queries) UpdateTrip(ctx context.Context, arg UpdateTripParams) error {
@@ -399,6 +461,8 @@ func (q *Queries) UpdateTrip(ctx context.Context, arg UpdateTripParams) error {
 		arg.StartedAt,
 		arg.CompletedAt,
 		arg.CancelledAt,
+		arg.DriverID,
+		arg.HandoverCount,
 	)
 	return err
 }

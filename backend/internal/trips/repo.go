@@ -51,6 +51,8 @@ func fromRow(r store.Trip) *Trip {
 		Status: Status(r.Status), RespondBy: tsPtr(r.RespondBy), NegotiationExpiresAt: tsPtr(r.NegotiationExpiresAt),
 		CreatedAt: r.CreatedAt, AcceptedAt: tsPtr(r.AcceptedAt), ArrivedAt: tsPtr(r.ArrivedAt), StartedAt: tsPtr(r.StartedAt),
 		CompletedAt: tsPtr(r.CompletedAt), CancelledAt: tsPtr(r.CancelledAt),
+		Dispatch: Dispatch(r.Dispatch), RequestedDriverID: r.RequestedDriverID, CooperativeID: uuidPtr(r.CooperativeID),
+		AllowDelegation: r.AllowDelegation, Handovers: int(r.HandoverCount),
 	}
 	if r.CancelReason.Valid {
 		reason := string(r.CancelReason.TripCancelReason)
@@ -66,6 +68,9 @@ func loadForUpdate(ctx context.Context, q *store.Queries, id uuid.UUID) (*Trip, 
 		return nil, err
 	}
 	t := fromRow(row)
+	if err := loadNames(ctx, q, t); err != nil {
+		return nil, err
+	}
 	p, err := q.GetOpenProposal(ctx, id)
 	if err == nil {
 		t.Proposal = &Proposal{
@@ -84,6 +89,8 @@ func insertTrip(ctx context.Context, q *store.Queries, t *Trip) error {
 		PickupLat: t.Pickup.Lat, PickupLng: t.Pickup.Lng, DropoffLat: t.Dropoff.Lat, DropoffLng: t.Dropoff.Lng,
 		RouteDistanceM: t.DistanceM, RouteDurationS: t.DurationS, SuggestedFareMinor: t.SuggestedFare,
 		Status: store.TripStatus(t.Status), RespondBy: ts(t.RespondBy), CreatedAt: t.CreatedAt,
+		Dispatch: string(t.Dispatch), RequestedDriverID: t.RequestedDriverID,
+		CooperativeID: nullUUID(t.CooperativeID), AllowDelegation: t.AllowDelegation, HandoverCount: int16(t.Handovers),
 	})
 }
 
@@ -110,6 +117,7 @@ func save(ctx context.Context, q *store.Queries, t *Trip) error {
 		CancelReason: reason, RespondBy: ts(t.RespondBy), NegotiationExpiresAt: ts(t.NegotiationExpiresAt),
 		AcceptedAt: ts(t.AcceptedAt), ArrivedAt: ts(t.ArrivedAt), StartedAt: ts(t.StartedAt),
 		CompletedAt: ts(t.CompletedAt), CancelledAt: ts(t.CancelledAt),
+		DriverID: t.DriverID, HandoverCount: int16(t.Handovers),
 	})
 }
 

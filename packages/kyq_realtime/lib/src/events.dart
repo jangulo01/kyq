@@ -41,6 +41,24 @@ sealed class RealtimeEvent {
         suggestedFareMinor: data['suggested_fare_minor'] as int,
         currency: data['currency'] as String,
         expiresAt: DateTime.parse(data['expires_at'] as String),
+        delegated: data['delegated'] as bool? ?? false,
+        canDelegate: data['can_delegate'] as bool? ?? false,
+        cooperativeName: data['cooperative_name'] as String?,
+        requestedDriverName: data['requested_driver_name'] as String?,
+      ),
+      'trip.delegated' => TripDelegated(
+        at,
+        tripId: data['trip_id'] as String,
+        cooperativeName: data['cooperative_name'] as String?,
+        reason: data['reason'] as String? ?? '',
+        expiresAt: _date(data['expires_at']),
+      ),
+      'cooperative.membership' => CooperativeMembershipChanged(
+        at,
+        membershipId: data['membership_id'] as String,
+        cooperativeId: data['cooperative_id'] as String,
+        status: data['status'] as String,
+        role: data['role'] as String? ?? 'member',
       ),
       'trip.offer_closed' => TripOfferClosed(at, tripId: data['trip_id'] as String, reason: data['reason'] as String),
       'trip.status' => TripStatusChanged(
@@ -134,6 +152,10 @@ final class TripOffered extends RealtimeEvent {
     required this.suggestedFareMinor,
     required this.currency,
     required this.expiresAt,
+    this.delegated = false,
+    this.canDelegate = false,
+    this.cooperativeName,
+    this.requestedDriverName,
   });
 
   final String tripId;
@@ -145,6 +167,52 @@ final class TripOffered extends RealtimeEvent {
   final int suggestedFareMinor;
   final String currency;
   final DateTime expiresAt;
+
+  /// 006: la oferta llega derivada desde el Conductor Elegido [requestedDriverName].
+  final bool delegated;
+
+  /// 006: el conductor puede pasarla a su cooperativa (RN-KYQ-008).
+  final bool canDelegate;
+  final String? cooperativeName;
+  final String? requestedDriverName;
+}
+
+/// 006: la solicitud del pasajero pasó a un compañero de la cooperativa (RN-KYQ-008).
+final class TripDelegated extends RealtimeEvent {
+  const TripDelegated(
+    super.occurredAt, {
+    required this.tripId,
+    required this.reason,
+    this.cooperativeName,
+    this.expiresAt,
+  });
+
+  final String tripId;
+
+  /// `offer_rejected`, `offer_expired` o `delegated`.
+  final String reason;
+  final String? cooperativeName;
+  final DateTime? expiresAt;
+}
+
+/// 006: cambió la membresía del conductor en una cooperativa (aprobada, rechazada, retirado…).
+final class CooperativeMembershipChanged extends RealtimeEvent {
+  const CooperativeMembershipChanged(
+    super.occurredAt, {
+    required this.membershipId,
+    required this.cooperativeId,
+    required this.status,
+    required this.role,
+  });
+
+  final String membershipId;
+  final String cooperativeId;
+
+  /// `pending`, `active`, `rejected`, `cancelled`, `left` o `removed`.
+  final String status;
+
+  /// `member` o `coordinator`.
+  final String role;
 }
 
 final class TripOfferClosed extends RealtimeEvent {

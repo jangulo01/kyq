@@ -24,7 +24,8 @@ class RequestPage extends StatelessWidget {
         listener: (context, state) {
           final tripId = state.tripId;
           if (tripId != null) {
-            context.go(tripLocation(tripId, cubit.driverName));
+            final assigned = cubit.assignedDriverName;
+            context.go(tripLocation(tripId, assigned == null || assigned.isEmpty ? cubit.driverName : assigned));
           } else {
             ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(state.error!)));
           }
@@ -123,10 +124,14 @@ class _RequestPanel extends StatelessWidget {
           const Text('Buscando tu ubicación…'),
           const SizedBox(height: 12),
         ],
+        if (cubit.cooperative != null) ...[_DispatchSelector(state: state), const SizedBox(height: 12)],
         if (!state.driverFree) ...[
           Text(
-            '${cubit.driverName} no está libre ahora. No enviaremos la solicitud.',
-            style: TextStyle(color: theme.colorScheme.error),
+            state.coversBusyDriver
+                ? '${cubit.driverName} no está libre ahora: la solicitud irá a un compañero de su cooperativa.'
+                : '${cubit.driverName} no está libre ahora. No enviaremos la solicitud.',
+            key: const Key('request.driverBusy'),
+            style: TextStyle(color: state.coversBusyDriver ? null : theme.colorScheme.error),
           ),
           const SizedBox(height: 12),
         ],
@@ -153,8 +158,70 @@ class _RequestPanel extends StatelessWidget {
           onPressed: state.canRequest ? cubit.request : null,
           child: state.requesting
               ? const SizedBox.square(dimension: 20, child: CircularProgressIndicator(strokeWidth: 2))
-              : Text('Pedir a ${cubit.driverName}'),
+              : Text(
+                  state.dispatch == TripDispatch.cooperative
+                      ? 'Pedir a ${cubit.cooperative?.name ?? 'la cooperativa'}'
+                      : 'Pedir a ${cubit.driverName}',
+                ),
         ),
+      ],
+    );
+  }
+}
+
+/// Selector triple de despacho (FR-009): mi conductor, su cooperativa y, deshabilitada, la
+/// opción "autónomo libre más cercano", que llega en una etapa posterior.
+class _DispatchSelector extends StatelessWidget {
+  const _DispatchSelector({required this.state});
+
+  final RequestState state;
+
+  @override
+  Widget build(BuildContext context) {
+    final cubit = context.read<RequestCubit>();
+    final coop = cubit.cooperative!;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SegmentedButton<TripDispatch>(
+          segments: [
+            ButtonSegment(
+              value: TripDispatch.chosenDriver,
+              icon: const Icon(Icons.person),
+              label: Text('Mi conductor', key: const Key('request.dispatch.chosen')),
+            ),
+            ButtonSegment(
+              value: TripDispatch.cooperative,
+              icon: const Icon(Icons.groups),
+              label: Text('Su cooperativa', key: const Key('request.dispatch.cooperative')),
+            ),
+          ],
+          selected: {state.dispatch},
+          onSelectionChanged: (s) => cubit.setDispatch(s.first),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          state.dispatch == TripDispatch.cooperative
+              ? 'Irá al compañero libre más cercano de ${coop.name}.'
+              : 'Irá a ${cubit.driverName}.',
+          textAlign: TextAlign.center,
+        ),
+        const ListTile(
+          key: Key('request.dispatch.nearest'),
+          dense: true,
+          enabled: false,
+          leading: Icon(Icons.near_me_outlined),
+          title: Text('Autónomo libre más cercano'),
+          trailing: Text('Próximamente'),
+        ),
+        if (state.dispatch == TripDispatch.chosenDriver)
+          CheckboxListTile(
+            key: const Key('request.allowDelegation'),
+            dense: true,
+            value: state.allowDelegation,
+            onChanged: (v) => cubit.setAllowDelegation(v ?? false),
+            title: Text('Si ${cubit.driverName} no puede, que me atienda un compañero de ${coop.name}'),
+          ),
       ],
     );
   }
@@ -168,5 +235,11 @@ String _km(int meters) {
 String _minutes(int seconds) => '${(seconds / 60).ceil()} min';
 
 /// Ruta del mapa de solicitud para [driver].
-String requestLocation(ChosenDriver driver) =>
-    Uri(path: '/request/${driver.driverId}', queryParameters: {'name': driver.displayName}).toString();
+String requestLocation(ChosenDriver driver) => Uri(
+  path: '/request/${driver.driverId}',
+  queryParameters: {
+    'name': driver.displayName,
+    if (driver.cooperative != null) 'coopId': driver.cooperative!.id,
+    if (driver.cooperative != null) 'coop': driver.cooperative!.name,
+  },
+).toString();

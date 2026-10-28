@@ -117,7 +117,18 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    for (final path in ['/tower', '/finance', '/crm', '/users', '/health', '/kyc', '/billing', '/costs', '/fares']) {
+    for (final path in [
+      '/tower',
+      '/finance',
+      '/crm',
+      '/users',
+      '/health',
+      '/kyc',
+      '/cooperatives',
+      '/billing',
+      '/costs',
+      '/fares',
+    ]) {
       expect(find.byKey(Key('nav$path')), findsOneWidget);
     }
     expect(find.text('Pagos'), findsOneWidget);

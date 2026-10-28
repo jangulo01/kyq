@@ -90,6 +90,20 @@ func (l LiveKit) CreateRoom(ctx context.Context, name string) error {
 	return l.call(ctx, "CreateRoom", videoGrant{RoomCreate: true}, map[string]any{"name": name, "max_participants": 2, "empty_timeout": 300})
 }
 
+// CreateGroupRoom is CreateRoom for a cooperative's group channel: up to maxParticipants members.
+func (l LiveKit) CreateGroupRoom(ctx context.Context, name string, maxParticipants int) error {
+	return l.call(ctx, "CreateRoom", videoGrant{RoomCreate: true}, map[string]any{"name": name, "max_participants": maxParticipants, "empty_timeout": 300})
+}
+
+// RemoveParticipant disconnects identity from room; a missing room or participant is success.
+func (l LiveKit) RemoveParticipant(ctx context.Context, room, identity string) error {
+	err := l.call(ctx, "RemoveParticipant", videoGrant{Room: room, RoomAdmin: true}, map[string]any{"room": room, "identity": identity})
+	if errors.Is(err, errNotFound) {
+		return nil
+	}
+	return err
+}
+
 // DeleteRoom disconnects everyone in the room.
 func (l LiveKit) DeleteRoom(ctx context.Context, name string) error {
 	if err := l.call(ctx, "DeleteRoom", videoGrant{RoomCreate: true}, map[string]any{"room": name}); !errors.Is(err, errNotFound) {

@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:dio/dio.dart';
 
 import 'admin_models.dart';
+import 'cooperative_models.dart';
 import 'models.dart';
 import 'onboarding_models.dart';
 import 'preconsult_models.dart';
@@ -286,8 +287,26 @@ class KyqApiClient {
     return FareQuote.fromJson(res.data!);
   }
 
-  Future<Trip> requestTrip({required String driverId, required GeoPoint pickup, required GeoPoint dropoff}) => _trip(
-    () => _dio.post('/v1/trips', data: {'driver_id': driverId, 'pickup': pickup.toJson(), 'dropoff': dropoff.toJson()}),
+  /// Pide un viaje al Conductor Elegido [driverId] o, con [dispatch] = cooperativa, a su cooperativa.
+  /// Con [allowDelegation] el pasajero consiente que pase a un compañero si su conductor no puede
+  /// (006, RN-KYQ-008). 409 `driver_not_free`, `no_cooperative` o `no_driver_available`.
+  Future<Trip> requestTrip({
+    required String driverId,
+    required GeoPoint pickup,
+    required GeoPoint dropoff,
+    TripDispatch dispatch = TripDispatch.chosenDriver,
+    bool allowDelegation = false,
+  }) => _trip(
+    () => _dio.post(
+      '/v1/trips',
+      data: {
+        'driver_id': driverId,
+        'pickup': pickup.toJson(),
+        'dropoff': dropoff.toJson(),
+        if (dispatch != TripDispatch.chosenDriver) 'dispatch': tripDispatchToApi(dispatch),
+        if (allowDelegation) 'allow_delegation': true,
+      },
+    ),
   );
 
   Future<Trip> getTrip(String tripId) => _trip(() => _dio.get('/v1/trips/$tripId'));
@@ -304,6 +323,9 @@ class KyqApiClient {
       _trip(() => _dio.post('/v1/trips/$tripId/accept', data: {'fare_minor': ?fareMinor}));
 
   Future<Trip> rejectTrip(String tripId) => _trip(() => _dio.post('/v1/trips/$tripId/reject'));
+
+  /// El conductor pasa la oferta a su cooperativa (006). 409 `delegation_not_allowed`.
+  Future<Trip> delegateTrip(String tripId) => _trip(() => _dio.post('/v1/trips/$tripId/delegate'));
 
   Future<Trip> requestNegotiation(String tripId) => _trip(() => _dio.post('/v1/trips/$tripId/negotiation'));
 
@@ -405,6 +427,58 @@ class KyqApiClient {
     final res = await _send(request);
     return Preconsult.fromJson(res.data!);
   }
+  // Cooperativas: conductor y coordinador (006)
+
+  /// Cooperativas activas a las que se puede pedir entrar.
+  Future<List<Cooperative>> cooperatives() async {
+    final res = await _send(() => _dio.get<dynamic>('/v1/cooperatives'));
+    return _list(res.data, 'cooperatives').map(Cooperative.fromJson).toList();
+  }
+
+  Future<DriverCooperative> myCooperative() async {
+    final res = await _send(() => _dio.get<Map<String, dynamic>>('/v1/driver/cooperative'));
+    return DriverCooperative.fromJson(res.data!);
+  }
+
+  /// 409 `already_in_cooperative` si ya es miembro o tiene una solicitud en curso.
+  Future<Membership> requestToJoinCooperative(String cooperativeId) async {
+    final res = await _send(
+      () => _dio.post<Map<String, dynamic>>('/v1/driver/cooperative/requests', data: {'cooperative_id': cooperativeId}),
+    );
+    return Membership.fromJson(res.data!);
+  }
+
+  Future<void> withdrawCooperativeRequest() => _send(() => _dio.delete<void>('/v1/driver/cooperative/requests'));
+
+  Future<void> leaveCooperative() => _send(() => _dio.delete<void>('/v1/driver/cooperative/membership'));
+
+  /// Coordinador: aprueba o rechaza (con [reason]) una solicitud de su cooperativa.
+  Future<void> decideCooperativeRequest(String membershipId, {required bool approve, String? reason}) => _send(
+    () => _dio.post<void>(
+      '/v1/driver/cooperative/requests/$membershipId/decision',
+      data: {'decision': approve ? 'approve' : 'reject', 'reason': ?reason},
+    ),
+  );
+
+  /// Coordinador: retira a un miembro que no es coordinador.
+  Future<void> removeCooperativeMember(String driverId) =>
+      _send(() => _dio.delete<void>('/v1/driver/cooperative/members/$driverId'));
+
+  // Canal PTT de grupo de la cooperativa (006, COOP_GROUP)
+
+  /// 404 `no_cooperative` si ya no es miembro de una cooperativa activa.
+  Future<PttCredentials> cooperativePttToken() async {
+    final res = await _send(() => _dio.post<Map<String, dynamic>>('/v1/driver/cooperative/ptt/token'));
+    return PttCredentials.fromJson(res.data!);
+  }
+
+  /// Turno único del grupo. 409 si otro compañero habla.
+  Future<DateTime> requestCooperativeFloor() async {
+    final res = await _send(() => _dio.post<Map<String, dynamic>>('/v1/driver/cooperative/ptt/floor'));
+    return DateTime.parse(res.data!['expires_at'] as String);
+  }
+
+  Future<void> releaseCooperativeFloor() => _send(() => _dio.delete<void>('/v1/driver/cooperative/ptt/floor'));
 
   Future<Trip> _trip(Future<Response<dynamic>> Function() request) async {
     final res = await _send(request);
@@ -528,6 +602,66 @@ class KyqApiClient {
         'amount_minor': amountMinor,
         if (effectiveFrom != null) 'effective_from': effectiveFrom.toUtc().toIso8601String(),
       },
+    ),
+  );
+
+  // Admin: cooperativas (006)
+
+  Future<List<Cooperative>> adminCooperatives() async {
+    final res = await _send(() => _dio.get<dynamic>('/v1/admin/cooperatives'));
+    return _list(res.data, 'cooperatives').map(Cooperative.fromJson).toList();
+  }
+
+  /// 409 `cooperative_name_taken`; 400 `invalid_cooperative`.
+  Future<Cooperative> adminCreateCooperative({required String name, required String cityCode, String? nit}) async {
+    final res = await _send(
+      () => _dio.post<Map<String, dynamic>>(
+        '/v1/admin/cooperatives',
+        data: {'name': name, 'city_code': cityCode, if (nit != null && nit.trim().isNotEmpty) 'nit': nit.trim()},
+      ),
+    );
+    return Cooperative.fromJson(res.data!);
+  }
+
+  Future<CooperativeDetail> adminCooperative(String cooperativeId) async {
+    final res = await _send(() => _dio.get<Map<String, dynamic>>('/v1/admin/cooperatives/$cooperativeId'));
+    return CooperativeDetail.fromJson(res.data!);
+  }
+
+  /// Edita o suspende/reactiva ([status]).
+  Future<Cooperative> adminUpdateCooperative(
+    String cooperativeId, {
+    String? name,
+    String? cityCode,
+    CooperativeStatus? status,
+  }) async {
+    final res = await _send(
+      () => _dio.patch<Map<String, dynamic>>(
+        '/v1/admin/cooperatives/$cooperativeId',
+        data: {'name': ?name, 'city_code': ?cityCode, 'status': ?status?.name},
+      ),
+    );
+    return Cooperative.fromJson(res.data!);
+  }
+
+  Future<void> adminAddCooperativeMember(String cooperativeId, String driverId, {CooperativeRole? role}) => _send(
+    () => _dio.post<void>(
+      '/v1/admin/cooperatives/$cooperativeId/members',
+      data: {'driver_id': driverId, 'role': ?role?.name},
+    ),
+  );
+
+  Future<void> adminRemoveCooperativeMember(String cooperativeId, String driverId) =>
+      _send(() => _dio.delete<void>('/v1/admin/cooperatives/$cooperativeId/members/$driverId'));
+
+  Future<void> adminSetCooperativeRole(String cooperativeId, String driverId, CooperativeRole role) => _send(
+    () => _dio.put<void>('/v1/admin/cooperatives/$cooperativeId/members/$driverId/role', data: {'role': role.name}),
+  );
+
+  Future<void> adminDecideMembership(String membershipId, {required bool approve, String? reason}) => _send(
+    () => _dio.post<void>(
+      '/v1/admin/memberships/$membershipId/decision',
+      data: {'decision': approve ? 'approve' : 'reject', 'reason': ?reason},
     ),
   );
 

@@ -109,6 +109,10 @@ class _KyqRiderAppState extends State<KyqRiderApp> {
                 realtime: context.read<RealtimeEvents>(),
                 driverId: state.pathParameters['driverId']!,
                 driverName: state.uri.queryParameters['name'] ?? 'tu conductor',
+                cooperative: switch ((state.uri.queryParameters['coopId'], state.uri.queryParameters['coop'])) {
+                  (final String id, final String name) => CooperativeRef(id: id, name: name),
+                  _ => null,
+                },
               )..start(),
               child: const RequestPage(),
             ),

@@ -8,6 +8,7 @@ String cancelReasonMessage(String? reason) => switch (reason) {
   'offer_rejected' => 'Rechazaste la oferta.',
   'fare_rejected' => 'El pasajero no aceptó la nueva tarifa.',
   'negotiation_failed' => 'La negociación terminó sin acuerdo.',
+  'no_driver_available' => 'No había compañeros libres de la cooperativa.',
   _ => 'El viaje se canceló.',
 };
 

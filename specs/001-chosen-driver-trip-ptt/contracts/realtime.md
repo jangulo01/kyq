@@ -33,3 +33,16 @@ recuperar eventos tras reconectar.
 
 Los eventos de turno PTT (quién habla) viajan como mensajes de datos de LiveKit dentro de la sala
 del viaje (y de la pre-consulta de 005): `{"type":"floor.taken","user_id":...}` y `{"type":"floor.released"}`.
+| `trip.delegated` | `user:{passengerId}` | `trip_id`, `cooperative_id`, `cooperative_name`, `reason` (`offer_rejected` \| `offer_expired` \| `delegated`), `expires_at` | 006 FR-018 |
+| `cooperative.membership` | `user:{driverId}` | `membership_id`, `cooperative_id`, `status`, `role` | 006 FR-008 |
+
+006 añade a `trip.offer`: `delegated` (bool), `can_delegate` (bool), `cooperative_name`
+(string|null) y `requested_driver_name` (string|null, el Conductor Elegido cuando la oferta llega
+derivada). `trip.offer_closed` puede traer `reason = delegated` (el conductor pasó la oferta a su
+cooperativa) y `trip.status` puede traer `cancel_reason = no_driver_available`.
+
+Los eventos de turno PTT (quién habla) viajan como mensajes de datos de LiveKit dentro de la sala
+del viaje: `{"type":"floor.taken","user_id":...}` y `{"type":"floor.released"}`.
+
+El canal de voz de grupo de la cooperativa (006, `COOP_GROUP`) usa los mismos mensajes de datos en
+la sala `coop-{cooperativeId}`, con un único turno para todo el grupo.

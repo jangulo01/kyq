@@ -133,6 +133,15 @@ class PttController extends Cubit<PttState> {
   /// Margen de la pre-consulta: el backend corta a los 15 s.
   static const preconsultFloorMargin = Duration(seconds: 1);
 
+  /// Controlador del canal de grupo de la cooperativa (006): mismo turno y tonos que el viaje.
+  factory PttController.cooperative(KyqApiClient api) => PttController(
+    api: KyqCooperativePttApi(api),
+    room: LiveKitVoiceRoom(),
+    focus: AudioSessionFocus(),
+    tones: AudioplayersTonePlayer(),
+    mic: const PlatformMicPermission(),
+  );
+
   final PttApi _api;
   final VoiceRoom _room;
   final AudioFocus _focus;

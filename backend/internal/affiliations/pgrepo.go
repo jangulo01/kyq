@@ -76,6 +76,9 @@ func (r *PgRepo) ChosenDrivers(ctx context.Context, p uuid.UUID) ([]ChosenDriver
 			DriverID: row.DriverID, DisplayName: row.DisplayName, VehicleDescription: row.VehicleDescription,
 			Presence: string(row.Presence), BusyUntilEstimate: optionalTime(row.BusyUntilEstimate),
 		}
+		if row.CooperativeID.Valid && row.CooperativeName.Valid {
+			out[i].Cooperative = &CooperativeRef{ID: row.CooperativeID.UUID, Name: row.CooperativeName.String}
+		}
 	}
 	return out, nil
 }
