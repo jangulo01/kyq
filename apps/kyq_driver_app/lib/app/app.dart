@@ -147,6 +147,14 @@ class _KyqDriverAppState extends State<KyqDriverApp> {
     onShareLink: shareWithPlatform,
     referrer: widget.services.radioReferrer,
     keepAlive: widget.services.radioKeepAlive,
+    // Emergencia (FR-030): el SOS de 003, del viaje en curso o sin viaje.
+    onEmergency: (context, c) => openRadioEmergency(
+      context,
+      api: widget.api,
+      platform: widget.services.safety,
+      raise: (fix) => widget.api.radioEmergency(c.id, lat: fix?.lat, lng: fix?.lng),
+      onSetupPin: () => _router.push('/safety'),
+    ),
     open: (location) => _router.push(location),
   );
   // 011: conversaciones a las que llevaron invitaciones por teléfono al registrarse.
@@ -477,22 +485,27 @@ class _KyqDriverAppState extends State<KyqDriverApp> {
           theme: kyqTheme(),
           routerConfig: _router,
           scaffoldMessengerKey: _messenger,
-          builder: (context, child) => MegaphoneBanner(
-            child: MultiBlocListener(
-              listeners: [
-                BlocListener<OfferCubit, OfferState>(
-                  bloc: _offers,
-                  listenWhen: (a, b) => a.runtimeType != b.runtimeType,
-                  listener: _onOffer,
-                ),
-                // Motivo de cierre de una consulta de voz (005).
-                BlocListener<PreconsultCubit, PreconsultState>(
-                  bloc: _preconsults,
-                  listenWhen: (a, b) => b.notice != null && a.notice != b.notice,
-                  listener: (context, s) => _messenger.currentState?.showSnackBar(SnackBar(content: Text(s.notice!))),
-                ),
-              ],
-              child: child!,
+          // 011: la alerta de llamada o la emergencia de Radio se ve sobre cualquier pantalla.
+          builder: (context, child) => RadioAlertOverlay(
+            mount: _radio,
+            open: (location) => _router.push(location),
+            child: MegaphoneBanner(
+              child: MultiBlocListener(
+                listeners: [
+                  BlocListener<OfferCubit, OfferState>(
+                    bloc: _offers,
+                    listenWhen: (a, b) => a.runtimeType != b.runtimeType,
+                    listener: _onOffer,
+                  ),
+                  // Motivo de cierre de una consulta de voz (005).
+                  BlocListener<PreconsultCubit, PreconsultState>(
+                    bloc: _preconsults,
+                    listenWhen: (a, b) => b.notice != null && a.notice != b.notice,
+                    listener: (context, s) => _messenger.currentState?.showSnackBar(SnackBar(content: Text(s.notice!))),
+                  ),
+                ],
+                child: child!,
+              ),
             ),
           ),
         ),

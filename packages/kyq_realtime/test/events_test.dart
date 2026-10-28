@@ -304,6 +304,18 @@ void main() {
         }),
       );
       expect(created, isA<SosCreated>().having((e) => e.raisedRole, 'role', 'driver'));
+      // 011: desde Radio sin viaje.
+      final fromRadio = RealtimeEvent.fromEnvelope(
+        envelope('sos.created', {
+          'alert_id': 'a2',
+          'trip_id': null,
+          'raised_from': 'radio',
+          'raised_role': 'passenger',
+          'raised_by_name': 'Ana',
+          'created_at': '2026-10-27T12:00:00Z',
+        }),
+      );
+      expect(fromRadio, isA<SosCreated>().having((e) => e.tripId, 'trip', isNull));
       final claimed = RealtimeEvent.fromEnvelope(
         envelope('sos.claimed', {'alert_id': 'a1', 'operator_id': 'op', 'operator_name': 'Lucía'}),
       );

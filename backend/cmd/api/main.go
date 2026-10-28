@@ -251,6 +251,8 @@ func run(logger *slog.Logger) error {
 		Media: radio.S3Media{S3: radioMedia, SavedBucket: radioSaved}, Saved: radioSaved, SMS: sms,
 		Record: cfg.RadioRecording, PublicBaseURL: cfg.PublicBaseURL, PlayDriverURL: cfg.PlayDriverURL,
 		PlayRiderURL: cfg.PlayRiderURL, Usage: usage, Logger: logger,
+		// 011: Emergencia desde Radio abre el SOS de 003 (con o sin viaje).
+		SOS: safetyService,
 	}
 	go radioService.RunSweeper(ctx, time.Second)
 	// 011: al verificar el OTP se aplican las invitaciones de Radio enviadas a ese teléfono.

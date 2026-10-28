@@ -60,7 +60,9 @@ abstract class SosLocation with _$SosLocation {
 abstract class SosAlertSelf with _$SosAlertSelf {
   const factory SosAlertSelf({
     required String id,
-    required String tripId,
+
+    /// null en una alerta desde Radio sin viaje (011).
+    String? tripId,
     required SosStatus status,
     @Default(false) bool operatorConnected,
     @Default(false) bool escalated,
@@ -96,7 +98,12 @@ abstract class SosRaise with _$SosRaise {
 abstract class SosAlertSummary with _$SosAlertSummary {
   const factory SosAlertSummary({
     required String id,
-    required String tripId,
+
+    /// null en una alerta desde Radio sin viaje (011).
+    String? tripId,
+
+    /// `trip` o `radio` (011).
+    @Default('trip') String raisedFrom,
     required SosRole raisedRole,
     required String raisedByName,
     required SosStatus status,
@@ -170,7 +177,12 @@ abstract class EmergencyContact with _$EmergencyContact {
 abstract class SosAlertDetail with _$SosAlertDetail {
   const factory SosAlertDetail({
     required String id,
-    required String tripId,
+
+    /// null en una alerta desde Radio sin viaje (011).
+    String? tripId,
+
+    /// `trip` o `radio` (011).
+    @Default('trip') String raisedFrom,
     required SosRole raisedRole,
     required String raisedByName,
     required SosStatus status,

@@ -164,4 +164,54 @@ void main() {
     expect(cubit.state.operatorConnected, isTrue);
     await cubit.close();
   });
+
+  test('011: Emergencia de Radio sin viaje: misma voz, ubicación cada segundo y cancelar con PIN', () {
+    fakeAsync((async) {
+      final noTrip = SosAlertSelf(id: 'al9', status: SosStatus.open, createdAt: DateTime.utc(2026, 10, 28));
+      final points = <SosPoint?>[];
+      cubit = SosCubit(
+        api: api,
+        tripId: '',
+        location: gps,
+        voice: () => room,
+        mic: FakeMic(),
+        raiser: (fix) async {
+          points.add(fix);
+          return noTrip;
+        },
+      );
+      cubit.raise();
+      async.flushMicrotasks();
+      expect(points.single?.lat, 4.61, reason: 'lleva la ubicación');
+      expect(api.raised, isEmpty, reason: 'no usa el SOS de viaje');
+      expect(cubit.state.phase, SosPhase.active);
+      expect(cubit.state.alert?.tripId, isNull);
+      expect(room.connected, isTrue);
+      async.elapse(const Duration(seconds: 2));
+      expect(api.batches, hasLength(2));
+      cubit.close();
+    });
+  });
+
+  test('011: Radio retoma una alerta abierta sin viaje', () async {
+    api.active = SosAlertSelf(id: 'al9', status: SosStatus.open, createdAt: DateTime.utc(2026, 10, 28));
+    cubit = SosCubit(
+      api: api,
+      tripId: '',
+      location: gps,
+      voice: () => room,
+      mic: FakeMic(),
+      raiser: (_) async => throw StateError('no debe levantar otra'),
+    );
+    await cubit.resume();
+    expect(cubit.state.phase, SosPhase.active);
+    expect(cubit.state.alert?.id, 'al9');
+    await cubit.close();
+
+    // El SOS de un viaje no retoma la alerta sin viaje.
+    final trip = build();
+    await trip.resume();
+    expect(trip.state.phase, isNot(SosPhase.active));
+    await trip.close();
+  });
 }

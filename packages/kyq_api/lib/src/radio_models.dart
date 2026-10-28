@@ -379,7 +379,8 @@ abstract interface class RadioApi {
 
   Future<void> reportRadioMessage(String messageId, {String reason});
 
-  Future<RadioEmergency> radioEmergency(String conversationId, {required double lat, required double lng});
+  /// Sin GPS [lat] y [lng] van nulos: la emergencia sale igual (FR-030).
+  Future<RadioEmergency> radioEmergency(String conversationId, {double? lat, double? lng});
 
   /// Con teléfono devuelve null: el SMS sale sin revelar si la cuenta existe (FR-002).
   Future<RadioInvite?> inviteRadioContact({String? phoneE164});

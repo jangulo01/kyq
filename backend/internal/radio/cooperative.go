@@ -16,28 +16,73 @@ import (
 // cooperativa la suspende. El canal de grupo de 006 (`/v1/driver/cooperative/ptt/*`) usa la misma
 // sala y el mismo turno (ver ptt.GroupRadio), así que Radio y las apps anteriores se oyen.
 
-// ensureCooperative creates the conversation of a cooperative if it does not exist yet.
-func (s *Service) ensureCooperative(ctx context.Context, cooperativeID uuid.UUID) (store.RadioConversation, error) {
-	conv, err := s.Store.GetRadioCooperativeConversation(ctx, nullID(cooperativeID))
+// ensureCooperative creates the conversation of a cooperative if it does not exist yet; created
+// tells whether this call created it.
+func (s *Service) ensureCooperative(ctx context.Context, cooperativeID uuid.UUID) (conv store.RadioConversation, created bool, err error) {
+	conv, err = s.Store.GetRadioCooperativeConversation(ctx, nullID(cooperativeID))
 	if err == nil || !store.IsNotFound(err) {
-		return conv, err
+		return conv, false, err
 	}
 	id, err := newID()
 	if err != nil {
-		return store.RadioConversation{}, err
+		return store.RadioConversation{}, false, err
 	}
 	room, err := roomName(id)
 	if err != nil {
-		return store.RadioConversation{}, err
+		return store.RadioConversation{}, false, err
 	}
 	conv, err = s.Store.InsertRadioConversation(ctx, store.InsertRadioConversationParams{
 		ID: id, Kind: store.RadioConversationKindCooperative, CooperativeID: nullID(cooperativeID), RoomName: room, CreatedAt: s.now(),
 	})
 	if store.IsNotFound(err) {
 		// Otra petición la creó a la vez.
-		return s.Store.GetRadioCooperativeConversation(ctx, nullID(cooperativeID))
+		conv, err = s.Store.GetRadioCooperativeConversation(ctx, nullID(cooperativeID))
+		return conv, false, err
 	}
-	return conv, err
+	return conv, err == nil, err
+}
+
+// coopMember puts driverID in the cooperative conversation with the role of 006 (coordinador →
+// moderador); added reports whether the row was missing or out of date.
+func (s *Service) coopMember(ctx context.Context, conversationID, driverID uuid.UUID, coopRole store.CooperativeRole) (bool, error) {
+	want := store.RadioRoleMember
+	if coopRole == store.CooperativeRoleCoordinator {
+		want = store.RadioRoleModerator
+	}
+	cur, err := s.Store.GetRadioMember(ctx, store.GetRadioMemberParams{ConversationID: conversationID, UserID: driverID})
+	switch {
+	case err == nil && cur.Role == want && (cur.Status == store.RadioMemberStatusActive || cur.Status == store.RadioMemberStatusMuted):
+		return false, nil
+	case err == nil:
+		_, err = s.Store.UpdateRadioMember(ctx, store.UpdateRadioMemberParams{
+			ConversationID: conversationID, UserID: driverID, Now: s.now(),
+			Role:   store.NullRadioRole{RadioRole: want, Valid: true},
+			Status: store.NullRadioMemberStatus{RadioMemberStatus: store.RadioMemberStatusActive, Valid: true},
+		})
+		return true, err
+	case store.IsNotFound(err):
+		_, err = s.Store.UpsertRadioMember(ctx, store.UpsertRadioMemberParams{
+			ConversationID: conversationID, UserID: driverID, Role: want, Status: store.RadioMemberStatusActive,
+			Listening: true, JoinedAt: s.now(),
+		})
+		return true, err
+	}
+	return false, err
+}
+
+// syncCooperativeMembers puts every active member of the cooperative in its conversation: when
+// the conversation is new, when someone joins, and before an emergency (FR-031).
+func (s *Service) syncCooperativeMembers(ctx context.Context, conversationID, cooperativeID uuid.UUID) error {
+	members, err := s.Store.ListCooperativeMembers(ctx, cooperativeID)
+	if err != nil {
+		return err
+	}
+	for _, m := range members {
+		if _, err := s.coopMember(ctx, conversationID, m.DriverID, m.Role); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // syncCooperative puts a driver in the conversation of his active cooperative, with the role
@@ -57,7 +102,7 @@ func (s *Service) syncCooperative(ctx context.Context, userID uuid.UUID, role st
 	if m.Status != store.MembershipStatusActive || m.CooperativeStatus != store.CooperativeStatusActive {
 		return store.RadioConversation{}, ErrNotFound
 	}
-	conv, err := s.ensureCooperative(ctx, m.CooperativeID)
+	conv, created, err := s.ensureCooperative(ctx, m.CooperativeID)
 	if err != nil {
 		return store.RadioConversation{}, err
 	}
@@ -70,27 +115,17 @@ func (s *Service) syncCooperative(ctx context.Context, userID uuid.UUID, role st
 		}
 		conv.Status = store.RadioConversationStatusActive
 	}
-	want := store.RadioRoleMember
-	if m.Role == store.CooperativeRoleCoordinator {
-		want = store.RadioRoleModerator
+	added, err := s.coopMember(ctx, conv.ID, userID, m.Role)
+	if err != nil {
+		return store.RadioConversation{}, err
 	}
-	cur, err := s.Store.GetRadioMember(ctx, store.GetRadioMemberParams{ConversationID: conv.ID, UserID: userID})
-	switch {
-	case err == nil && cur.Role == want && (cur.Status == store.RadioMemberStatusActive || cur.Status == store.RadioMemberStatusMuted):
-		return conv, nil
-	case err == nil:
-		_, err = s.Store.UpdateRadioMember(ctx, store.UpdateRadioMemberParams{
-			ConversationID: conv.ID, UserID: userID, Now: s.now(),
-			Role:   store.NullRadioRole{RadioRole: want, Valid: true},
-			Status: store.NullRadioMemberStatus{RadioMemberStatus: store.RadioMemberStatusActive, Valid: true},
-		})
-	case store.IsNotFound(err):
-		_, err = s.Store.UpsertRadioMember(ctx, store.UpsertRadioMemberParams{
-			ConversationID: conv.ID, UserID: userID, Role: want, Status: store.RadioMemberStatusActive,
-			Listening: true, JoinedAt: s.now(),
-		})
+	if created || added {
+		// Alguien nuevo: de paso se ponen al día los demás miembros de 006.
+		if err := s.syncCooperativeMembers(ctx, conv.ID, m.CooperativeID); err != nil {
+			return store.RadioConversation{}, err
+		}
 	}
-	return conv, err
+	return conv, nil
 }
 
 // LeaveGroup takes a driver who left or was removed from his cooperative out of its

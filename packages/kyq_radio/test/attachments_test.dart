@@ -88,4 +88,24 @@ void main() {
     expect(find.byKey(const Key('radio.message.m2')), findsOneWidget);
     await h.done(tester);
   });
+
+  testWidgets('Emergencia: mantener 2 s; soltar antes solo explica (US9-2)', (tester) async {
+    final api = FakeRadioApi(conversations: [fakeContact('c1')]);
+    final asked = <String>[];
+    final h = RadioHarness(api, onEmergency: (_, c) async => asked.add(c.id));
+    await h.pump(tester, initial: '/radio/c/c1');
+    final early = await tester.startGesture(tester.getCenter(find.byKey(const Key('radio.emergency'))));
+    await tester.pump(const Duration(milliseconds: 800));
+    await early.up();
+    await tester.pump();
+    expect(asked, isEmpty);
+    expect(find.text('Para la emergencia, mantén pulsado el botón 2 segundos.'), findsOneWidget);
+
+    final hold = await tester.startGesture(tester.getCenter(find.byKey(const Key('radio.emergency'))));
+    await tester.pump(const Duration(seconds: 2));
+    await hold.up();
+    await tester.pumpAndSettle();
+    expect(asked, ['c1']);
+    await h.done(tester);
+  });
 }

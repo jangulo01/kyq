@@ -294,9 +294,9 @@ func (s *Service) Detail(ctx context.Context, operatorID, alertID uuid.UUID) (Al
 		}, r.RaisedByName, r.ClaimedByName),
 		RaisedByPhone:     r.RaisedByPhone,
 		EmergencyContacts: []ContactView{},
-		Passenger:         PersonView{UserID: r.PassengerID, Name: r.PassengerName},
+		Passenger:         PersonView{UserID: r.PassengerID.UUID, Name: r.PassengerName},
 		Driver: DriverView{
-			PersonView: PersonView{UserID: r.DriverID, Name: r.DriverName}, VehiclePlate: r.VehiclePlate,
+			PersonView: PersonView{UserID: r.DriverID.UUID, Name: r.DriverName}, VehiclePlate: r.VehiclePlate,
 			VehicleDescription: r.VehicleDescription, VehicleBrand: textPtr(r.VehicleBrand),
 			VehicleModel: textPtr(r.VehicleModel), VehicleColor: textPtr(r.VehicleColor),
 		},

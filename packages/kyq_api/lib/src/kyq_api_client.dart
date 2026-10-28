@@ -1548,11 +1548,11 @@ class KyqApiClient implements SafetyApi, RadioApi {
       _send(() => _dio.post<void>('/v1/radio/messages/$messageId/report', data: {'reason': reason}));
 
   @override
-  Future<RadioEmergency> radioEmergency(String conversationId, {required double lat, required double lng}) async {
+  Future<RadioEmergency> radioEmergency(String conversationId, {double? lat, double? lng}) async {
     final res = await _send(
       () => _dio.post<Map<String, dynamic>>(
         '/v1/radio/conversations/$conversationId/emergency',
-        data: {'lat': lat, 'lng': lng},
+        data: {'lat': ?lat, 'lng': ?lng},
       ),
     );
     return RadioEmergency.fromJson(res.data!);

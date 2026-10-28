@@ -91,7 +91,9 @@ CREATE TABLE radio_messages (
     CHECK (status <> 'recording' OR kind IN ('voice', 'photo')),
     CHECK (kind <> 'text' OR char_length(body) BETWEEN 1 AND 500),
     CHECK (kind <> 'alert' OR body IS NULL OR char_length(body) <= 80),
-    CHECK (kind NOT IN ('location', 'emergency') OR (lat IS NOT NULL AND lng IS NOT NULL))
+    -- Una emergencia sale aunque no haya GPS (como el SOS de 003); con punto, los dos.
+    CHECK (kind <> 'location' OR (lat IS NOT NULL AND lng IS NOT NULL)),
+    CHECK ((lat IS NULL) = (lng IS NULL))
 );
 
 CREATE INDEX radio_messages_conversation_idx ON radio_messages (conversation_id, created_at DESC, id DESC);

@@ -102,8 +102,9 @@ type Media interface {
 
 // Emergency opens SOS alerts from Radio (003, R7).
 type Emergency interface {
-	// RaiseFromRadio opens the SOS of the trip in progress, or one without trip.
-	RaiseFromRadio(ctx context.Context, userID, conversationID uuid.UUID, lat, lng float64) (alertID uuid.UUID, tripID *uuid.UUID, err error)
+	// RaiseFromRadio opens the SOS of the trip in progress, or one without trip; lat and lng are
+	// nil without GPS.
+	RaiseFromRadio(ctx context.Context, userID, conversationID uuid.UUID, lat, lng *float64) (alertID uuid.UUID, tripID *uuid.UUID, err error)
 }
 
 // Service implements the Radio use cases.

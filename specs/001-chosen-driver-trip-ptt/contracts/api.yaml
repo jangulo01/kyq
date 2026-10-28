@@ -3099,6 +3099,7 @@ paths:
   /v1/radio/conversations/{conversationId}/emergency:
     post:
       summary: Emergencia desde Radio (FR-030, FR-031); con viaje en curso abre el SOS del viaje
+      description: Sin GPS se envía igual, sin `lat` ni `lng` (como el SOS de 003).
       parameters:
       - $ref: '#/components/parameters/ConversationId'
       requestBody:
@@ -3106,9 +3107,6 @@ paths:
           application/json:
             schema:
               type: object
-              required:
-              - lat
-              - lng
               properties:
                 lat:
                   type: number

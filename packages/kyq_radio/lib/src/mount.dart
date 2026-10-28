@@ -28,6 +28,7 @@ class RadioMount {
     this.open,
     this.pickPoint,
     this.keepAlive = const NoRadioKeepAlive(),
+    this.onEmergency,
   });
 
   final RadioApi api;
@@ -51,6 +52,9 @@ class RadioMount {
 
   /// Punto en el mapa de la app (ver [RadioDeps.pickPoint]).
   final Future<RadioPoint?> Function(BuildContext context, RadioPoint? near)? pickPoint;
+
+  /// Emergencia (FR-030); ver [RadioDeps.onEmergency].
+  final Future<void> Function(BuildContext context, RadioConversation conversation)? onEmergency;
 
   /// Aviso fijo "Radio encendida" con "Apagar radio" (FR-026).
   final RadioKeepAlive keepAlive;
@@ -89,6 +93,7 @@ class RadioMount {
         photos: photos,
         onShareLink: onShareLink,
         pickPoint: pickPoint,
+        onEmergency: onEmergency,
       ),
     );
     _stateSub = cubit.stream.listen(_syncKeepAlive);

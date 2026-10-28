@@ -39,6 +39,7 @@ func (h *Handlers) Register(mux *http.ServeMux, authMW func(http.Handler) http.H
 	mux.Handle("GET /v1/radio/conversations/{conversationId}/messages", user(h.history))
 	mux.Handle("POST /v1/radio/conversations/{conversationId}/messages", user(h.send))
 	mux.Handle("POST /v1/radio/conversations/{conversationId}/photos", user(h.reservePhoto))
+	mux.Handle("POST /v1/radio/conversations/{conversationId}/emergency", user(h.emergency))
 	mux.Handle("POST /v1/radio/messages/{messageId}/photo-uploaded", user(h.photoUploaded))
 	mux.Handle("GET /v1/radio/messages/{messageId}/media", user(h.media))
 	mux.Handle("PUT /v1/radio/messages/{messageId}/receipt", user(h.receipt))
@@ -378,6 +379,26 @@ func (h *Handlers) sendBulk(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	respond(w, r, http.StatusAccepted, nil, h.Service.SendBulk(r.Context(), id, in.OnlyFailed))
+}
+
+func (h *Handlers) emergency(w http.ResponseWriter, r *http.Request) {
+	id, ok := pathID(w, r, "conversationId")
+	if !ok {
+		return
+	}
+	var in struct {
+		Lat *float64 `json:"lat"`
+		Lng *float64 `json:"lng"`
+	}
+	if !httpx.DecodeJSON(w, r, &in) {
+		return
+	}
+	if (in.Lat == nil) != (in.Lng == nil) {
+		writeError(w, r, ErrInvalid)
+		return
+	}
+	out, err := h.Service.Emergency(r.Context(), principal(r), id, in.Lat, in.Lng)
+	respond(w, r, http.StatusCreated, out, err)
 }
 
 func (h *Handlers) reservePhoto(w http.ResponseWriter, r *http.Request) {

@@ -250,6 +250,38 @@ func (q *Queries) GetLastSOSLocations(ctx context.Context, alertIds []uuid.UUID)
 	return items, nil
 }
 
+const getOpenRadioSOSAlertFor = `-- name: GetOpenRadioSOSAlertFor :one
+SELECT id, trip_id, raised_by, raised_role, status, cancel_without_pin, claimed_by, voice_holder_id, outcome, room_name, egress_id, recording_key, escalated_at, created_at, claimed_at, closed_at, voice_closed_at, raised_from, radio_conversation_id FROM sos_alerts
+WHERE trip_id IS NULL AND raised_by = $1 AND status IN ('open', 'claimed')
+`
+
+func (q *Queries) GetOpenRadioSOSAlertFor(ctx context.Context, raisedBy uuid.UUID) (SosAlert, error) {
+	row := q.db.QueryRow(ctx, getOpenRadioSOSAlertFor, raisedBy)
+	var i SosAlert
+	err := row.Scan(
+		&i.ID,
+		&i.TripID,
+		&i.RaisedBy,
+		&i.RaisedRole,
+		&i.Status,
+		&i.CancelWithoutPin,
+		&i.ClaimedBy,
+		&i.VoiceHolderID,
+		&i.Outcome,
+		&i.RoomName,
+		&i.EgressID,
+		&i.RecordingKey,
+		&i.EscalatedAt,
+		&i.CreatedAt,
+		&i.ClaimedAt,
+		&i.ClosedAt,
+		&i.VoiceClosedAt,
+		&i.RaisedFrom,
+		&i.RadioConversationID,
+	)
+	return i, err
+}
+
 const getOpenSOSAlertFor = `-- name: GetOpenSOSAlertFor :one
 SELECT id, trip_id, raised_by, raised_role, status, cancel_without_pin, claimed_by, voice_holder_id, outcome, room_name, egress_id, recording_key, escalated_at, created_at, claimed_at, closed_at, voice_closed_at, raised_from, radio_conversation_id FROM sos_alerts
 WHERE trip_id = $1 AND raised_by = $2 AND status IN ('open', 'claimed')
@@ -380,17 +412,20 @@ func (q *Queries) GetSOSAlertRoom(ctx context.Context, roomName string) (GetSOSA
 const getSOSDetail = `-- name: GetSOSDetail :one
 SELECT a.id, a.trip_id, a.raised_by, a.raised_role, a.status, a.cancel_without_pin, a.claimed_by, a.voice_holder_id, a.outcome, a.room_name, a.egress_id, a.recording_key, a.escalated_at, a.created_at, a.claimed_at, a.closed_at, a.voice_closed_at, a.raised_from, a.radio_conversation_id, u.display_name AS raised_by_name, u.phone_e164 AS raised_by_phone,
        o.display_name AS claimed_by_name,
-       t.status AS trip_status, t.pickup_lat, t.pickup_lng, t.dropoff_lat, t.dropoff_lng,
-       t.passenger_id, p.display_name AS passenger_name,
-       t.driver_id, du.display_name AS driver_name, d.vehicle_plate, d.vehicle_description,
+       coalesce(t.status::text, '')::text AS trip_status,
+       coalesce(t.pickup_lat, 0)::float8 AS pickup_lat, coalesce(t.pickup_lng, 0)::float8 AS pickup_lng,
+       coalesce(t.dropoff_lat, 0)::float8 AS dropoff_lat, coalesce(t.dropoff_lng, 0)::float8 AS dropoff_lng,
+       p.id AS passenger_id, coalesce(p.display_name, '')::text AS passenger_name,
+       du.id AS driver_id, coalesce(du.display_name, '')::text AS driver_name,
+       coalesce(d.vehicle_plate, '')::text AS vehicle_plate, coalesce(d.vehicle_description, '')::text AS vehicle_description,
        d.vehicle_brand, d.vehicle_model, d.vehicle_color
 FROM sos_alerts a
 JOIN users u ON u.id = a.raised_by
 LEFT JOIN users o ON o.id = a.claimed_by
-JOIN trips t ON t.id = a.trip_id
-JOIN users p ON p.id = t.passenger_id
-JOIN drivers d ON d.user_id = t.driver_id
-JOIN users du ON du.id = t.driver_id
+LEFT JOIN trips t ON t.id = a.trip_id
+LEFT JOIN users p ON p.id = coalesce(t.passenger_id, CASE WHEN a.raised_role = 'passenger' THEN a.raised_by END)
+LEFT JOIN drivers d ON d.user_id = coalesce(t.driver_id, CASE WHEN a.raised_role = 'driver' THEN a.raised_by END)
+LEFT JOIN users du ON du.id = d.user_id
 WHERE a.id = $1
 `
 
@@ -417,14 +452,14 @@ type GetSOSDetailRow struct {
 	RaisedByName        string
 	RaisedByPhone       string
 	ClaimedByName       pgtype.Text
-	TripStatus          TripStatus
+	TripStatus          string
 	PickupLat           float64
 	PickupLng           float64
 	DropoffLat          float64
 	DropoffLng          float64
-	PassengerID         uuid.UUID
+	PassengerID         uuid.NullUUID
 	PassengerName       string
-	DriverID            uuid.UUID
+	DriverID            uuid.NullUUID
 	DriverName          string
 	VehiclePlate        string
 	VehicleDescription  string
@@ -433,6 +468,8 @@ type GetSOSDetailRow struct {
 	VehicleColor        pgtype.Text
 }
 
+// 011: una alerta desde Radio sin viaje no tiene viaje; el conductor o el pasajero es quien la
+// levantó.
 func (q *Queries) GetSOSDetail(ctx context.Context, id uuid.UUID) (GetSOSDetailRow, error) {
 	row := q.db.QueryRow(ctx, getSOSDetail, id)
 	var i GetSOSDetailRow
@@ -626,6 +663,59 @@ func (q *Queries) InsertEmergencyContact(ctx context.Context, arg InsertEmergenc
 		arg.CreatedAt,
 	)
 	return err
+}
+
+const insertRadioSOSAlert = `-- name: InsertRadioSOSAlert :one
+
+INSERT INTO sos_alerts (id, trip_id, raised_by, raised_role, room_name, created_at, raised_from, radio_conversation_id)
+VALUES ($1, NULL, $2, $3, $4, $5, 'radio', $6)
+ON CONFLICT (raised_by) WHERE trip_id IS NULL AND status IN ('open', 'claimed') DO NOTHING
+RETURNING id, trip_id, raised_by, raised_role, status, cancel_without_pin, claimed_by, voice_holder_id, outcome, room_name, egress_id, recording_key, escalated_at, created_at, claimed_at, closed_at, voice_closed_at, raised_from, radio_conversation_id
+`
+
+type InsertRadioSOSAlertParams struct {
+	ID                  uuid.UUID
+	RaisedBy            uuid.UUID
+	RaisedRole          SosRole
+	RoomName            string
+	CreatedAt           time.Time
+	RadioConversationID uuid.NullUUID
+}
+
+// 011: emergencia desde Radio sin viaje (R7) ----------------------------------------------------
+// Una alerta abierta sin viaje por persona (índice parcial sos_alerts_open_radio).
+func (q *Queries) InsertRadioSOSAlert(ctx context.Context, arg InsertRadioSOSAlertParams) (SosAlert, error) {
+	row := q.db.QueryRow(ctx, insertRadioSOSAlert,
+		arg.ID,
+		arg.RaisedBy,
+		arg.RaisedRole,
+		arg.RoomName,
+		arg.CreatedAt,
+		arg.RadioConversationID,
+	)
+	var i SosAlert
+	err := row.Scan(
+		&i.ID,
+		&i.TripID,
+		&i.RaisedBy,
+		&i.RaisedRole,
+		&i.Status,
+		&i.CancelWithoutPin,
+		&i.ClaimedBy,
+		&i.VoiceHolderID,
+		&i.Outcome,
+		&i.RoomName,
+		&i.EgressID,
+		&i.RecordingKey,
+		&i.EscalatedAt,
+		&i.CreatedAt,
+		&i.ClaimedAt,
+		&i.ClosedAt,
+		&i.VoiceClosedAt,
+		&i.RaisedFrom,
+		&i.RadioConversationID,
+	)
+	return i, err
 }
 
 const insertSOSAlert = `-- name: InsertSOSAlert :one

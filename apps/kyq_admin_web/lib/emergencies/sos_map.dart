@@ -80,9 +80,11 @@ class _SosLiveMapState extends State<SosLiveMap> {
         ),
       );
     }
+    final hasTrip = a.tripId != null;
     for (final (point, color) in [
-      (LatLng(a.trip.pickup.lat, a.trip.pickup.lng), '#2E7D32'),
-      (LatLng(a.trip.dropoff.lat, a.trip.dropoff.lng), '#1565C0'),
+      // Sin viaje (desde Radio, 011) no hay recogida ni destino.
+      if (hasTrip) (LatLng(a.trip.pickup.lat, a.trip.pickup.lng), '#2E7D32'),
+      if (hasTrip) (LatLng(a.trip.dropoff.lat, a.trip.dropoff.lng), '#1565C0'),
       ?(_current == null ? null : (_current!, '#C62828')),
     ]) {
       await c.addCircle(
@@ -101,7 +103,10 @@ class _SosLiveMapState extends State<SosLiveMap> {
 
   @override
   Widget build(BuildContext context) {
-    final start = _current ?? LatLng(widget.alert.trip.pickup.lat, widget.alert.trip.pickup.lng);
+    final a = widget.alert;
+    final last = a.lastLocation;
+    final start =
+        _current ?? (last != null ? LatLng(last.lat, last.lng) : LatLng(a.trip.pickup.lat, a.trip.pickup.lng));
     return MapLibreMap(
       styleString: mapStyleUrl,
       initialCameraPosition: CameraPosition(target: start, zoom: 15),

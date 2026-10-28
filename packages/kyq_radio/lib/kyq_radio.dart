@@ -12,6 +12,7 @@ export 'src/keep_alive.dart';
 export 'src/mount.dart';
 export 'src/referrer.dart';
 export 'src/ui/add_contact.dart';
+export 'src/ui/alert_overlay.dart';
 export 'src/ui/auto_mode.dart';
 export 'src/ui/channels.dart';
 export 'src/ui/conversation_page.dart';

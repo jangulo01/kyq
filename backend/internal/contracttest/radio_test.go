@@ -140,6 +140,9 @@ func TestIntegration011RadioRoutesMatchContract(t *testing.T) {
 	c.call(http.MethodPost, "/v1/radio/conversations/"+convID+"/messages", s.jonTk, map[string]any{"kind": "alert"}, http.StatusTooManyRequests)
 	c.call(http.MethodPost, "/v1/radio/conversations/"+convID+"/messages", s.jonTk, map[string]any{"kind": "text", "body": ""}, http.StatusBadRequest)
 
+	// Emergencia (FR-030): sin el servicio SOS conectado responde 503; la lógica está probada en radio y safety.
+	c.call(http.MethodPost, "/v1/radio/conversations/"+convID+"/emergency", s.carlosTk, map[string]any{"lat": 4.61, "lng": -74.07}, http.StatusServiceUnavailable)
+
 	// Foto (R6): reserva, subida directa al almacenamiento y confirmación.
 	photo := c.call(http.MethodPost, "/v1/radio/conversations/"+convID+"/photos", s.jonTk, nil, http.StatusCreated)
 	c.call(http.MethodPost, "/v1/radio/messages/"+photo["message_id"].(string)+"/photo-uploaded", s.jonTk, nil, http.StatusConflict)

@@ -169,7 +169,7 @@ class FakeRadioApi implements RadioApi {
   Future<void> reportRadioMessage(String messageId, {String reason = ''}) async => calls.add('report $messageId');
 
   @override
-  Future<RadioEmergency> radioEmergency(String conversationId, {required double lat, required double lng}) async {
+  Future<RadioEmergency> radioEmergency(String conversationId, {double? lat, double? lng}) async {
     calls.add('emergency $conversationId');
     return const RadioEmergency(alertId: 'sos-1');
   }

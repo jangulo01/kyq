@@ -130,7 +130,7 @@ sealed class RealtimeEvent {
       'sos.created' => SosCreated(
         at,
         alertId: data['alert_id'] as String,
-        tripId: data['trip_id'] as String,
+        tripId: data['trip_id'] as String?,
         raisedRole: data['raised_role'] as String,
         raisedByName: data['raised_by_name'] as String? ?? '',
       ),
@@ -501,13 +501,15 @@ final class SosCreated extends RealtimeEvent {
   const SosCreated(
     super.occurredAt, {
     required this.alertId,
-    required this.tripId,
+    this.tripId,
     required this.raisedRole,
     required this.raisedByName,
   });
 
   final String alertId;
-  final String tripId;
+
+  /// null en una alerta desde Radio sin viaje (011).
+  final String? tripId;
 
   /// `passenger` o `driver`.
   final String raisedRole;

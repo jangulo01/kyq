@@ -95,6 +95,7 @@ class _Panel extends StatelessWidget {
     final summary = SosAlertSummary(
       id: alert.id,
       tripId: alert.tripId,
+      raisedFrom: alert.raisedFrom,
       raisedRole: alert.raisedRole,
       raisedByName: alert.raisedByName,
       status: alert.status,
@@ -218,7 +219,10 @@ class _Panel extends StatelessWidget {
           Text(
             'Vehículo: ${[alert.driver.vehicleBrand, alert.driver.vehicleModel, alert.driver.vehicleColor].nonNulls.join(' ').ifEmpty(alert.driver.vehicleDescription)}',
           ),
-          Text('Estado del viaje: ${alert.trip.status}'),
+          if (alert.tripId == null)
+            const Text('Sin viaje · desde Radio', key: Key('ops.detail.radio'))
+          else
+            Text('Estado del viaje: ${alert.trip.status}'),
           if (alert.relatedAlertIds.isNotEmpty)
             Text(
               'Hay ${alert.relatedAlertIds.length} alerta(s) más en este viaje.',

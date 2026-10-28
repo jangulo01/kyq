@@ -150,6 +150,14 @@ class _KyqRiderAppState extends State<KyqRiderApp> {
         context.push(Uri(path: '/request/${c.peerId}', queryParameters: {'name': c.title}).toString()),
     referrer: widget.radioReferrer,
     keepAlive: widget.radioKeepAlive ?? PlatformRadioKeepAlive(),
+    // Emergencia (FR-030): el SOS de 003, del viaje en curso o sin viaje.
+    onEmergency: (context, c) => openRadioEmergency(
+      context,
+      api: widget.api,
+      platform: _safety,
+      raise: (fix) => widget.api.radioEmergency(c.id, lat: fix?.lat, lng: fix?.lng),
+      onSetupPin: () => _router.push('/safety'),
+    ),
     open: (location) => _router.push(location),
     pickPoint: (context, near) => Navigator.of(context).push<RadioPoint>(
       MaterialPageRoute(
@@ -358,7 +366,14 @@ class _KyqRiderAppState extends State<KyqRiderApp> {
       ],
       child: BlocProvider.value(
         value: widget.auth,
-        child: MaterialApp.router(title: 'Kyq Pasajero', theme: kyqTheme(), routerConfig: _router),
+        child: MaterialApp.router(
+          title: 'Kyq Pasajero',
+          theme: kyqTheme(),
+          routerConfig: _router,
+          // 011: la alerta de llamada o la emergencia de Radio se ve sobre cualquier pantalla.
+          builder: (context, child) =>
+              RadioAlertOverlay(mount: _radio, open: (location) => _router.push(location), child: child!),
+        ),
       ),
     );
   }

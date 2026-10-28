@@ -148,19 +148,24 @@ ORDER BY a.created_at DESC
 LIMIT 200;
 
 -- name: GetSOSDetail :one
+-- 011: una alerta desde Radio sin viaje no tiene viaje; el conductor o el pasajero es quien la
+-- levantó.
 SELECT a.*, u.display_name AS raised_by_name, u.phone_e164 AS raised_by_phone,
        o.display_name AS claimed_by_name,
-       t.status AS trip_status, t.pickup_lat, t.pickup_lng, t.dropoff_lat, t.dropoff_lng,
-       t.passenger_id, p.display_name AS passenger_name,
-       t.driver_id, du.display_name AS driver_name, d.vehicle_plate, d.vehicle_description,
+       coalesce(t.status::text, '')::text AS trip_status,
+       coalesce(t.pickup_lat, 0)::float8 AS pickup_lat, coalesce(t.pickup_lng, 0)::float8 AS pickup_lng,
+       coalesce(t.dropoff_lat, 0)::float8 AS dropoff_lat, coalesce(t.dropoff_lng, 0)::float8 AS dropoff_lng,
+       p.id AS passenger_id, coalesce(p.display_name, '')::text AS passenger_name,
+       du.id AS driver_id, coalesce(du.display_name, '')::text AS driver_name,
+       coalesce(d.vehicle_plate, '')::text AS vehicle_plate, coalesce(d.vehicle_description, '')::text AS vehicle_description,
        d.vehicle_brand, d.vehicle_model, d.vehicle_color
 FROM sos_alerts a
 JOIN users u ON u.id = a.raised_by
 LEFT JOIN users o ON o.id = a.claimed_by
-JOIN trips t ON t.id = a.trip_id
-JOIN users p ON p.id = t.passenger_id
-JOIN drivers d ON d.user_id = t.driver_id
-JOIN users du ON du.id = t.driver_id
+LEFT JOIN trips t ON t.id = a.trip_id
+LEFT JOIN users p ON p.id = coalesce(t.passenger_id, CASE WHEN a.raised_role = 'passenger' THEN a.raised_by END)
+LEFT JOIN drivers d ON d.user_id = coalesce(t.driver_id, CASE WHEN a.raised_role = 'driver' THEN a.raised_by END)
+LEFT JOIN users du ON du.id = d.user_id
 WHERE a.id = $1;
 
 -- name: ListSOSAlertIDsForTrip :many
@@ -239,3 +244,16 @@ ON CONFLICT (user_id) DO UPDATE SET pin_hash = EXCLUDED.pin_hash, failed_attempt
 
 -- name: SetSafetyPinAttempts :exec
 UPDATE safety_pins SET failed_attempts = $2 WHERE user_id = $1;
+
+-- 011: emergencia desde Radio sin viaje (R7) ----------------------------------------------------
+
+-- name: InsertRadioSOSAlert :one
+-- Una alerta abierta sin viaje por persona (índice parcial sos_alerts_open_radio).
+INSERT INTO sos_alerts (id, trip_id, raised_by, raised_role, room_name, created_at, raised_from, radio_conversation_id)
+VALUES ($1, NULL, $2, $3, $4, $5, 'radio', sqlc.narg(radio_conversation_id))
+ON CONFLICT (raised_by) WHERE trip_id IS NULL AND status IN ('open', 'claimed') DO NOTHING
+RETURNING *;
+
+-- name: GetOpenRadioSOSAlertFor :one
+SELECT * FROM sos_alerts
+WHERE trip_id IS NULL AND raised_by = $1 AND status IN ('open', 'claimed');

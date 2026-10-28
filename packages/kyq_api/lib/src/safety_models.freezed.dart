@@ -559,7 +559,8 @@ as DateTime?,
 /// @nodoc
 mixin _$SosAlertSelf {
 
- String get id; String get tripId; SosStatus get status; bool get operatorConnected; bool get escalated; DateTime get createdAt;
+ String get id;/// null en una alerta desde Radio sin viaje (011).
+ String? get tripId; SosStatus get status; bool get operatorConnected; bool get escalated; DateTime get createdAt;
 /// Create a copy of SosAlertSelf
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -592,7 +593,7 @@ abstract mixin class $SosAlertSelfCopyWith<$Res>  {
   factory $SosAlertSelfCopyWith(SosAlertSelf value, $Res Function(SosAlertSelf) _then) = _$SosAlertSelfCopyWithImpl;
 @useResult
 $Res call({
- String id, String tripId, SosStatus status, bool operatorConnected, bool escalated, DateTime createdAt
+ String id, String? tripId, SosStatus status, bool operatorConnected, bool escalated, DateTime createdAt
 });
 
 
@@ -609,11 +610,11 @@ class _$SosAlertSelfCopyWithImpl<$Res>
 
 /// Create a copy of SosAlertSelf
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? tripId = null,Object? status = null,Object? operatorConnected = null,Object? escalated = null,Object? createdAt = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? tripId = freezed,Object? status = null,Object? operatorConnected = null,Object? escalated = null,Object? createdAt = null,}) {
   return _then(_self.copyWith(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
-as String,tripId: null == tripId ? _self.tripId : tripId // ignore: cast_nullable_to_non_nullable
-as String,status: null == status ? _self.status : status // ignore: cast_nullable_to_non_nullable
+as String,tripId: freezed == tripId ? _self.tripId : tripId // ignore: cast_nullable_to_non_nullable
+as String?,status: null == status ? _self.status : status // ignore: cast_nullable_to_non_nullable
 as SosStatus,operatorConnected: null == operatorConnected ? _self.operatorConnected : operatorConnected // ignore: cast_nullable_to_non_nullable
 as bool,escalated: null == escalated ? _self.escalated : escalated // ignore: cast_nullable_to_non_nullable
 as bool,createdAt: null == createdAt ? _self.createdAt : createdAt // ignore: cast_nullable_to_non_nullable
@@ -702,7 +703,7 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String tripId,  SosStatus status,  bool operatorConnected,  bool escalated,  DateTime createdAt)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String? tripId,  SosStatus status,  bool operatorConnected,  bool escalated,  DateTime createdAt)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _SosAlertSelf() when $default != null:
 return $default(_that.id,_that.tripId,_that.status,_that.operatorConnected,_that.escalated,_that.createdAt);case _:
@@ -723,7 +724,7 @@ return $default(_that.id,_that.tripId,_that.status,_that.operatorConnected,_that
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String tripId,  SosStatus status,  bool operatorConnected,  bool escalated,  DateTime createdAt)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String? tripId,  SosStatus status,  bool operatorConnected,  bool escalated,  DateTime createdAt)  $default,) {final _that = this;
 switch (_that) {
 case _SosAlertSelf():
 return $default(_that.id,_that.tripId,_that.status,_that.operatorConnected,_that.escalated,_that.createdAt);case _:
@@ -743,7 +744,7 @@ return $default(_that.id,_that.tripId,_that.status,_that.operatorConnected,_that
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String tripId,  SosStatus status,  bool operatorConnected,  bool escalated,  DateTime createdAt)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String? tripId,  SosStatus status,  bool operatorConnected,  bool escalated,  DateTime createdAt)?  $default,) {final _that = this;
 switch (_that) {
 case _SosAlertSelf() when $default != null:
 return $default(_that.id,_that.tripId,_that.status,_that.operatorConnected,_that.escalated,_that.createdAt);case _:
@@ -758,11 +759,12 @@ return $default(_that.id,_that.tripId,_that.status,_that.operatorConnected,_that
 @JsonSerializable()
 
 class _SosAlertSelf implements SosAlertSelf {
-  const _SosAlertSelf({required this.id, required this.tripId, required this.status, this.operatorConnected = false, this.escalated = false, required this.createdAt});
+  const _SosAlertSelf({required this.id, this.tripId, required this.status, this.operatorConnected = false, this.escalated = false, required this.createdAt});
   factory _SosAlertSelf.fromJson(Map<String, dynamic> json) => _$SosAlertSelfFromJson(json);
 
 @override final  String id;
-@override final  String tripId;
+/// null en una alerta desde Radio sin viaje (011).
+@override final  String? tripId;
 @override final  SosStatus status;
 @override@JsonKey() final  bool operatorConnected;
 @override@JsonKey() final  bool escalated;
@@ -801,7 +803,7 @@ abstract mixin class _$SosAlertSelfCopyWith<$Res> implements $SosAlertSelfCopyWi
   factory _$SosAlertSelfCopyWith(_SosAlertSelf value, $Res Function(_SosAlertSelf) _then) = __$SosAlertSelfCopyWithImpl;
 @override @useResult
 $Res call({
- String id, String tripId, SosStatus status, bool operatorConnected, bool escalated, DateTime createdAt
+ String id, String? tripId, SosStatus status, bool operatorConnected, bool escalated, DateTime createdAt
 });
 
 
@@ -818,11 +820,11 @@ class __$SosAlertSelfCopyWithImpl<$Res>
 
 /// Create a copy of SosAlertSelf
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? tripId = null,Object? status = null,Object? operatorConnected = null,Object? escalated = null,Object? createdAt = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? tripId = freezed,Object? status = null,Object? operatorConnected = null,Object? escalated = null,Object? createdAt = null,}) {
   return _then(_SosAlertSelf(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
-as String,tripId: null == tripId ? _self.tripId : tripId // ignore: cast_nullable_to_non_nullable
-as String,status: null == status ? _self.status : status // ignore: cast_nullable_to_non_nullable
+as String,tripId: freezed == tripId ? _self.tripId : tripId // ignore: cast_nullable_to_non_nullable
+as String?,status: null == status ? _self.status : status // ignore: cast_nullable_to_non_nullable
 as SosStatus,operatorConnected: null == operatorConnected ? _self.operatorConnected : operatorConnected // ignore: cast_nullable_to_non_nullable
 as bool,escalated: null == escalated ? _self.escalated : escalated // ignore: cast_nullable_to_non_nullable
 as bool,createdAt: null == createdAt ? _self.createdAt : createdAt // ignore: cast_nullable_to_non_nullable
@@ -1420,7 +1422,9 @@ $SosVoiceCopyWith<$Res>? get voice {
 /// @nodoc
 mixin _$SosAlertSummary {
 
- String get id; String get tripId; SosRole get raisedRole; String get raisedByName; SosStatus get status; bool get cancelWithoutPin; String? get claimedBy; String? get claimedByName; SosOutcome? get outcome; bool get escalated; bool get hasRecording; DateTime get createdAt; DateTime? get claimedAt; DateTime? get closedAt; SosLocation? get lastLocation;
+ String get id;/// null en una alerta desde Radio sin viaje (011).
+ String? get tripId;/// `trip` o `radio` (011).
+ String get raisedFrom; SosRole get raisedRole; String get raisedByName; SosStatus get status; bool get cancelWithoutPin; String? get claimedBy; String? get claimedByName; SosOutcome? get outcome; bool get escalated; bool get hasRecording; DateTime get createdAt; DateTime? get claimedAt; DateTime? get closedAt; SosLocation? get lastLocation;
 /// Create a copy of SosAlertSummary
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -1433,16 +1437,16 @@ $SosAlertSummaryCopyWith<SosAlertSummary> get copyWith => _$SosAlertSummaryCopyW
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is SosAlertSummary&&(identical(other.id, id) || other.id == id)&&(identical(other.tripId, tripId) || other.tripId == tripId)&&(identical(other.raisedRole, raisedRole) || other.raisedRole == raisedRole)&&(identical(other.raisedByName, raisedByName) || other.raisedByName == raisedByName)&&(identical(other.status, status) || other.status == status)&&(identical(other.cancelWithoutPin, cancelWithoutPin) || other.cancelWithoutPin == cancelWithoutPin)&&(identical(other.claimedBy, claimedBy) || other.claimedBy == claimedBy)&&(identical(other.claimedByName, claimedByName) || other.claimedByName == claimedByName)&&(identical(other.outcome, outcome) || other.outcome == outcome)&&(identical(other.escalated, escalated) || other.escalated == escalated)&&(identical(other.hasRecording, hasRecording) || other.hasRecording == hasRecording)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.claimedAt, claimedAt) || other.claimedAt == claimedAt)&&(identical(other.closedAt, closedAt) || other.closedAt == closedAt)&&(identical(other.lastLocation, lastLocation) || other.lastLocation == lastLocation));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is SosAlertSummary&&(identical(other.id, id) || other.id == id)&&(identical(other.tripId, tripId) || other.tripId == tripId)&&(identical(other.raisedFrom, raisedFrom) || other.raisedFrom == raisedFrom)&&(identical(other.raisedRole, raisedRole) || other.raisedRole == raisedRole)&&(identical(other.raisedByName, raisedByName) || other.raisedByName == raisedByName)&&(identical(other.status, status) || other.status == status)&&(identical(other.cancelWithoutPin, cancelWithoutPin) || other.cancelWithoutPin == cancelWithoutPin)&&(identical(other.claimedBy, claimedBy) || other.claimedBy == claimedBy)&&(identical(other.claimedByName, claimedByName) || other.claimedByName == claimedByName)&&(identical(other.outcome, outcome) || other.outcome == outcome)&&(identical(other.escalated, escalated) || other.escalated == escalated)&&(identical(other.hasRecording, hasRecording) || other.hasRecording == hasRecording)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.claimedAt, claimedAt) || other.claimedAt == claimedAt)&&(identical(other.closedAt, closedAt) || other.closedAt == closedAt)&&(identical(other.lastLocation, lastLocation) || other.lastLocation == lastLocation));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,tripId,raisedRole,raisedByName,status,cancelWithoutPin,claimedBy,claimedByName,outcome,escalated,hasRecording,createdAt,claimedAt,closedAt,lastLocation);
+int get hashCode => Object.hash(runtimeType,id,tripId,raisedFrom,raisedRole,raisedByName,status,cancelWithoutPin,claimedBy,claimedByName,outcome,escalated,hasRecording,createdAt,claimedAt,closedAt,lastLocation);
 
 @override
 String toString() {
-  return 'SosAlertSummary(id: $id, tripId: $tripId, raisedRole: $raisedRole, raisedByName: $raisedByName, status: $status, cancelWithoutPin: $cancelWithoutPin, claimedBy: $claimedBy, claimedByName: $claimedByName, outcome: $outcome, escalated: $escalated, hasRecording: $hasRecording, createdAt: $createdAt, claimedAt: $claimedAt, closedAt: $closedAt, lastLocation: $lastLocation)';
+  return 'SosAlertSummary(id: $id, tripId: $tripId, raisedFrom: $raisedFrom, raisedRole: $raisedRole, raisedByName: $raisedByName, status: $status, cancelWithoutPin: $cancelWithoutPin, claimedBy: $claimedBy, claimedByName: $claimedByName, outcome: $outcome, escalated: $escalated, hasRecording: $hasRecording, createdAt: $createdAt, claimedAt: $claimedAt, closedAt: $closedAt, lastLocation: $lastLocation)';
 }
 
 
@@ -1453,7 +1457,7 @@ abstract mixin class $SosAlertSummaryCopyWith<$Res>  {
   factory $SosAlertSummaryCopyWith(SosAlertSummary value, $Res Function(SosAlertSummary) _then) = _$SosAlertSummaryCopyWithImpl;
 @useResult
 $Res call({
- String id, String tripId, SosRole raisedRole, String raisedByName, SosStatus status, bool cancelWithoutPin, String? claimedBy, String? claimedByName, SosOutcome? outcome, bool escalated, bool hasRecording, DateTime createdAt, DateTime? claimedAt, DateTime? closedAt, SosLocation? lastLocation
+ String id, String? tripId, String raisedFrom, SosRole raisedRole, String raisedByName, SosStatus status, bool cancelWithoutPin, String? claimedBy, String? claimedByName, SosOutcome? outcome, bool escalated, bool hasRecording, DateTime createdAt, DateTime? claimedAt, DateTime? closedAt, SosLocation? lastLocation
 });
 
 
@@ -1470,10 +1474,11 @@ class _$SosAlertSummaryCopyWithImpl<$Res>
 
 /// Create a copy of SosAlertSummary
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? tripId = null,Object? raisedRole = null,Object? raisedByName = null,Object? status = null,Object? cancelWithoutPin = null,Object? claimedBy = freezed,Object? claimedByName = freezed,Object? outcome = freezed,Object? escalated = null,Object? hasRecording = null,Object? createdAt = null,Object? claimedAt = freezed,Object? closedAt = freezed,Object? lastLocation = freezed,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? tripId = freezed,Object? raisedFrom = null,Object? raisedRole = null,Object? raisedByName = null,Object? status = null,Object? cancelWithoutPin = null,Object? claimedBy = freezed,Object? claimedByName = freezed,Object? outcome = freezed,Object? escalated = null,Object? hasRecording = null,Object? createdAt = null,Object? claimedAt = freezed,Object? closedAt = freezed,Object? lastLocation = freezed,}) {
   return _then(_self.copyWith(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
-as String,tripId: null == tripId ? _self.tripId : tripId // ignore: cast_nullable_to_non_nullable
+as String,tripId: freezed == tripId ? _self.tripId : tripId // ignore: cast_nullable_to_non_nullable
+as String?,raisedFrom: null == raisedFrom ? _self.raisedFrom : raisedFrom // ignore: cast_nullable_to_non_nullable
 as String,raisedRole: null == raisedRole ? _self.raisedRole : raisedRole // ignore: cast_nullable_to_non_nullable
 as SosRole,raisedByName: null == raisedByName ? _self.raisedByName : raisedByName // ignore: cast_nullable_to_non_nullable
 as String,status: null == status ? _self.status : status // ignore: cast_nullable_to_non_nullable
@@ -1584,10 +1589,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String tripId,  SosRole raisedRole,  String raisedByName,  SosStatus status,  bool cancelWithoutPin,  String? claimedBy,  String? claimedByName,  SosOutcome? outcome,  bool escalated,  bool hasRecording,  DateTime createdAt,  DateTime? claimedAt,  DateTime? closedAt,  SosLocation? lastLocation)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String? tripId,  String raisedFrom,  SosRole raisedRole,  String raisedByName,  SosStatus status,  bool cancelWithoutPin,  String? claimedBy,  String? claimedByName,  SosOutcome? outcome,  bool escalated,  bool hasRecording,  DateTime createdAt,  DateTime? claimedAt,  DateTime? closedAt,  SosLocation? lastLocation)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _SosAlertSummary() when $default != null:
-return $default(_that.id,_that.tripId,_that.raisedRole,_that.raisedByName,_that.status,_that.cancelWithoutPin,_that.claimedBy,_that.claimedByName,_that.outcome,_that.escalated,_that.hasRecording,_that.createdAt,_that.claimedAt,_that.closedAt,_that.lastLocation);case _:
+return $default(_that.id,_that.tripId,_that.raisedFrom,_that.raisedRole,_that.raisedByName,_that.status,_that.cancelWithoutPin,_that.claimedBy,_that.claimedByName,_that.outcome,_that.escalated,_that.hasRecording,_that.createdAt,_that.claimedAt,_that.closedAt,_that.lastLocation);case _:
   return orElse();
 
 }
@@ -1605,10 +1610,10 @@ return $default(_that.id,_that.tripId,_that.raisedRole,_that.raisedByName,_that.
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String tripId,  SosRole raisedRole,  String raisedByName,  SosStatus status,  bool cancelWithoutPin,  String? claimedBy,  String? claimedByName,  SosOutcome? outcome,  bool escalated,  bool hasRecording,  DateTime createdAt,  DateTime? claimedAt,  DateTime? closedAt,  SosLocation? lastLocation)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String? tripId,  String raisedFrom,  SosRole raisedRole,  String raisedByName,  SosStatus status,  bool cancelWithoutPin,  String? claimedBy,  String? claimedByName,  SosOutcome? outcome,  bool escalated,  bool hasRecording,  DateTime createdAt,  DateTime? claimedAt,  DateTime? closedAt,  SosLocation? lastLocation)  $default,) {final _that = this;
 switch (_that) {
 case _SosAlertSummary():
-return $default(_that.id,_that.tripId,_that.raisedRole,_that.raisedByName,_that.status,_that.cancelWithoutPin,_that.claimedBy,_that.claimedByName,_that.outcome,_that.escalated,_that.hasRecording,_that.createdAt,_that.claimedAt,_that.closedAt,_that.lastLocation);case _:
+return $default(_that.id,_that.tripId,_that.raisedFrom,_that.raisedRole,_that.raisedByName,_that.status,_that.cancelWithoutPin,_that.claimedBy,_that.claimedByName,_that.outcome,_that.escalated,_that.hasRecording,_that.createdAt,_that.claimedAt,_that.closedAt,_that.lastLocation);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -1625,10 +1630,10 @@ return $default(_that.id,_that.tripId,_that.raisedRole,_that.raisedByName,_that.
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String tripId,  SosRole raisedRole,  String raisedByName,  SosStatus status,  bool cancelWithoutPin,  String? claimedBy,  String? claimedByName,  SosOutcome? outcome,  bool escalated,  bool hasRecording,  DateTime createdAt,  DateTime? claimedAt,  DateTime? closedAt,  SosLocation? lastLocation)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String? tripId,  String raisedFrom,  SosRole raisedRole,  String raisedByName,  SosStatus status,  bool cancelWithoutPin,  String? claimedBy,  String? claimedByName,  SosOutcome? outcome,  bool escalated,  bool hasRecording,  DateTime createdAt,  DateTime? claimedAt,  DateTime? closedAt,  SosLocation? lastLocation)?  $default,) {final _that = this;
 switch (_that) {
 case _SosAlertSummary() when $default != null:
-return $default(_that.id,_that.tripId,_that.raisedRole,_that.raisedByName,_that.status,_that.cancelWithoutPin,_that.claimedBy,_that.claimedByName,_that.outcome,_that.escalated,_that.hasRecording,_that.createdAt,_that.claimedAt,_that.closedAt,_that.lastLocation);case _:
+return $default(_that.id,_that.tripId,_that.raisedFrom,_that.raisedRole,_that.raisedByName,_that.status,_that.cancelWithoutPin,_that.claimedBy,_that.claimedByName,_that.outcome,_that.escalated,_that.hasRecording,_that.createdAt,_that.claimedAt,_that.closedAt,_that.lastLocation);case _:
   return null;
 
 }
@@ -1640,11 +1645,14 @@ return $default(_that.id,_that.tripId,_that.raisedRole,_that.raisedByName,_that.
 @JsonSerializable()
 
 class _SosAlertSummary implements SosAlertSummary {
-  const _SosAlertSummary({required this.id, required this.tripId, required this.raisedRole, required this.raisedByName, required this.status, this.cancelWithoutPin = false, this.claimedBy, this.claimedByName, this.outcome, this.escalated = false, this.hasRecording = false, required this.createdAt, this.claimedAt, this.closedAt, this.lastLocation});
+  const _SosAlertSummary({required this.id, this.tripId, this.raisedFrom = 'trip', required this.raisedRole, required this.raisedByName, required this.status, this.cancelWithoutPin = false, this.claimedBy, this.claimedByName, this.outcome, this.escalated = false, this.hasRecording = false, required this.createdAt, this.claimedAt, this.closedAt, this.lastLocation});
   factory _SosAlertSummary.fromJson(Map<String, dynamic> json) => _$SosAlertSummaryFromJson(json);
 
 @override final  String id;
-@override final  String tripId;
+/// null en una alerta desde Radio sin viaje (011).
+@override final  String? tripId;
+/// `trip` o `radio` (011).
+@override@JsonKey() final  String raisedFrom;
 @override final  SosRole raisedRole;
 @override final  String raisedByName;
 @override final  SosStatus status;
@@ -1672,16 +1680,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _SosAlertSummary&&(identical(other.id, id) || other.id == id)&&(identical(other.tripId, tripId) || other.tripId == tripId)&&(identical(other.raisedRole, raisedRole) || other.raisedRole == raisedRole)&&(identical(other.raisedByName, raisedByName) || other.raisedByName == raisedByName)&&(identical(other.status, status) || other.status == status)&&(identical(other.cancelWithoutPin, cancelWithoutPin) || other.cancelWithoutPin == cancelWithoutPin)&&(identical(other.claimedBy, claimedBy) || other.claimedBy == claimedBy)&&(identical(other.claimedByName, claimedByName) || other.claimedByName == claimedByName)&&(identical(other.outcome, outcome) || other.outcome == outcome)&&(identical(other.escalated, escalated) || other.escalated == escalated)&&(identical(other.hasRecording, hasRecording) || other.hasRecording == hasRecording)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.claimedAt, claimedAt) || other.claimedAt == claimedAt)&&(identical(other.closedAt, closedAt) || other.closedAt == closedAt)&&(identical(other.lastLocation, lastLocation) || other.lastLocation == lastLocation));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _SosAlertSummary&&(identical(other.id, id) || other.id == id)&&(identical(other.tripId, tripId) || other.tripId == tripId)&&(identical(other.raisedFrom, raisedFrom) || other.raisedFrom == raisedFrom)&&(identical(other.raisedRole, raisedRole) || other.raisedRole == raisedRole)&&(identical(other.raisedByName, raisedByName) || other.raisedByName == raisedByName)&&(identical(other.status, status) || other.status == status)&&(identical(other.cancelWithoutPin, cancelWithoutPin) || other.cancelWithoutPin == cancelWithoutPin)&&(identical(other.claimedBy, claimedBy) || other.claimedBy == claimedBy)&&(identical(other.claimedByName, claimedByName) || other.claimedByName == claimedByName)&&(identical(other.outcome, outcome) || other.outcome == outcome)&&(identical(other.escalated, escalated) || other.escalated == escalated)&&(identical(other.hasRecording, hasRecording) || other.hasRecording == hasRecording)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.claimedAt, claimedAt) || other.claimedAt == claimedAt)&&(identical(other.closedAt, closedAt) || other.closedAt == closedAt)&&(identical(other.lastLocation, lastLocation) || other.lastLocation == lastLocation));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,tripId,raisedRole,raisedByName,status,cancelWithoutPin,claimedBy,claimedByName,outcome,escalated,hasRecording,createdAt,claimedAt,closedAt,lastLocation);
+int get hashCode => Object.hash(runtimeType,id,tripId,raisedFrom,raisedRole,raisedByName,status,cancelWithoutPin,claimedBy,claimedByName,outcome,escalated,hasRecording,createdAt,claimedAt,closedAt,lastLocation);
 
 @override
 String toString() {
-  return 'SosAlertSummary(id: $id, tripId: $tripId, raisedRole: $raisedRole, raisedByName: $raisedByName, status: $status, cancelWithoutPin: $cancelWithoutPin, claimedBy: $claimedBy, claimedByName: $claimedByName, outcome: $outcome, escalated: $escalated, hasRecording: $hasRecording, createdAt: $createdAt, claimedAt: $claimedAt, closedAt: $closedAt, lastLocation: $lastLocation)';
+  return 'SosAlertSummary(id: $id, tripId: $tripId, raisedFrom: $raisedFrom, raisedRole: $raisedRole, raisedByName: $raisedByName, status: $status, cancelWithoutPin: $cancelWithoutPin, claimedBy: $claimedBy, claimedByName: $claimedByName, outcome: $outcome, escalated: $escalated, hasRecording: $hasRecording, createdAt: $createdAt, claimedAt: $claimedAt, closedAt: $closedAt, lastLocation: $lastLocation)';
 }
 
 
@@ -1692,7 +1700,7 @@ abstract mixin class _$SosAlertSummaryCopyWith<$Res> implements $SosAlertSummary
   factory _$SosAlertSummaryCopyWith(_SosAlertSummary value, $Res Function(_SosAlertSummary) _then) = __$SosAlertSummaryCopyWithImpl;
 @override @useResult
 $Res call({
- String id, String tripId, SosRole raisedRole, String raisedByName, SosStatus status, bool cancelWithoutPin, String? claimedBy, String? claimedByName, SosOutcome? outcome, bool escalated, bool hasRecording, DateTime createdAt, DateTime? claimedAt, DateTime? closedAt, SosLocation? lastLocation
+ String id, String? tripId, String raisedFrom, SosRole raisedRole, String raisedByName, SosStatus status, bool cancelWithoutPin, String? claimedBy, String? claimedByName, SosOutcome? outcome, bool escalated, bool hasRecording, DateTime createdAt, DateTime? claimedAt, DateTime? closedAt, SosLocation? lastLocation
 });
 
 
@@ -1709,10 +1717,11 @@ class __$SosAlertSummaryCopyWithImpl<$Res>
 
 /// Create a copy of SosAlertSummary
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? tripId = null,Object? raisedRole = null,Object? raisedByName = null,Object? status = null,Object? cancelWithoutPin = null,Object? claimedBy = freezed,Object? claimedByName = freezed,Object? outcome = freezed,Object? escalated = null,Object? hasRecording = null,Object? createdAt = null,Object? claimedAt = freezed,Object? closedAt = freezed,Object? lastLocation = freezed,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? tripId = freezed,Object? raisedFrom = null,Object? raisedRole = null,Object? raisedByName = null,Object? status = null,Object? cancelWithoutPin = null,Object? claimedBy = freezed,Object? claimedByName = freezed,Object? outcome = freezed,Object? escalated = null,Object? hasRecording = null,Object? createdAt = null,Object? claimedAt = freezed,Object? closedAt = freezed,Object? lastLocation = freezed,}) {
   return _then(_SosAlertSummary(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
-as String,tripId: null == tripId ? _self.tripId : tripId // ignore: cast_nullable_to_non_nullable
+as String,tripId: freezed == tripId ? _self.tripId : tripId // ignore: cast_nullable_to_non_nullable
+as String?,raisedFrom: null == raisedFrom ? _self.raisedFrom : raisedFrom // ignore: cast_nullable_to_non_nullable
 as String,raisedRole: null == raisedRole ? _self.raisedRole : raisedRole // ignore: cast_nullable_to_non_nullable
 as SosRole,raisedByName: null == raisedByName ? _self.raisedByName : raisedByName // ignore: cast_nullable_to_non_nullable
 as String,status: null == status ? _self.status : status // ignore: cast_nullable_to_non_nullable
@@ -3142,7 +3151,9 @@ as String,
 /// @nodoc
 mixin _$SosAlertDetail {
 
- String get id; String get tripId; SosRole get raisedRole; String get raisedByName; SosStatus get status; bool get cancelWithoutPin; String? get claimedBy; String? get claimedByName; SosOutcome? get outcome; bool get escalated; bool get hasRecording; DateTime get createdAt; DateTime? get claimedAt; DateTime? get closedAt; SosLocation? get lastLocation;@JsonKey(name: 'raised_by_phone_e164') String get raisedByPhone; List<EmergencyContact> get emergencyContacts; SosTrip get trip; SosPerson get passenger; SosDriver get driver; List<SosLocation> get track; List<SosNote> get notes; List<String> get relatedAlertIds; String? get recordingUrl; int get raisedByAlerts; int get raisedByFalseAlarms;
+ String get id;/// null en una alerta desde Radio sin viaje (011).
+ String? get tripId;/// `trip` o `radio` (011).
+ String get raisedFrom; SosRole get raisedRole; String get raisedByName; SosStatus get status; bool get cancelWithoutPin; String? get claimedBy; String? get claimedByName; SosOutcome? get outcome; bool get escalated; bool get hasRecording; DateTime get createdAt; DateTime? get claimedAt; DateTime? get closedAt; SosLocation? get lastLocation;@JsonKey(name: 'raised_by_phone_e164') String get raisedByPhone; List<EmergencyContact> get emergencyContacts; SosTrip get trip; SosPerson get passenger; SosDriver get driver; List<SosLocation> get track; List<SosNote> get notes; List<String> get relatedAlertIds; String? get recordingUrl; int get raisedByAlerts; int get raisedByFalseAlarms;
 /// Create a copy of SosAlertDetail
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -3155,16 +3166,16 @@ $SosAlertDetailCopyWith<SosAlertDetail> get copyWith => _$SosAlertDetailCopyWith
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is SosAlertDetail&&(identical(other.id, id) || other.id == id)&&(identical(other.tripId, tripId) || other.tripId == tripId)&&(identical(other.raisedRole, raisedRole) || other.raisedRole == raisedRole)&&(identical(other.raisedByName, raisedByName) || other.raisedByName == raisedByName)&&(identical(other.status, status) || other.status == status)&&(identical(other.cancelWithoutPin, cancelWithoutPin) || other.cancelWithoutPin == cancelWithoutPin)&&(identical(other.claimedBy, claimedBy) || other.claimedBy == claimedBy)&&(identical(other.claimedByName, claimedByName) || other.claimedByName == claimedByName)&&(identical(other.outcome, outcome) || other.outcome == outcome)&&(identical(other.escalated, escalated) || other.escalated == escalated)&&(identical(other.hasRecording, hasRecording) || other.hasRecording == hasRecording)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.claimedAt, claimedAt) || other.claimedAt == claimedAt)&&(identical(other.closedAt, closedAt) || other.closedAt == closedAt)&&(identical(other.lastLocation, lastLocation) || other.lastLocation == lastLocation)&&(identical(other.raisedByPhone, raisedByPhone) || other.raisedByPhone == raisedByPhone)&&const DeepCollectionEquality().equals(other.emergencyContacts, emergencyContacts)&&(identical(other.trip, trip) || other.trip == trip)&&(identical(other.passenger, passenger) || other.passenger == passenger)&&(identical(other.driver, driver) || other.driver == driver)&&const DeepCollectionEquality().equals(other.track, track)&&const DeepCollectionEquality().equals(other.notes, notes)&&const DeepCollectionEquality().equals(other.relatedAlertIds, relatedAlertIds)&&(identical(other.recordingUrl, recordingUrl) || other.recordingUrl == recordingUrl)&&(identical(other.raisedByAlerts, raisedByAlerts) || other.raisedByAlerts == raisedByAlerts)&&(identical(other.raisedByFalseAlarms, raisedByFalseAlarms) || other.raisedByFalseAlarms == raisedByFalseAlarms));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is SosAlertDetail&&(identical(other.id, id) || other.id == id)&&(identical(other.tripId, tripId) || other.tripId == tripId)&&(identical(other.raisedFrom, raisedFrom) || other.raisedFrom == raisedFrom)&&(identical(other.raisedRole, raisedRole) || other.raisedRole == raisedRole)&&(identical(other.raisedByName, raisedByName) || other.raisedByName == raisedByName)&&(identical(other.status, status) || other.status == status)&&(identical(other.cancelWithoutPin, cancelWithoutPin) || other.cancelWithoutPin == cancelWithoutPin)&&(identical(other.claimedBy, claimedBy) || other.claimedBy == claimedBy)&&(identical(other.claimedByName, claimedByName) || other.claimedByName == claimedByName)&&(identical(other.outcome, outcome) || other.outcome == outcome)&&(identical(other.escalated, escalated) || other.escalated == escalated)&&(identical(other.hasRecording, hasRecording) || other.hasRecording == hasRecording)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.claimedAt, claimedAt) || other.claimedAt == claimedAt)&&(identical(other.closedAt, closedAt) || other.closedAt == closedAt)&&(identical(other.lastLocation, lastLocation) || other.lastLocation == lastLocation)&&(identical(other.raisedByPhone, raisedByPhone) || other.raisedByPhone == raisedByPhone)&&const DeepCollectionEquality().equals(other.emergencyContacts, emergencyContacts)&&(identical(other.trip, trip) || other.trip == trip)&&(identical(other.passenger, passenger) || other.passenger == passenger)&&(identical(other.driver, driver) || other.driver == driver)&&const DeepCollectionEquality().equals(other.track, track)&&const DeepCollectionEquality().equals(other.notes, notes)&&const DeepCollectionEquality().equals(other.relatedAlertIds, relatedAlertIds)&&(identical(other.recordingUrl, recordingUrl) || other.recordingUrl == recordingUrl)&&(identical(other.raisedByAlerts, raisedByAlerts) || other.raisedByAlerts == raisedByAlerts)&&(identical(other.raisedByFalseAlarms, raisedByFalseAlarms) || other.raisedByFalseAlarms == raisedByFalseAlarms));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hashAll([runtimeType,id,tripId,raisedRole,raisedByName,status,cancelWithoutPin,claimedBy,claimedByName,outcome,escalated,hasRecording,createdAt,claimedAt,closedAt,lastLocation,raisedByPhone,const DeepCollectionEquality().hash(emergencyContacts),trip,passenger,driver,const DeepCollectionEquality().hash(track),const DeepCollectionEquality().hash(notes),const DeepCollectionEquality().hash(relatedAlertIds),recordingUrl,raisedByAlerts,raisedByFalseAlarms]);
+int get hashCode => Object.hashAll([runtimeType,id,tripId,raisedFrom,raisedRole,raisedByName,status,cancelWithoutPin,claimedBy,claimedByName,outcome,escalated,hasRecording,createdAt,claimedAt,closedAt,lastLocation,raisedByPhone,const DeepCollectionEquality().hash(emergencyContacts),trip,passenger,driver,const DeepCollectionEquality().hash(track),const DeepCollectionEquality().hash(notes),const DeepCollectionEquality().hash(relatedAlertIds),recordingUrl,raisedByAlerts,raisedByFalseAlarms]);
 
 @override
 String toString() {
-  return 'SosAlertDetail(id: $id, tripId: $tripId, raisedRole: $raisedRole, raisedByName: $raisedByName, status: $status, cancelWithoutPin: $cancelWithoutPin, claimedBy: $claimedBy, claimedByName: $claimedByName, outcome: $outcome, escalated: $escalated, hasRecording: $hasRecording, createdAt: $createdAt, claimedAt: $claimedAt, closedAt: $closedAt, lastLocation: $lastLocation, raisedByPhone: $raisedByPhone, emergencyContacts: $emergencyContacts, trip: $trip, passenger: $passenger, driver: $driver, track: $track, notes: $notes, relatedAlertIds: $relatedAlertIds, recordingUrl: $recordingUrl, raisedByAlerts: $raisedByAlerts, raisedByFalseAlarms: $raisedByFalseAlarms)';
+  return 'SosAlertDetail(id: $id, tripId: $tripId, raisedFrom: $raisedFrom, raisedRole: $raisedRole, raisedByName: $raisedByName, status: $status, cancelWithoutPin: $cancelWithoutPin, claimedBy: $claimedBy, claimedByName: $claimedByName, outcome: $outcome, escalated: $escalated, hasRecording: $hasRecording, createdAt: $createdAt, claimedAt: $claimedAt, closedAt: $closedAt, lastLocation: $lastLocation, raisedByPhone: $raisedByPhone, emergencyContacts: $emergencyContacts, trip: $trip, passenger: $passenger, driver: $driver, track: $track, notes: $notes, relatedAlertIds: $relatedAlertIds, recordingUrl: $recordingUrl, raisedByAlerts: $raisedByAlerts, raisedByFalseAlarms: $raisedByFalseAlarms)';
 }
 
 
@@ -3175,7 +3186,7 @@ abstract mixin class $SosAlertDetailCopyWith<$Res>  {
   factory $SosAlertDetailCopyWith(SosAlertDetail value, $Res Function(SosAlertDetail) _then) = _$SosAlertDetailCopyWithImpl;
 @useResult
 $Res call({
- String id, String tripId, SosRole raisedRole, String raisedByName, SosStatus status, bool cancelWithoutPin, String? claimedBy, String? claimedByName, SosOutcome? outcome, bool escalated, bool hasRecording, DateTime createdAt, DateTime? claimedAt, DateTime? closedAt, SosLocation? lastLocation,@JsonKey(name: 'raised_by_phone_e164') String raisedByPhone, List<EmergencyContact> emergencyContacts, SosTrip trip, SosPerson passenger, SosDriver driver, List<SosLocation> track, List<SosNote> notes, List<String> relatedAlertIds, String? recordingUrl, int raisedByAlerts, int raisedByFalseAlarms
+ String id, String? tripId, String raisedFrom, SosRole raisedRole, String raisedByName, SosStatus status, bool cancelWithoutPin, String? claimedBy, String? claimedByName, SosOutcome? outcome, bool escalated, bool hasRecording, DateTime createdAt, DateTime? claimedAt, DateTime? closedAt, SosLocation? lastLocation,@JsonKey(name: 'raised_by_phone_e164') String raisedByPhone, List<EmergencyContact> emergencyContacts, SosTrip trip, SosPerson passenger, SosDriver driver, List<SosLocation> track, List<SosNote> notes, List<String> relatedAlertIds, String? recordingUrl, int raisedByAlerts, int raisedByFalseAlarms
 });
 
 
@@ -3192,10 +3203,11 @@ class _$SosAlertDetailCopyWithImpl<$Res>
 
 /// Create a copy of SosAlertDetail
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? tripId = null,Object? raisedRole = null,Object? raisedByName = null,Object? status = null,Object? cancelWithoutPin = null,Object? claimedBy = freezed,Object? claimedByName = freezed,Object? outcome = freezed,Object? escalated = null,Object? hasRecording = null,Object? createdAt = null,Object? claimedAt = freezed,Object? closedAt = freezed,Object? lastLocation = freezed,Object? raisedByPhone = null,Object? emergencyContacts = null,Object? trip = null,Object? passenger = null,Object? driver = null,Object? track = null,Object? notes = null,Object? relatedAlertIds = null,Object? recordingUrl = freezed,Object? raisedByAlerts = null,Object? raisedByFalseAlarms = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? tripId = freezed,Object? raisedFrom = null,Object? raisedRole = null,Object? raisedByName = null,Object? status = null,Object? cancelWithoutPin = null,Object? claimedBy = freezed,Object? claimedByName = freezed,Object? outcome = freezed,Object? escalated = null,Object? hasRecording = null,Object? createdAt = null,Object? claimedAt = freezed,Object? closedAt = freezed,Object? lastLocation = freezed,Object? raisedByPhone = null,Object? emergencyContacts = null,Object? trip = null,Object? passenger = null,Object? driver = null,Object? track = null,Object? notes = null,Object? relatedAlertIds = null,Object? recordingUrl = freezed,Object? raisedByAlerts = null,Object? raisedByFalseAlarms = null,}) {
   return _then(_self.copyWith(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
-as String,tripId: null == tripId ? _self.tripId : tripId // ignore: cast_nullable_to_non_nullable
+as String,tripId: freezed == tripId ? _self.tripId : tripId // ignore: cast_nullable_to_non_nullable
+as String?,raisedFrom: null == raisedFrom ? _self.raisedFrom : raisedFrom // ignore: cast_nullable_to_non_nullable
 as String,raisedRole: null == raisedRole ? _self.raisedRole : raisedRole // ignore: cast_nullable_to_non_nullable
 as SosRole,raisedByName: null == raisedByName ? _self.raisedByName : raisedByName // ignore: cast_nullable_to_non_nullable
 as String,status: null == status ? _self.status : status // ignore: cast_nullable_to_non_nullable
@@ -3344,10 +3356,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String tripId,  SosRole raisedRole,  String raisedByName,  SosStatus status,  bool cancelWithoutPin,  String? claimedBy,  String? claimedByName,  SosOutcome? outcome,  bool escalated,  bool hasRecording,  DateTime createdAt,  DateTime? claimedAt,  DateTime? closedAt,  SosLocation? lastLocation, @JsonKey(name: 'raised_by_phone_e164')  String raisedByPhone,  List<EmergencyContact> emergencyContacts,  SosTrip trip,  SosPerson passenger,  SosDriver driver,  List<SosLocation> track,  List<SosNote> notes,  List<String> relatedAlertIds,  String? recordingUrl,  int raisedByAlerts,  int raisedByFalseAlarms)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String? tripId,  String raisedFrom,  SosRole raisedRole,  String raisedByName,  SosStatus status,  bool cancelWithoutPin,  String? claimedBy,  String? claimedByName,  SosOutcome? outcome,  bool escalated,  bool hasRecording,  DateTime createdAt,  DateTime? claimedAt,  DateTime? closedAt,  SosLocation? lastLocation, @JsonKey(name: 'raised_by_phone_e164')  String raisedByPhone,  List<EmergencyContact> emergencyContacts,  SosTrip trip,  SosPerson passenger,  SosDriver driver,  List<SosLocation> track,  List<SosNote> notes,  List<String> relatedAlertIds,  String? recordingUrl,  int raisedByAlerts,  int raisedByFalseAlarms)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _SosAlertDetail() when $default != null:
-return $default(_that.id,_that.tripId,_that.raisedRole,_that.raisedByName,_that.status,_that.cancelWithoutPin,_that.claimedBy,_that.claimedByName,_that.outcome,_that.escalated,_that.hasRecording,_that.createdAt,_that.claimedAt,_that.closedAt,_that.lastLocation,_that.raisedByPhone,_that.emergencyContacts,_that.trip,_that.passenger,_that.driver,_that.track,_that.notes,_that.relatedAlertIds,_that.recordingUrl,_that.raisedByAlerts,_that.raisedByFalseAlarms);case _:
+return $default(_that.id,_that.tripId,_that.raisedFrom,_that.raisedRole,_that.raisedByName,_that.status,_that.cancelWithoutPin,_that.claimedBy,_that.claimedByName,_that.outcome,_that.escalated,_that.hasRecording,_that.createdAt,_that.claimedAt,_that.closedAt,_that.lastLocation,_that.raisedByPhone,_that.emergencyContacts,_that.trip,_that.passenger,_that.driver,_that.track,_that.notes,_that.relatedAlertIds,_that.recordingUrl,_that.raisedByAlerts,_that.raisedByFalseAlarms);case _:
   return orElse();
 
 }
@@ -3365,10 +3377,10 @@ return $default(_that.id,_that.tripId,_that.raisedRole,_that.raisedByName,_that.
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String tripId,  SosRole raisedRole,  String raisedByName,  SosStatus status,  bool cancelWithoutPin,  String? claimedBy,  String? claimedByName,  SosOutcome? outcome,  bool escalated,  bool hasRecording,  DateTime createdAt,  DateTime? claimedAt,  DateTime? closedAt,  SosLocation? lastLocation, @JsonKey(name: 'raised_by_phone_e164')  String raisedByPhone,  List<EmergencyContact> emergencyContacts,  SosTrip trip,  SosPerson passenger,  SosDriver driver,  List<SosLocation> track,  List<SosNote> notes,  List<String> relatedAlertIds,  String? recordingUrl,  int raisedByAlerts,  int raisedByFalseAlarms)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String? tripId,  String raisedFrom,  SosRole raisedRole,  String raisedByName,  SosStatus status,  bool cancelWithoutPin,  String? claimedBy,  String? claimedByName,  SosOutcome? outcome,  bool escalated,  bool hasRecording,  DateTime createdAt,  DateTime? claimedAt,  DateTime? closedAt,  SosLocation? lastLocation, @JsonKey(name: 'raised_by_phone_e164')  String raisedByPhone,  List<EmergencyContact> emergencyContacts,  SosTrip trip,  SosPerson passenger,  SosDriver driver,  List<SosLocation> track,  List<SosNote> notes,  List<String> relatedAlertIds,  String? recordingUrl,  int raisedByAlerts,  int raisedByFalseAlarms)  $default,) {final _that = this;
 switch (_that) {
 case _SosAlertDetail():
-return $default(_that.id,_that.tripId,_that.raisedRole,_that.raisedByName,_that.status,_that.cancelWithoutPin,_that.claimedBy,_that.claimedByName,_that.outcome,_that.escalated,_that.hasRecording,_that.createdAt,_that.claimedAt,_that.closedAt,_that.lastLocation,_that.raisedByPhone,_that.emergencyContacts,_that.trip,_that.passenger,_that.driver,_that.track,_that.notes,_that.relatedAlertIds,_that.recordingUrl,_that.raisedByAlerts,_that.raisedByFalseAlarms);case _:
+return $default(_that.id,_that.tripId,_that.raisedFrom,_that.raisedRole,_that.raisedByName,_that.status,_that.cancelWithoutPin,_that.claimedBy,_that.claimedByName,_that.outcome,_that.escalated,_that.hasRecording,_that.createdAt,_that.claimedAt,_that.closedAt,_that.lastLocation,_that.raisedByPhone,_that.emergencyContacts,_that.trip,_that.passenger,_that.driver,_that.track,_that.notes,_that.relatedAlertIds,_that.recordingUrl,_that.raisedByAlerts,_that.raisedByFalseAlarms);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -3385,10 +3397,10 @@ return $default(_that.id,_that.tripId,_that.raisedRole,_that.raisedByName,_that.
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String tripId,  SosRole raisedRole,  String raisedByName,  SosStatus status,  bool cancelWithoutPin,  String? claimedBy,  String? claimedByName,  SosOutcome? outcome,  bool escalated,  bool hasRecording,  DateTime createdAt,  DateTime? claimedAt,  DateTime? closedAt,  SosLocation? lastLocation, @JsonKey(name: 'raised_by_phone_e164')  String raisedByPhone,  List<EmergencyContact> emergencyContacts,  SosTrip trip,  SosPerson passenger,  SosDriver driver,  List<SosLocation> track,  List<SosNote> notes,  List<String> relatedAlertIds,  String? recordingUrl,  int raisedByAlerts,  int raisedByFalseAlarms)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String? tripId,  String raisedFrom,  SosRole raisedRole,  String raisedByName,  SosStatus status,  bool cancelWithoutPin,  String? claimedBy,  String? claimedByName,  SosOutcome? outcome,  bool escalated,  bool hasRecording,  DateTime createdAt,  DateTime? claimedAt,  DateTime? closedAt,  SosLocation? lastLocation, @JsonKey(name: 'raised_by_phone_e164')  String raisedByPhone,  List<EmergencyContact> emergencyContacts,  SosTrip trip,  SosPerson passenger,  SosDriver driver,  List<SosLocation> track,  List<SosNote> notes,  List<String> relatedAlertIds,  String? recordingUrl,  int raisedByAlerts,  int raisedByFalseAlarms)?  $default,) {final _that = this;
 switch (_that) {
 case _SosAlertDetail() when $default != null:
-return $default(_that.id,_that.tripId,_that.raisedRole,_that.raisedByName,_that.status,_that.cancelWithoutPin,_that.claimedBy,_that.claimedByName,_that.outcome,_that.escalated,_that.hasRecording,_that.createdAt,_that.claimedAt,_that.closedAt,_that.lastLocation,_that.raisedByPhone,_that.emergencyContacts,_that.trip,_that.passenger,_that.driver,_that.track,_that.notes,_that.relatedAlertIds,_that.recordingUrl,_that.raisedByAlerts,_that.raisedByFalseAlarms);case _:
+return $default(_that.id,_that.tripId,_that.raisedFrom,_that.raisedRole,_that.raisedByName,_that.status,_that.cancelWithoutPin,_that.claimedBy,_that.claimedByName,_that.outcome,_that.escalated,_that.hasRecording,_that.createdAt,_that.claimedAt,_that.closedAt,_that.lastLocation,_that.raisedByPhone,_that.emergencyContacts,_that.trip,_that.passenger,_that.driver,_that.track,_that.notes,_that.relatedAlertIds,_that.recordingUrl,_that.raisedByAlerts,_that.raisedByFalseAlarms);case _:
   return null;
 
 }
@@ -3400,11 +3412,14 @@ return $default(_that.id,_that.tripId,_that.raisedRole,_that.raisedByName,_that.
 @JsonSerializable()
 
 class _SosAlertDetail implements SosAlertDetail {
-  const _SosAlertDetail({required this.id, required this.tripId, required this.raisedRole, required this.raisedByName, required this.status, this.cancelWithoutPin = false, this.claimedBy, this.claimedByName, this.outcome, this.escalated = false, this.hasRecording = false, required this.createdAt, this.claimedAt, this.closedAt, this.lastLocation, @JsonKey(name: 'raised_by_phone_e164') this.raisedByPhone = '', final  List<EmergencyContact> emergencyContacts = const [], required this.trip, required this.passenger, required this.driver, final  List<SosLocation> track = const [], final  List<SosNote> notes = const [], final  List<String> relatedAlertIds = const [], this.recordingUrl, this.raisedByAlerts = 0, this.raisedByFalseAlarms = 0}): _emergencyContacts = emergencyContacts,_track = track,_notes = notes,_relatedAlertIds = relatedAlertIds;
+  const _SosAlertDetail({required this.id, this.tripId, this.raisedFrom = 'trip', required this.raisedRole, required this.raisedByName, required this.status, this.cancelWithoutPin = false, this.claimedBy, this.claimedByName, this.outcome, this.escalated = false, this.hasRecording = false, required this.createdAt, this.claimedAt, this.closedAt, this.lastLocation, @JsonKey(name: 'raised_by_phone_e164') this.raisedByPhone = '', final  List<EmergencyContact> emergencyContacts = const [], required this.trip, required this.passenger, required this.driver, final  List<SosLocation> track = const [], final  List<SosNote> notes = const [], final  List<String> relatedAlertIds = const [], this.recordingUrl, this.raisedByAlerts = 0, this.raisedByFalseAlarms = 0}): _emergencyContacts = emergencyContacts,_track = track,_notes = notes,_relatedAlertIds = relatedAlertIds;
   factory _SosAlertDetail.fromJson(Map<String, dynamic> json) => _$SosAlertDetailFromJson(json);
 
 @override final  String id;
-@override final  String tripId;
+/// null en una alerta desde Radio sin viaje (011).
+@override final  String? tripId;
+/// `trip` o `radio` (011).
+@override@JsonKey() final  String raisedFrom;
 @override final  SosRole raisedRole;
 @override final  String raisedByName;
 @override final  SosStatus status;
@@ -3467,16 +3482,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _SosAlertDetail&&(identical(other.id, id) || other.id == id)&&(identical(other.tripId, tripId) || other.tripId == tripId)&&(identical(other.raisedRole, raisedRole) || other.raisedRole == raisedRole)&&(identical(other.raisedByName, raisedByName) || other.raisedByName == raisedByName)&&(identical(other.status, status) || other.status == status)&&(identical(other.cancelWithoutPin, cancelWithoutPin) || other.cancelWithoutPin == cancelWithoutPin)&&(identical(other.claimedBy, claimedBy) || other.claimedBy == claimedBy)&&(identical(other.claimedByName, claimedByName) || other.claimedByName == claimedByName)&&(identical(other.outcome, outcome) || other.outcome == outcome)&&(identical(other.escalated, escalated) || other.escalated == escalated)&&(identical(other.hasRecording, hasRecording) || other.hasRecording == hasRecording)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.claimedAt, claimedAt) || other.claimedAt == claimedAt)&&(identical(other.closedAt, closedAt) || other.closedAt == closedAt)&&(identical(other.lastLocation, lastLocation) || other.lastLocation == lastLocation)&&(identical(other.raisedByPhone, raisedByPhone) || other.raisedByPhone == raisedByPhone)&&const DeepCollectionEquality().equals(other._emergencyContacts, _emergencyContacts)&&(identical(other.trip, trip) || other.trip == trip)&&(identical(other.passenger, passenger) || other.passenger == passenger)&&(identical(other.driver, driver) || other.driver == driver)&&const DeepCollectionEquality().equals(other._track, _track)&&const DeepCollectionEquality().equals(other._notes, _notes)&&const DeepCollectionEquality().equals(other._relatedAlertIds, _relatedAlertIds)&&(identical(other.recordingUrl, recordingUrl) || other.recordingUrl == recordingUrl)&&(identical(other.raisedByAlerts, raisedByAlerts) || other.raisedByAlerts == raisedByAlerts)&&(identical(other.raisedByFalseAlarms, raisedByFalseAlarms) || other.raisedByFalseAlarms == raisedByFalseAlarms));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _SosAlertDetail&&(identical(other.id, id) || other.id == id)&&(identical(other.tripId, tripId) || other.tripId == tripId)&&(identical(other.raisedFrom, raisedFrom) || other.raisedFrom == raisedFrom)&&(identical(other.raisedRole, raisedRole) || other.raisedRole == raisedRole)&&(identical(other.raisedByName, raisedByName) || other.raisedByName == raisedByName)&&(identical(other.status, status) || other.status == status)&&(identical(other.cancelWithoutPin, cancelWithoutPin) || other.cancelWithoutPin == cancelWithoutPin)&&(identical(other.claimedBy, claimedBy) || other.claimedBy == claimedBy)&&(identical(other.claimedByName, claimedByName) || other.claimedByName == claimedByName)&&(identical(other.outcome, outcome) || other.outcome == outcome)&&(identical(other.escalated, escalated) || other.escalated == escalated)&&(identical(other.hasRecording, hasRecording) || other.hasRecording == hasRecording)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.claimedAt, claimedAt) || other.claimedAt == claimedAt)&&(identical(other.closedAt, closedAt) || other.closedAt == closedAt)&&(identical(other.lastLocation, lastLocation) || other.lastLocation == lastLocation)&&(identical(other.raisedByPhone, raisedByPhone) || other.raisedByPhone == raisedByPhone)&&const DeepCollectionEquality().equals(other._emergencyContacts, _emergencyContacts)&&(identical(other.trip, trip) || other.trip == trip)&&(identical(other.passenger, passenger) || other.passenger == passenger)&&(identical(other.driver, driver) || other.driver == driver)&&const DeepCollectionEquality().equals(other._track, _track)&&const DeepCollectionEquality().equals(other._notes, _notes)&&const DeepCollectionEquality().equals(other._relatedAlertIds, _relatedAlertIds)&&(identical(other.recordingUrl, recordingUrl) || other.recordingUrl == recordingUrl)&&(identical(other.raisedByAlerts, raisedByAlerts) || other.raisedByAlerts == raisedByAlerts)&&(identical(other.raisedByFalseAlarms, raisedByFalseAlarms) || other.raisedByFalseAlarms == raisedByFalseAlarms));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hashAll([runtimeType,id,tripId,raisedRole,raisedByName,status,cancelWithoutPin,claimedBy,claimedByName,outcome,escalated,hasRecording,createdAt,claimedAt,closedAt,lastLocation,raisedByPhone,const DeepCollectionEquality().hash(_emergencyContacts),trip,passenger,driver,const DeepCollectionEquality().hash(_track),const DeepCollectionEquality().hash(_notes),const DeepCollectionEquality().hash(_relatedAlertIds),recordingUrl,raisedByAlerts,raisedByFalseAlarms]);
+int get hashCode => Object.hashAll([runtimeType,id,tripId,raisedFrom,raisedRole,raisedByName,status,cancelWithoutPin,claimedBy,claimedByName,outcome,escalated,hasRecording,createdAt,claimedAt,closedAt,lastLocation,raisedByPhone,const DeepCollectionEquality().hash(_emergencyContacts),trip,passenger,driver,const DeepCollectionEquality().hash(_track),const DeepCollectionEquality().hash(_notes),const DeepCollectionEquality().hash(_relatedAlertIds),recordingUrl,raisedByAlerts,raisedByFalseAlarms]);
 
 @override
 String toString() {
-  return 'SosAlertDetail(id: $id, tripId: $tripId, raisedRole: $raisedRole, raisedByName: $raisedByName, status: $status, cancelWithoutPin: $cancelWithoutPin, claimedBy: $claimedBy, claimedByName: $claimedByName, outcome: $outcome, escalated: $escalated, hasRecording: $hasRecording, createdAt: $createdAt, claimedAt: $claimedAt, closedAt: $closedAt, lastLocation: $lastLocation, raisedByPhone: $raisedByPhone, emergencyContacts: $emergencyContacts, trip: $trip, passenger: $passenger, driver: $driver, track: $track, notes: $notes, relatedAlertIds: $relatedAlertIds, recordingUrl: $recordingUrl, raisedByAlerts: $raisedByAlerts, raisedByFalseAlarms: $raisedByFalseAlarms)';
+  return 'SosAlertDetail(id: $id, tripId: $tripId, raisedFrom: $raisedFrom, raisedRole: $raisedRole, raisedByName: $raisedByName, status: $status, cancelWithoutPin: $cancelWithoutPin, claimedBy: $claimedBy, claimedByName: $claimedByName, outcome: $outcome, escalated: $escalated, hasRecording: $hasRecording, createdAt: $createdAt, claimedAt: $claimedAt, closedAt: $closedAt, lastLocation: $lastLocation, raisedByPhone: $raisedByPhone, emergencyContacts: $emergencyContacts, trip: $trip, passenger: $passenger, driver: $driver, track: $track, notes: $notes, relatedAlertIds: $relatedAlertIds, recordingUrl: $recordingUrl, raisedByAlerts: $raisedByAlerts, raisedByFalseAlarms: $raisedByFalseAlarms)';
 }
 
 
@@ -3487,7 +3502,7 @@ abstract mixin class _$SosAlertDetailCopyWith<$Res> implements $SosAlertDetailCo
   factory _$SosAlertDetailCopyWith(_SosAlertDetail value, $Res Function(_SosAlertDetail) _then) = __$SosAlertDetailCopyWithImpl;
 @override @useResult
 $Res call({
- String id, String tripId, SosRole raisedRole, String raisedByName, SosStatus status, bool cancelWithoutPin, String? claimedBy, String? claimedByName, SosOutcome? outcome, bool escalated, bool hasRecording, DateTime createdAt, DateTime? claimedAt, DateTime? closedAt, SosLocation? lastLocation,@JsonKey(name: 'raised_by_phone_e164') String raisedByPhone, List<EmergencyContact> emergencyContacts, SosTrip trip, SosPerson passenger, SosDriver driver, List<SosLocation> track, List<SosNote> notes, List<String> relatedAlertIds, String? recordingUrl, int raisedByAlerts, int raisedByFalseAlarms
+ String id, String? tripId, String raisedFrom, SosRole raisedRole, String raisedByName, SosStatus status, bool cancelWithoutPin, String? claimedBy, String? claimedByName, SosOutcome? outcome, bool escalated, bool hasRecording, DateTime createdAt, DateTime? claimedAt, DateTime? closedAt, SosLocation? lastLocation,@JsonKey(name: 'raised_by_phone_e164') String raisedByPhone, List<EmergencyContact> emergencyContacts, SosTrip trip, SosPerson passenger, SosDriver driver, List<SosLocation> track, List<SosNote> notes, List<String> relatedAlertIds, String? recordingUrl, int raisedByAlerts, int raisedByFalseAlarms
 });
 
 
@@ -3504,10 +3519,11 @@ class __$SosAlertDetailCopyWithImpl<$Res>
 
 /// Create a copy of SosAlertDetail
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? tripId = null,Object? raisedRole = null,Object? raisedByName = null,Object? status = null,Object? cancelWithoutPin = null,Object? claimedBy = freezed,Object? claimedByName = freezed,Object? outcome = freezed,Object? escalated = null,Object? hasRecording = null,Object? createdAt = null,Object? claimedAt = freezed,Object? closedAt = freezed,Object? lastLocation = freezed,Object? raisedByPhone = null,Object? emergencyContacts = null,Object? trip = null,Object? passenger = null,Object? driver = null,Object? track = null,Object? notes = null,Object? relatedAlertIds = null,Object? recordingUrl = freezed,Object? raisedByAlerts = null,Object? raisedByFalseAlarms = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? tripId = freezed,Object? raisedFrom = null,Object? raisedRole = null,Object? raisedByName = null,Object? status = null,Object? cancelWithoutPin = null,Object? claimedBy = freezed,Object? claimedByName = freezed,Object? outcome = freezed,Object? escalated = null,Object? hasRecording = null,Object? createdAt = null,Object? claimedAt = freezed,Object? closedAt = freezed,Object? lastLocation = freezed,Object? raisedByPhone = null,Object? emergencyContacts = null,Object? trip = null,Object? passenger = null,Object? driver = null,Object? track = null,Object? notes = null,Object? relatedAlertIds = null,Object? recordingUrl = freezed,Object? raisedByAlerts = null,Object? raisedByFalseAlarms = null,}) {
   return _then(_SosAlertDetail(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
-as String,tripId: null == tripId ? _self.tripId : tripId // ignore: cast_nullable_to_non_nullable
+as String,tripId: freezed == tripId ? _self.tripId : tripId // ignore: cast_nullable_to_non_nullable
+as String?,raisedFrom: null == raisedFrom ? _self.raisedFrom : raisedFrom // ignore: cast_nullable_to_non_nullable
 as String,raisedRole: null == raisedRole ? _self.raisedRole : raisedRole // ignore: cast_nullable_to_non_nullable
 as SosRole,raisedByName: null == raisedByName ? _self.raisedByName : raisedByName // ignore: cast_nullable_to_non_nullable
 as String,status: null == status ? _self.status : status // ignore: cast_nullable_to_non_nullable
