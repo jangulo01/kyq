@@ -31,17 +31,19 @@ import (
 
 // Deps are the module handlers. Nil modules are not mounted.
 type Deps struct {
-	Logger   *slog.Logger
-	Tokens   *auth.TokenIssuer
-	Auth     *auth.Handlers
-	Realtime *realtime.Handlers
-	Admin    *admin.Handlers
-	Affils   *affiliations.Handlers
-	Drivers  *drivers.Handlers
-	Presence *drivers.Presence
-	Trips    *trips.Handlers
-	PTT      *ptt.Handlers
-	Usage    *telemetry.Handlers
+	Logger *slog.Logger
+	// CORSOrigins: orígenes del panel web que pueden llamar a la API (vacío: sin CORS).
+	CORSOrigins []string
+	Tokens      *auth.TokenIssuer
+	Auth        *auth.Handlers
+	Realtime    *realtime.Handlers
+	Admin       *admin.Handlers
+	Affils      *affiliations.Handlers
+	Drivers     *drivers.Handlers
+	Presence    *drivers.Presence
+	Trips       *trips.Handlers
+	PTT         *ptt.Handlers
+	Usage       *telemetry.Handlers
 	// 002: alta y KYC, suscripción y pagos (incluye el webhook público de Bold), avisos y costos.
 	KYC     *kyc.Handlers
 	Billing *billing.Handlers
@@ -165,5 +167,5 @@ func NewRouter(d Deps) http.Handler {
 		}
 	}
 
-	return Chain(mux, RequestID, Recover(logger), Logging(logger))
+	return Chain(mux, RequestID, Recover(logger), Logging(logger), CORS(d.CORSOrigins))
 }

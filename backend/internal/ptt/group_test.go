@@ -240,5 +240,7 @@ func TestIntegrationRemovedMemberCannotRejoinWithOldToken(t *testing.T) {
 func TestLiveKitAutoCreateIsOff(t *testing.T) {
 	raw, err := os.ReadFile("../../../infra/livekit.yaml")
 	require.NoError(t, err)
-	assert.Regexp(t, regexp.MustCompile(`(?m)^room:\n(?:[ \t]+.*\n)*?[ \t]+auto_create:[ \t]*false[ \t]*$`), string(raw))
+	// En Windows git puede dejar el archivo con CRLF: se normaliza para comprobar la regla, no el formato.
+	text := strings.ReplaceAll(string(raw), "\r\n", "\n")
+	assert.Regexp(t, regexp.MustCompile(`(?m)^room:\n(?:[ \t]+.*\n)*?[ \t]+auto_create:[ \t]*false[ \t]*$`), text)
 }

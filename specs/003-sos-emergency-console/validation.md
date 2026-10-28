@@ -22,8 +22,8 @@ se rellena al recorrer los escenarios en la VM y en los teléfonos.
 | 5 | La app del conductor durante el SOS del pasajero | No muestra nada del SOS | FR-006 | Pendiente | |
 | 6 | Operador añade notas y cierra como "falsa alarma" | Historial con notas, desenlace y grabación reproducible | FR-010, FR-018 | Pendiente | |
 | 7 | Alerta sin tomar 60 s | SMS a los operadores de guardia (en desarrollo: registro) | FR-011 | Pendiente | |
-| 8 | Compartir viaje y abrir el enlace en otro navegador | Mapa con el vehículo, placa y nombre; sin teléfonos | FR-013–015 | Pendiente | |
-| 9 | Completar el viaje y abrir el enlace 16 min después | "Viaje finalizado", sin datos | FR-014 | Pendiente | |
+| 8 | Compartir viaje y abrir el enlace en otro navegador | Mapa con el vehículo, placa y nombre; sin teléfonos | FR-013–015 | Pasa | Por API: mismo enlace al repetir; vista pública con nombre, placa, vehículo y ubicación en vivo, sin teléfonos; página HTML 200; token falso 404 |
+| 9 | Completar el viaje y abrir el enlace 16 min después | "Viaje finalizado", sin datos | FR-014 | Pasa | Al terminar: `FINISHED` sin ubicación; a los 16 min: 410 |
 | 10 | Pasajero con 2 contactos activa SOS | Ambos reciben SMS con el enlace | FR-016, FR-017 | Pendiente | |
 | 11 | Conductor activa SOS | Igual que el pasajero, con su servicio en primer plano enviando ubicación | US1-5 | Pendiente | |
 

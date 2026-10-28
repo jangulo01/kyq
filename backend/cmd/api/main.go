@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -216,9 +217,10 @@ func run(logger *slog.Logger) error {
 	go tripService.RunSweeper(ctx, time.Second)
 	go tripPayService.RunSweeper(ctx, 10*time.Second, time.Minute)
 	handler := httpapi.NewRouter(httpapi.Deps{
-		Logger: logger,
-		Tokens: tokens,
-		Auth:   auth.NewHandlers(auth.NewService(auth.NewPgRepo(st), otp, tokens, nil)),
+		Logger:      logger,
+		CORSOrigins: strings.Split(os.Getenv("KYQ_CORS_ORIGINS"), ","),
+		Tokens:      tokens,
+		Auth:        auth.NewHandlers(auth.NewService(auth.NewPgRepo(st), otp, tokens, nil)),
 		Realtime: &realtime.Handlers{
 			Tokens: realtime.Tokens{Secret: cfg.CentrifugoTokenSecret},
 			Authorizer: realtime.Authorizer{

@@ -55,6 +55,8 @@ services:
       KYQ_OSRM_URL: http://osrm:5000
       KYQ_DEV_OTP_CODE: ${KYQ_DEV_OTP_CODE}
       KYQ_SENTRY_DSN: ${KYQ_SENTRY_DSN:-}
+      # Orígenes del panel web que pueden llamar a la API (coma); vacío desactiva CORS.
+      KYQ_CORS_ORIGINS: ${KYQ_CORS_ORIGINS:-}
       # Fotos de documentos (002): bucket privado; las URLs firmadas usan el endpoint público
       # para que el móvil llegue por la LAN.
       KYQ_S3_ENDPOINT: http://minio:9000
