@@ -65,6 +65,50 @@ se muestra en el botón (i) del mapa. Caddy (`tiles/Caddyfile`) sirve los archiv
 La app de pasajero usa por defecto `http://<host de KYQ_API_URL>:8081/style.json`; se puede fijar
 otro estilo con `--dart-define=KYQ_MAP_STYLE_URL=...`.
 
+## Documentos KYC en MinIO (002)
+
+- La API guarda las fotos de los documentos en el bucket privado `kyq-kyc` (job `minio-init`) y
+  entrega URLs firmadas de corta duración. Credenciales en el `.env`: `KYQ_S3_ACCESS_KEY` y
+  `KYQ_S3_SECRET_KEY` (`openssl rand -hex 16`), que son también el usuario y la clave raíz de MinIO.
+- `KYQ_S3_PUBLIC_ENDPOINT` es la URL con la que el móvil y el panel llegan a MinIO para subir y ver
+  las fotos (por defecto `http://KYQ_PUBLIC_HOST:9000`); dentro de Docker la API usa
+  `http://minio:9000`. La consola de MinIO (9001) solo escucha en la máquina.
+- En producción el mismo bucket va en Cloudflare R2: `KYQ_S3_ENDPOINT` y `KYQ_S3_PUBLIC_ENDPOINT`
+  con la URL S3 de R2 y `KYQ_S3_REGION=auto`.
+
+## Pagos con Bold (002 y 004)
+
+Bold cobra la suscripción del conductor (002) y, si el conductor lo acepta, el viaje (004). Con
+`KYQ_BOLD_ENV` vacío los pagos con Bold quedan desactivados (la API lo avisa al arrancar); el pago en
+efectivo del viaje funciona igual.
+
+| Variable | Valor |
+|---|---|
+| `KYQ_BOLD_ENV` | vacío (desactivado), `sandbox` o `production` |
+| `KYQ_BOLD_IDENTITY_KEY` | llave de identidad (panel de Bold → Integraciones → Llaves de API); en `sandbox`, la de pruebas |
+| `KYQ_BOLD_SECRET_KEY` | llave secreta; firma los webhooks en `production` (en `sandbox` Bold firma con llave vacía) |
+| `KYQ_BOLD_API_URL` | opcional; por defecto `https://integrations.api.bold.co` |
+
+Las llaves nunca se versionan: solo en `infra/.env` (`chmod 600`).
+
+**Confirmación de pagos.** La API consulta a Bold cada 10 s los enlaces de pago abiertos de
+suscripciones y viajes, así que en la VM de desarrollo (sin HTTPS público) los pagos se confirman
+sin webhook. El webhook acelera la confirmación y es obligatorio en producción:
+
+1. Publicar la API detrás de HTTPS con un dominio (por ejemplo Caddy o Cloudflare Tunnel delante del
+   puerto 8080): el webhook necesita una URL pública con `https://`.
+2. En el panel de Bold, en la configuración de webhooks de la integración, registrar
+   `https://<dominio>/v1/billing/bold/webhook`. Es la misma URL para suscripciones (002) y pagos de
+   viajes (004): la API reparte cada notificación según su referencia.
+3. Con `KYQ_BOLD_ENV=production` la API comprueba la cabecera `x-bold-signature` (HMAC-SHA256 con
+   `KYQ_BOLD_SECRET_KEY`); una firma inválida responde 401 y no cambia nada. Las notificaciones
+   repetidas no abonan dos veces.
+4. Prueba: pagar con una tarjeta de pruebas en `sandbox` y comprobar en el log de la API el webhook
+   recibido y que la suscripción o el pago del viaje pasan a pagados.
+
+En la app del pasajero el checkout de Bold se abre en una Custom Tab (Android) y la app vuelve a
+consultar el pago al regresar.
+
 ## SOS y consola de emergencias (003)
 
 - **Grabación**: `egress` (LiveKit Egress, configuración en `egress.yaml`) recibe por Redis las

@@ -50,6 +50,12 @@ docker compose up -d --build      # postgres → migrate (goose) → seed (admin
   su webhook alimenta los minutos de voz por conductor (`GET /v1/admin/usage`).
 - Errores a Sentry: opcional con `KYQ_SENTRY_DSN` (vacío no envía nada; se filtran teléfonos,
   OTP y tokens).
+- Documentos KYC (002): MinIO guarda las fotos en el bucket privado `kyq-kyc`; rellenar
+  `KYQ_S3_ACCESS_KEY` y `KYQ_S3_SECRET_KEY` en el `.env` (detalle en `infra/README.md`).
+- Bold (002 y 004): `KYQ_BOLD_ENV` (`sandbox` o `production`), `KYQ_BOLD_IDENTITY_KEY` y
+  `KYQ_BOLD_SECRET_KEY`; vacío desactiva los pagos con Bold. En la VM los pagos se confirman
+  consultando a Bold; en producción hay que publicar la API con HTTPS y registrar el webhook
+  `https://<dominio>/v1/billing/bold/webhook` en el panel de Bold (ver `infra/README.md`).
 - SOS (003): `redis` y `egress` graban el audio de cada alerta en el bucket privado `kyq-sos`
   (90 días). El admin de la semilla queda como operador de emergencias de guardia; la consola
   está en el panel (sección *Emergencias*). Los contactos de emergencia reciben el enlace

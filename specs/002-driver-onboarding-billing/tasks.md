@@ -97,7 +97,7 @@ integración de contratos.
 - [X] T041 [P] Ampliar la prueba de privacidad `backend/internal/contracttest/privacy_test.go`: las fotos y números de documento nunca aparecen en respuestas de pasajeros ni en eventos (FR-011)
 - [X] T042 [P] Sentry: no enviar números de documento ni URLs firmadas (ampliar los filtros de `backend/internal/observability` y `packages/kyq_ui` observability) — backend hecho (`observability.ScrubString`: números de documento y URLs firmadas); falta `packages/kyq_ui`
 - [ ] T043 Desplegar en la VM (MinIO, migración 00007, llaves Bold de pruebas) y recorrer quickstart.md en el teléfono con el sandbox de Bold; registrar resultados en `specs/002-driver-onboarding-billing/validation.md`
-- [ ] T044 Actualizar `README.md` e `infra/README.md` (MinIO, variables Bold, webhook de producción con HTTPS)
+- [x] T044 Actualizar `README.md` e `infra/README.md` (MinIO, variables Bold, webhook de producción con HTTPS)
 
 ## Dependencies & Execution Order
 
