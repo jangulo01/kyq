@@ -10,7 +10,7 @@ const _blockLabels = {'subscription_suspended': 'Suscripción suspendida', 'kyc_
 
 String _date(DateTime d) => '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
 
-/// Secciones del panel (T023, T037, T040 de 002; T029 de 004; T032 de 007), en la barra superior
+/// Secciones del panel (T023, T037, T040 de 002; T029 de 004; T032 de 007; 009), en la barra superior
 /// de la lista de conductores.
 const adminSections = [
   (path: '/tower', label: 'Torre', icon: Icons.hexagon_outlined),
@@ -19,12 +19,14 @@ const adminSections = [
   (path: '/users', label: 'Usuarios', icon: Icons.manage_accounts_outlined),
   (path: '/health', label: 'Salud', icon: Icons.monitor_heart_outlined),
   (path: '/emergencies', label: 'Emergencias', icon: Icons.sos),
+  (path: '/support', label: 'Soporte', icon: Icons.support_agent),
   (path: '/kyc', label: 'Validación', icon: Icons.fact_check_outlined),
   (path: '/cooperatives', label: 'Cooperativas', icon: Icons.groups),
   (path: '/billing', label: 'Suscripciones', icon: Icons.receipt_long_outlined),
   (path: '/trip-payments', label: 'Pagos de viajes', icon: Icons.account_balance_wallet_outlined),
   (path: '/costs', label: 'Costos', icon: Icons.query_stats),
   (path: '/fares', label: 'Tarifas', icon: Icons.payments),
+  (path: '/domains', label: 'Dominios', icon: Icons.dns_outlined),
 ];
 
 class DriversPage extends StatelessWidget {

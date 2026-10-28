@@ -27,7 +27,14 @@ class RealtimeTowerEvents implements TowerEvents {
 const towerResolutions = [6, 7, 8, 9];
 
 class TowerState {
-  const TowerState({this.snapshot, this.resolution = 8, this.loading = false, this.error, this.live = false});
+  const TowerState({
+    this.snapshot,
+    this.resolution = 8,
+    this.loading = false,
+    this.error,
+    this.live = false,
+    this.selected = const {},
+  });
 
   final TowerSnapshot? snapshot;
   final int resolution;
@@ -37,14 +44,30 @@ class TowerState {
   /// Suscrito al canal en vivo; si no, solo se actualiza cada [TowerCubit.pollEvery].
   final bool live;
 
-  TowerState copyWith({TowerSnapshot? snapshot, int? resolution, bool? loading, String? error, bool? live}) =>
-      TowerState(
-        snapshot: snapshot ?? this.snapshot,
-        resolution: resolution ?? this.resolution,
-        loading: loading ?? this.loading,
-        error: error,
-        live: live ?? this.live,
-      );
+  /// 009: hexágonos elegidos para el megáfono.
+  final Set<String> selected;
+
+  TowerState copyWith({
+    TowerSnapshot? snapshot,
+    int? resolution,
+    bool? loading,
+    String? error,
+    bool? live,
+    Set<String>? selected,
+  }) => TowerState(
+    snapshot: snapshot ?? this.snapshot,
+    resolution: resolution ?? this.resolution,
+    loading: loading ?? this.loading,
+    error: error,
+    live: live ?? this.live,
+    selected: selected ?? this.selected,
+  );
+
+  /// 009: hexágonos con conductores, que pueden recibir un comunicado.
+  List<TowerCell> get driverCells => [
+    for (final c in snapshot?.cells ?? const <TowerCell>[])
+      if (c.freeDrivers + c.busyDrivers > 0) c,
+  ];
 
   /// Hexágonos con demanda o sin oferta, ya ordenados por presión (el backend los ordena).
   List<TowerCell> get pressureCells => [
@@ -126,9 +149,19 @@ class TowerCubit extends Cubit<TowerState> {
 
   Future<void> setResolution(int resolution) {
     if (resolution == state.resolution) return Future.value();
-    emit(state.copyWith(resolution: resolution, error: state.error));
+    // Los hexágonos elegidos son de la resolución anterior.
+    emit(state.copyWith(resolution: resolution, error: state.error, selected: const {}));
     return load();
   }
+
+  /// 009: elige o quita un hexágono para el megáfono.
+  void toggleCell(String cell) {
+    final next = {...state.selected};
+    if (!next.remove(cell)) next.add(cell);
+    emit(state.copyWith(selected: next, error: state.error));
+  }
+
+  void clearSelection() => emit(state.copyWith(selected: const {}, error: state.error));
 
   @override
   Future<void> close() async {

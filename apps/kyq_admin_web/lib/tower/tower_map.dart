@@ -4,12 +4,24 @@ import 'package:maplibre_gl/maplibre_gl.dart';
 
 import '../app/app.dart' show apiBaseUrl;
 
+/// 009: toques en el mapa y hexágonos elegidos para el megáfono.
+class TowerMapTaps {
+  const TowerMapTaps({required this.onDriver, required this.onCell, this.selected = const {}});
+
+  /// Clic en un conductor: abre su viaje activo si está ocupado (FR-001).
+  final void Function(String driverId) onDriver;
+
+  /// Clic en un hexágono: sus viajes y la selección del megáfono.
+  final void Function(String cell) onCell;
+  final Set<String> selected;
+}
+
 /// Construye el mapa de la torre. Las pruebas lo sustituyen porque MapLibre no se puede pintar en
 /// ellas.
-typedef TowerMapBuilder = Widget Function(TowerSnapshot snapshot);
+typedef TowerMapBuilder = Widget Function(TowerSnapshot snapshot, TowerMapTaps taps);
 
 /// Mapa real con MapLibre.
-Widget maplibreTowerMap(TowerSnapshot snapshot) => MaplibreTowerMap(snapshot: snapshot);
+Widget maplibreTowerMap(TowerSnapshot snapshot, TowerMapTaps taps) => MaplibreTowerMap(snapshot: snapshot, taps: taps);
 
 /// Estilo del mapa base propio (Protomaps sobre PMTiles, `infra/tiles`). `KYQ_MAP_STYLE_URL` lo
 /// fija; si no, el servicio `tiles` (puerto 8081) del mismo host que la API.
@@ -42,8 +54,9 @@ const _levelNames = {
   PressureLevel.none: 'none',
 };
 
-/// Hexágonos como FeatureCollection GeoJSON (anillo cerrado, [lng, lat]).
-Map<String, dynamic> hexagonsGeoJson(TowerSnapshot s) => {
+/// Hexágonos como FeatureCollection GeoJSON (anillo cerrado, [lng, lat]); [selected] los marca
+/// para el megáfono.
+Map<String, dynamic> hexagonsGeoJson(TowerSnapshot s, {Set<String> selected = const {}}) => {
   'type': 'FeatureCollection',
   'features': [
     for (final c in s.cells)
@@ -57,6 +70,7 @@ Map<String, dynamic> hexagonsGeoJson(TowerSnapshot s) => {
             'free': c.freeDrivers,
             'busy': c.busyDrivers,
             'requests': c.requests,
+            'selected': selected.contains(c.cell),
           },
           'geometry': {
             'type': 'Polygon',
@@ -90,9 +104,10 @@ Map<String, dynamic> driversGeoJson(TowerSnapshot s) => {
 
 /// Mapa MapLibre con los hexágonos coloreados por presión y los conductores por estado.
 class MaplibreTowerMap extends StatefulWidget {
-  const MaplibreTowerMap({super.key, required this.snapshot});
+  const MaplibreTowerMap({super.key, required this.snapshot, required this.taps});
 
   final TowerSnapshot snapshot;
+  final TowerMapTaps taps;
 
   @override
   State<MaplibreTowerMap> createState() => _MaplibreTowerMapState();
@@ -117,7 +132,7 @@ class _MaplibreTowerMapState extends State<MaplibreTowerMap> {
   @override
   void didUpdateWidget(MaplibreTowerMap oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.snapshot != widget.snapshot) _redraw();
+    if (oldWidget.snapshot != widget.snapshot || oldWidget.taps.selected != widget.taps.selected) _redraw();
   }
 
   Future<void> _redraw() async {
@@ -139,7 +154,7 @@ class _MaplibreTowerMapState extends State<MaplibreTowerMap> {
   }
 
   Future<void> _addLayers(MapLibreMapController c) async {
-    await c.addGeoJsonSource('hexagons', hexagonsGeoJson(widget.snapshot));
+    await c.addGeoJsonSource('hexagons', hexagonsGeoJson(widget.snapshot, selected: widget.taps.selected));
     await c.addGeoJsonSource('drivers', driversGeoJson(widget.snapshot));
     final levelColor = [
       'match',
@@ -148,7 +163,19 @@ class _MaplibreTowerMapState extends State<MaplibreTowerMap> {
       _hex(levelColors[PressureLevel.none]!),
     ];
     await c.addFillLayer('hexagons', 'hexagons-fill', FillLayerProperties(fillColor: levelColor, fillOpacity: 0.35));
-    await c.addLineLayer('hexagons', 'hexagons-line', LineLayerProperties(lineColor: levelColor, lineWidth: 1.5));
+    await c.addLineLayer(
+      'hexagons',
+      'hexagons-line',
+      LineLayerProperties(
+        lineColor: levelColor,
+        lineWidth: [
+          'case',
+          ['get', 'selected'],
+          4.0,
+          1.5,
+        ],
+      ),
+    );
     await c.addCircleLayer(
       'drivers',
       'drivers-circle',
@@ -176,7 +203,7 @@ class _MaplibreTowerMapState extends State<MaplibreTowerMap> {
   Future<void> _draw() async {
     final c = _controller;
     if (c == null || !_styleReady) return;
-    await c.setGeoJsonSource('hexagons', hexagonsGeoJson(widget.snapshot));
+    await c.setGeoJsonSource('hexagons', hexagonsGeoJson(widget.snapshot, selected: widget.taps.selected));
     await c.setGeoJsonSource('drivers', driversGeoJson(widget.snapshot));
     final focus = _focus(widget.snapshot);
     if (!_centered && focus != null) {
@@ -197,7 +224,14 @@ class _MaplibreTowerMapState extends State<MaplibreTowerMap> {
     return MapLibreMap(
       styleString: towerStyleUrl,
       initialCameraPosition: CameraPosition(target: start ?? _fallbackCenter, zoom: 12),
-      onMapCreated: (c) => _controller = c,
+      onMapCreated: (c) {
+        _controller = c;
+        // 009: un clic en un conductor o un hexágono (FR-001).
+        c.onFeatureTapped.add((point, coordinates, id, layerId, annotation) {
+          if (layerId == 'drivers-circle') widget.taps.onDriver(id);
+          if (layerId == 'hexagons-fill') widget.taps.onCell(id);
+        });
+      },
       onStyleLoadedCallback: () async {
         final c = _controller;
         if (c == null) return;

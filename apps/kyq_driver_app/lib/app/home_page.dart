@@ -166,6 +166,16 @@ class HomePage extends StatelessWidget {
             ),
             Card(
               child: ListTile(
+                key: const Key('home.support'),
+                leading: const Icon(Icons.support_agent),
+                title: const Text('Ayuda'),
+                subtitle: const Text('Escríbele al soporte de Kyq sobre un viaje, un pago o tu cuenta'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => context.push(supportLocation),
+              ),
+            ),
+            Card(
+              child: ListTile(
                 key: const Key('home.tripPayments'),
                 leading: const Icon(Icons.account_balance_wallet_outlined),
                 title: const Text('Pagos de viajes'),

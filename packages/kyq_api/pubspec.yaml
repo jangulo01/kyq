@@ -8,6 +8,7 @@ resolution: workspace
 environment:
   sdk: ^3.12.2
 dependencies:
+  cryptography: ^2.9.0
   dio: ^5.11.1
   freezed_annotation: ^3.1.0
   json_annotation: ^4.12.0

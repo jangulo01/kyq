@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:kyq_admin_web/tower/megaphone_cubit.dart';
 import 'package:kyq_admin_web/tower/tower_cubit.dart';
 import 'package:kyq_admin_web/tower/tower_map.dart';
 import 'package:kyq_admin_web/tower/tower_page.dart';
@@ -128,10 +129,13 @@ void main() {
     TowerSnapshot? drawn;
     await tester.pumpWidget(
       MaterialApp(
-        home: BlocProvider(
-          create: (_) => TowerCubit(api, pollEvery: const Duration(hours: 1))..start(),
+        home: MultiBlocProvider(
+          providers: [
+            BlocProvider(create: (_) => TowerCubit(api, pollEvery: const Duration(hours: 1))..start()),
+            BlocProvider(create: (_) => AdminMegaphoneCubit(api, room: () => throw UnimplementedError())),
+          ],
           child: TowerPage(
-            map: (s) {
+            map: (s, _) {
               drawn = s;
               return const ColoredBox(
                 color: Colors.black12,

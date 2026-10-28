@@ -28,6 +28,7 @@ class DriverServices {
     required this.handsFreePrefs,
     required this.overlayPermission,
     this.cooperativePtt = PttController.cooperative,
+    this.megaphoneRoom = liveKitRoom,
     required this.safety,
   });
 
@@ -74,4 +75,10 @@ class DriverServices {
 
   /// SOS, viaje compartido y 123 (003).
   final SafetyPlatform safety;
+
+  /// Sala de solo escucha de los comunicados de Kyq (009); las pruebas pasan una falsa.
+  final VoiceRoom Function() megaphoneRoom;
 }
+
+/// Sala LiveKit real para el megáfono (009).
+VoiceRoom liveKitRoom() => LiveKitVoiceRoom();

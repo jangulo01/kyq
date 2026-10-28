@@ -15,7 +15,8 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$Tokens {
 
- String get accessToken; String get refreshToken; UserRole get role;
+ String get accessToken; String get refreshToken; UserRole get role;/// 009: `support` en la sesión de un usuario suspendido: solo abre soporte.
+ String? get scope;
 /// Create a copy of Tokens
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -28,16 +29,16 @@ $TokensCopyWith<Tokens> get copyWith => _$TokensCopyWithImpl<Tokens>(this as Tok
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is Tokens&&(identical(other.accessToken, accessToken) || other.accessToken == accessToken)&&(identical(other.refreshToken, refreshToken) || other.refreshToken == refreshToken)&&(identical(other.role, role) || other.role == role));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is Tokens&&(identical(other.accessToken, accessToken) || other.accessToken == accessToken)&&(identical(other.refreshToken, refreshToken) || other.refreshToken == refreshToken)&&(identical(other.role, role) || other.role == role)&&(identical(other.scope, scope) || other.scope == scope));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,accessToken,refreshToken,role);
+int get hashCode => Object.hash(runtimeType,accessToken,refreshToken,role,scope);
 
 @override
 String toString() {
-  return 'Tokens(accessToken: $accessToken, refreshToken: $refreshToken, role: $role)';
+  return 'Tokens(accessToken: $accessToken, refreshToken: $refreshToken, role: $role, scope: $scope)';
 }
 
 
@@ -48,7 +49,7 @@ abstract mixin class $TokensCopyWith<$Res>  {
   factory $TokensCopyWith(Tokens value, $Res Function(Tokens) _then) = _$TokensCopyWithImpl;
 @useResult
 $Res call({
- String accessToken, String refreshToken, UserRole role
+ String accessToken, String refreshToken, UserRole role, String? scope
 });
 
 
@@ -65,12 +66,13 @@ class _$TokensCopyWithImpl<$Res>
 
 /// Create a copy of Tokens
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? accessToken = null,Object? refreshToken = null,Object? role = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? accessToken = null,Object? refreshToken = null,Object? role = null,Object? scope = freezed,}) {
   return _then(_self.copyWith(
 accessToken: null == accessToken ? _self.accessToken : accessToken // ignore: cast_nullable_to_non_nullable
 as String,refreshToken: null == refreshToken ? _self.refreshToken : refreshToken // ignore: cast_nullable_to_non_nullable
 as String,role: null == role ? _self.role : role // ignore: cast_nullable_to_non_nullable
-as UserRole,
+as UserRole,scope: freezed == scope ? _self.scope : scope // ignore: cast_nullable_to_non_nullable
+as String?,
   ));
 }
 
@@ -155,10 +157,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String accessToken,  String refreshToken,  UserRole role)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String accessToken,  String refreshToken,  UserRole role,  String? scope)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _Tokens() when $default != null:
-return $default(_that.accessToken,_that.refreshToken,_that.role);case _:
+return $default(_that.accessToken,_that.refreshToken,_that.role,_that.scope);case _:
   return orElse();
 
 }
@@ -176,10 +178,10 @@ return $default(_that.accessToken,_that.refreshToken,_that.role);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String accessToken,  String refreshToken,  UserRole role)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String accessToken,  String refreshToken,  UserRole role,  String? scope)  $default,) {final _that = this;
 switch (_that) {
 case _Tokens():
-return $default(_that.accessToken,_that.refreshToken,_that.role);case _:
+return $default(_that.accessToken,_that.refreshToken,_that.role,_that.scope);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -196,10 +198,10 @@ return $default(_that.accessToken,_that.refreshToken,_that.role);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String accessToken,  String refreshToken,  UserRole role)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String accessToken,  String refreshToken,  UserRole role,  String? scope)?  $default,) {final _that = this;
 switch (_that) {
 case _Tokens() when $default != null:
-return $default(_that.accessToken,_that.refreshToken,_that.role);case _:
+return $default(_that.accessToken,_that.refreshToken,_that.role,_that.scope);case _:
   return null;
 
 }
@@ -211,12 +213,14 @@ return $default(_that.accessToken,_that.refreshToken,_that.role);case _:
 @JsonSerializable()
 
 class _Tokens implements Tokens {
-  const _Tokens({required this.accessToken, required this.refreshToken, required this.role});
+  const _Tokens({required this.accessToken, required this.refreshToken, required this.role, this.scope});
   factory _Tokens.fromJson(Map<String, dynamic> json) => _$TokensFromJson(json);
 
 @override final  String accessToken;
 @override final  String refreshToken;
 @override final  UserRole role;
+/// 009: `support` en la sesión de un usuario suspendido: solo abre soporte.
+@override final  String? scope;
 
 /// Create a copy of Tokens
 /// with the given fields replaced by the non-null parameter values.
@@ -231,16 +235,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _Tokens&&(identical(other.accessToken, accessToken) || other.accessToken == accessToken)&&(identical(other.refreshToken, refreshToken) || other.refreshToken == refreshToken)&&(identical(other.role, role) || other.role == role));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _Tokens&&(identical(other.accessToken, accessToken) || other.accessToken == accessToken)&&(identical(other.refreshToken, refreshToken) || other.refreshToken == refreshToken)&&(identical(other.role, role) || other.role == role)&&(identical(other.scope, scope) || other.scope == scope));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,accessToken,refreshToken,role);
+int get hashCode => Object.hash(runtimeType,accessToken,refreshToken,role,scope);
 
 @override
 String toString() {
-  return 'Tokens(accessToken: $accessToken, refreshToken: $refreshToken, role: $role)';
+  return 'Tokens(accessToken: $accessToken, refreshToken: $refreshToken, role: $role, scope: $scope)';
 }
 
 
@@ -251,7 +255,7 @@ abstract mixin class _$TokensCopyWith<$Res> implements $TokensCopyWith<$Res> {
   factory _$TokensCopyWith(_Tokens value, $Res Function(_Tokens) _then) = __$TokensCopyWithImpl;
 @override @useResult
 $Res call({
- String accessToken, String refreshToken, UserRole role
+ String accessToken, String refreshToken, UserRole role, String? scope
 });
 
 
@@ -268,12 +272,13 @@ class __$TokensCopyWithImpl<$Res>
 
 /// Create a copy of Tokens
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? accessToken = null,Object? refreshToken = null,Object? role = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? accessToken = null,Object? refreshToken = null,Object? role = null,Object? scope = freezed,}) {
   return _then(_Tokens(
 accessToken: null == accessToken ? _self.accessToken : accessToken // ignore: cast_nullable_to_non_nullable
 as String,refreshToken: null == refreshToken ? _self.refreshToken : refreshToken // ignore: cast_nullable_to_non_nullable
 as String,role: null == role ? _self.role : role // ignore: cast_nullable_to_non_nullable
-as UserRole,
+as UserRole,scope: freezed == scope ? _self.scope : scope // ignore: cast_nullable_to_non_nullable
+as String?,
   ));
 }
 

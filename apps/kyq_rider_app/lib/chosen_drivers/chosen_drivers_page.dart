@@ -27,6 +27,12 @@ class ChosenDriversPage extends StatelessWidget {
         title: const Text('Mis Conductores Elegidos'),
         actions: [
           IconButton(
+            key: const Key('home.support'),
+            tooltip: 'Ayuda',
+            icon: const Icon(Icons.help_outline),
+            onPressed: () => context.push(supportLocation),
+          ),
+          IconButton(
             key: const Key('home.safety'),
             tooltip: 'Seguridad',
             icon: const Icon(Icons.health_and_safety_outlined),

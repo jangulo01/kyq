@@ -336,4 +336,24 @@ void main() {
       expect(RealtimeEvent.fromEnvelope(envelope('sos.released', {'alert_id': 'a1'})), isA<SosReleased>());
     });
   });
+
+  test('009: support.case y megáfono', () {
+    expect(
+      RealtimeEvent.fromEnvelope(envelope('support.case', {'case_id': 'c1', 'status': 'open'})),
+      isA<SupportCaseChanged>().having((e) => e.caseId, 'case', 'c1'),
+    );
+    final started =
+        RealtimeEvent.fromEnvelope(
+              envelope('megaphone.started', {
+                'broadcast_id': 'b1',
+                'url': 'wss://lk',
+                'token': 'tk',
+                'ends_at': '2026-10-27T12:01:00Z',
+              }),
+            )
+            as MegaphoneStarted;
+    expect(started.token, 'tk');
+    expect(started.endsAt, DateTime.utc(2026, 10, 27, 12, 1));
+    expect(RealtimeEvent.fromEnvelope(envelope('megaphone.ended', {'broadcast_id': 'b1'})), isA<MegaphoneEnded>());
+  });
 }

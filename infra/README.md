@@ -109,6 +109,35 @@ sin webhook. El webhook acelera la confirmación y es obligatorio en producción
 En la app del pasajero el checkout de Bold se abre en una Custom Tab (Android) y la app vuelve a
 consultar el pago al regresar.
 
+## Operación del panel (009)
+
+- **Soporte**: no necesita configuración. Los casos se abren desde "Ayuda" en las dos apps; las
+  disputas de efectivo y los "no me pagó" de 004 crean su caso de pago solos. Un usuario
+  suspendido entra solo a "Ayuda". El canal `admin:support` usa el namespace `admin` de Centrifugo
+  que ya existe para la torre.
+- **Megáfono**: usa el mismo LiveKit (salas `mega-{id}` de hasta 60 s, sin grabación).
+- **Sesiones sin fallos** (Salud): `KYQ_SENTRY_API_TOKEN` (token de lectura con `org:read` y
+  `project:read`), `KYQ_SENTRY_ORG` y `KYQ_SENTRY_PROJECTS=driver=ID,rider=ID,admin=ID` (ids de
+  los proyectos de Sentry de cada app); `KYQ_SENTRY_API_URL` solo si no es `https://sentry.io`. Sin
+  token, Salud muestra "no configurado".
+- **Dominios espejo**: la API firma la lista con `KYQ_DOMAINS_SIGNING_KEY` (Ed25519). Pasos:
+
+  ```bash
+  cd backend
+  go run ./cmd/domainsign -new-key                       # semilla para KYQ_DOMAINS_SIGNING_KEY
+  KYQ_DOMAINS_SIGNING_KEY=… go run ./cmd/domainsign -print-public-key
+  KYQ_DOMAINS_SIGNING_KEY=… go run ./cmd/domainsign \
+    -api https://api.kyq.co -realtime wss://rt.kyq.co/connection/websocket \
+    -api https://api2.kyq.co -realtime wss://rt2.kyq.co/connection/websocket
+  ```
+
+  La clave pública y la lista inicial firmada se pasan a las apps al compilar:
+  `--dart-define=KYQ_DOMAINS_PUBLIC_KEY=…` y `--dart-define=KYQ_DOMAINS_BOOTSTRAP='{"payload":…}'`.
+  Sin clave pública las apps usan solo `KYQ_API_URL`. Los dominios se administran en Panel →
+  Dominios; las apps piden la lista al conectar y cada 10 minutos, y tras 3 fallos de red seguidos
+  pasan al siguiente dominio activo sin cerrar la sesión. El tiempo real toma el dominio en uso al
+  abrir la app. Cambiar la clave exige publicar nuevas versiones de las apps.
+
 ## SOS y consola de emergencias (003)
 
 - **Grabación**: `egress` (LiveKit Egress, configuración en `egress.yaml`) recibe por Redis las

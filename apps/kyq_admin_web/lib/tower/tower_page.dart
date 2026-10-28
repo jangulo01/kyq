@@ -3,8 +3,10 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:kyq_api/kyq_api.dart';
 import 'package:kyq_ui/kyq_ui.dart';
 
+import 'megaphone_cubit.dart';
 import 'tower_cubit.dart';
 import 'tower_map.dart';
+import 'trip_inspection_view.dart';
 
 const levelLabels = {
   PressureLevel.noSupply: 'Sin oferta',
@@ -62,6 +64,11 @@ class TowerPage extends StatelessWidget {
             );
           }
           final panel = _SidePanel(state: state);
+          final taps = TowerMapTaps(
+            selected: state.selected,
+            onDriver: (id) => openDriverTrip(context, state, id),
+            onCell: (cell) => showCellSheet(context, cell),
+          );
           return LayoutBuilder(
             builder: (context, constraints) {
               if (constraints.maxWidth >= 1000) {
@@ -72,7 +79,7 @@ class TowerPage extends StatelessWidget {
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          Expanded(child: map(snapshot)),
+                          Expanded(child: map(snapshot, taps)),
                           SizedBox(width: 380, child: panel),
                         ],
                       ),
@@ -83,7 +90,7 @@ class TowerPage extends StatelessWidget {
               return Column(
                 children: [
                   header,
-                  SizedBox(height: constraints.maxHeight * 0.5, child: map(snapshot)),
+                  SizedBox(height: constraints.maxHeight * 0.5, child: map(snapshot, taps)),
                   Expanded(child: panel),
                 ],
               );
@@ -219,6 +226,7 @@ class _SidePanel extends StatelessWidget {
               '${c.freeDrivers} libres · ${c.busyDrivers} ocupados · ${c.activeTrips} viajes',
             ),
             trailing: c.pressure == null ? null : Text('×${c.pressure!.toStringAsFixed(1)}'),
+            onTap: () => showCellSheet(context, c.cell),
           ),
         const SizedBox(height: 16),
         Text('Conductores ONLINE', style: theme.textTheme.titleMedium),
@@ -229,11 +237,16 @@ class _SidePanel extends StatelessWidget {
             contentPadding: EdgeInsets.zero,
             leading: Icon(Icons.circle, size: 14, color: d.presence == DriverPresence.busy ? busyColor : freeColor),
             title: Text(d.displayName),
+            // 009: un clic en un conductor ocupado abre su viaje (FR-001).
+            trailing: d.activeTripId == null ? null : const Icon(Icons.open_in_new, size: 18),
+            onTap: d.activeTripId == null ? null : () => showTripInspection(context, d.activeTripId!),
             subtitle: Text(
               '${d.presence == DriverPresence.busy ? 'Ocupado' : 'Libre'} · '
               '${d.stale ? 'ubicación desactualizada (${_time(d.locationAt)})' : 'ubicación ${_time(d.locationAt)}'}',
             ),
           ),
+        const SizedBox(height: 16),
+        _MegaphoneSection(state: state),
       ],
     );
   }
@@ -289,4 +302,178 @@ class _Legend extends StatelessWidget {
       Text(label, style: Theme.of(context).textTheme.bodySmall),
     ],
   );
+}
+
+/// 009: un clic en un conductor abre su viaje activo; libre, se avisa.
+void openDriverTrip(BuildContext context, TowerState state, String driverId) {
+  final driver = state.snapshot?.drivers.where((d) => d.driverId == driverId).firstOrNull;
+  final trip = driver?.activeTripId;
+  if (trip != null) {
+    showTripInspection(context, trip);
+  } else if (driver != null) {
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text('${driver.displayName} no tiene un viaje activo.')));
+  }
+}
+
+/// 009: viajes activos de un hexágono y su selección para el megáfono (FR-001, FR-013).
+Future<void> showCellSheet(BuildContext context, String cellId) {
+  final tower = context.read<TowerCubit>();
+  return showModalBottomSheet<void>(
+    context: context,
+    builder: (sheetContext) => BlocProvider.value(
+      value: tower,
+      child: BlocBuilder<TowerCubit, TowerState>(
+        builder: (context, state) {
+          final cell = state.snapshot?.cells.where((c) => c.cell == cellId).firstOrNull;
+          final trips = cell?.tripIds ?? const <String>[];
+          return ListView(
+            shrinkWrap: true,
+            padding: const EdgeInsets.all(16),
+            children: [
+              Text('Hexágono ${_shortCell(cellId)}', style: Theme.of(context).textTheme.titleMedium),
+              CheckboxListTile(
+                key: const Key('tower.sheet.select'),
+                value: state.selected.contains(cellId),
+                onChanged: (_) => tower.toggleCell(cellId),
+                title: const Text('Elegido para el megáfono'),
+              ),
+              if (trips.isEmpty) const ListTile(title: Text('Sin viajes activos en este hexágono.')),
+              for (final (i, id) in trips.indexed)
+                ListTile(
+                  key: ValueKey('tower.sheet.trip.$id'),
+                  leading: const Icon(Icons.local_taxi),
+                  title: Text('Viaje ${i + 1}'),
+                  subtitle: Text(id.length > 8 ? id.substring(0, 8) : id),
+                  trailing: const Icon(Icons.open_in_new),
+                  onTap: () {
+                    Navigator.pop(sheetContext);
+                    showTripInspection(context, id);
+                  },
+                ),
+            ],
+          );
+        },
+      ),
+    ),
+  );
+}
+
+String _shortCell(String cell) => cell.length > 6 ? '…${cell.substring(cell.length - 6)}' : cell;
+
+/// 009: megáfono: hexágonos con conductores, selección y botón de mantener pulsado (US3).
+class _MegaphoneSection extends StatelessWidget {
+  const _MegaphoneSection({required this.state});
+
+  final TowerState state;
+
+  @override
+  Widget build(BuildContext context) {
+    final tower = context.read<TowerCubit>();
+    final theme = Theme.of(context);
+    final cells = state.driverCells;
+    final drivers = [
+      for (final c in cells)
+        if (state.selected.contains(c.cell)) c.freeDrivers + c.busyDrivers,
+    ].fold<int>(0, (a, b) => a + b);
+    return BlocBuilder<AdminMegaphoneCubit, AdminMegaphoneState>(
+      builder: (context, mega) {
+        final cubit = context.read<AdminMegaphoneCubit>();
+        final onAir = mega.onAir != null;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                Expanded(child: Text('Megáfono', style: theme.textTheme.titleMedium)),
+                TextButton(
+                  key: const Key('megaphone.log'),
+                  onPressed: () => _showLog(context, cubit),
+                  child: const Text('Registro'),
+                ),
+              ],
+            ),
+            if (cells.isEmpty)
+              const Text('No hay conductores conectados con ubicación.')
+            else
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: [
+                  for (final c in cells)
+                    FilterChip(
+                      key: ValueKey('megaphone.cell.${c.cell}'),
+                      label: Text('${_shortCell(c.cell)} · ${c.freeDrivers + c.busyDrivers}'),
+                      selected: state.selected.contains(c.cell),
+                      onSelected: onAir ? null : (_) => tower.toggleCell(c.cell),
+                    ),
+                ],
+              ),
+            const SizedBox(height: 8),
+            Text(
+              state.selected.isEmpty
+                  ? 'Elige los hexágonos que oirán el comunicado.'
+                  : '${state.selected.length} hexágono${state.selected.length == 1 ? '' : 's'} · $drivers conductor${drivers == 1 ? '' : 'es'} ahora',
+              style: theme.textTheme.bodySmall,
+            ),
+            const SizedBox(height: 8),
+            Listener(
+              onPointerDown: state.selected.isEmpty ? null : (_) => cubit.press(state.selected),
+              onPointerUp: (_) => cubit.release(),
+              onPointerCancel: (_) => cubit.release(),
+              child: FilledButton.icon(
+                key: const Key('megaphone.talk'),
+                style: FilledButton.styleFrom(backgroundColor: onAir ? theme.colorScheme.error : null),
+                onPressed: state.selected.isEmpty ? null : () {},
+                icon: Icon(onAir ? Icons.mic : Icons.campaign),
+                label: Text(
+                  onAir
+                      ? 'Hablando a ${mega.onAir!.recipients} conductor${mega.onAir!.recipients == 1 ? '' : 'es'}…'
+                      : mega.starting
+                      ? 'Abriendo…'
+                      : 'Mantén pulsado para hablar',
+                ),
+              ),
+            ),
+            if (mega.message != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(mega.message!, key: const Key('megaphone.message'), style: theme.textTheme.bodySmall),
+              ),
+          ],
+        );
+      },
+    );
+  }
+
+  static Future<void> _showLog(BuildContext context, AdminMegaphoneCubit cubit) async {
+    await cubit.loadLog();
+    if (!context.mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Comunicados'),
+        content: SizedBox(
+          width: 480,
+          child: ListView(
+            shrinkWrap: true,
+            children: [
+              if (cubit.state.log.isEmpty) const Text('Aún no hay comunicados.'),
+              for (final b in cubit.state.log)
+                ListTile(
+                  dense: true,
+                  title: Text('${b.adminName} · ${_time(b.startedAt)}'),
+                  subtitle: Text(
+                    '${b.cells.length} hexágono${b.cells.length == 1 ? '' : 's'} · ${b.recipients} conductor${b.recipients == 1 ? '' : 'es'}'
+                    '${b.durationS == null ? ' · en curso' : ' · ${b.durationS} s'}',
+                  ),
+                ),
+            ],
+          ),
+        ),
+        actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cerrar'))],
+      ),
+    );
+  }
 }

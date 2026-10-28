@@ -10,12 +10,14 @@ _Tokens _$TokensFromJson(Map<String, dynamic> json) => _Tokens(
   accessToken: json['access_token'] as String,
   refreshToken: json['refresh_token'] as String,
   role: $enumDecode(_$UserRoleEnumMap, json['role']),
+  scope: json['scope'] as String?,
 );
 
 Map<String, dynamic> _$TokensToJson(_Tokens instance) => <String, dynamic>{
   'access_token': instance.accessToken,
   'refresh_token': instance.refreshToken,
   'role': _$UserRoleEnumMap[instance.role]!,
+  'scope': instance.scope,
 };
 
 const _$UserRoleEnumMap = {UserRole.passenger: 'passenger', UserRole.driver: 'driver', UserRole.admin: 'admin'};

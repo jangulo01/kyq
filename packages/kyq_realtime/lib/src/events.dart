@@ -10,6 +10,9 @@ abstract final class Channels {
   /// Torre de control del panel (007): solo admins.
   static const adminTower = 'admin:tower';
 
+  /// Bandeja de soporte del panel (009): solo admins.
+  static const adminSupport = 'admin:support';
+
   /// Cola de la consola de emergencias (solo operadores, 003).
   static const opsSos = 'ops:sos';
 
@@ -171,6 +174,19 @@ sealed class RealtimeEvent {
         amountMinor: data['amount_minor'] as int,
         currency: data['currency'] as String,
       ),
+      'support.case' => SupportCaseChanged(
+        at,
+        caseId: data['case_id'] as String,
+        status: data['status'] as String? ?? '',
+      ),
+      'megaphone.started' => MegaphoneStarted(
+        at,
+        broadcastId: data['broadcast_id'] as String,
+        url: data['url'] as String,
+        token: data['token'] as String,
+        endsAt: DateTime.parse(data['ends_at'] as String),
+      ),
+      'megaphone.ended' => MegaphoneEnded(at, broadcastId: data['broadcast_id'] as String),
       _ => UnknownEvent(at, type: type, data: data),
     };
   }
@@ -539,6 +555,37 @@ final class TripPaymentReminder extends RealtimeEvent {
   final String paymentId;
   final int amountMinor;
   final String currency;
+}
+
+/// 009: un caso de soporte cambió (mensaje nuevo o estado); no trae texto: hay que pedirlo.
+final class SupportCaseChanged extends RealtimeEvent {
+  const SupportCaseChanged(super.occurredAt, {required this.caseId, required this.status});
+
+  final String caseId;
+  final String status;
+}
+
+/// 009: comunicado de Kyq por el megáfono a la zona del conductor; [token] solo deja escuchar.
+final class MegaphoneStarted extends RealtimeEvent {
+  const MegaphoneStarted(
+    super.occurredAt, {
+    required this.broadcastId,
+    required this.url,
+    required this.token,
+    required this.endsAt,
+  });
+
+  final String broadcastId;
+  final String url;
+  final String token;
+  final DateTime endsAt;
+}
+
+/// 009: terminó el comunicado.
+final class MegaphoneEnded extends RealtimeEvent {
+  const MegaphoneEnded(super.occurredAt, {required this.broadcastId});
+
+  final String broadcastId;
 }
 
 final class UnknownEvent extends RealtimeEvent {

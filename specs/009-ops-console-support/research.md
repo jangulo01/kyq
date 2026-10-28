@@ -93,6 +93,9 @@
   guardado, `verify(payload, signature)` con la clave pública y `version` mayor que la guardada.
   Un interceptor de Dio cuenta errores de red (conexión, tiempo de 10 s); al tercero seguido o
   ante un tiempo agotado cambia `baseUrl` al siguiente dominio y reintenta la petición una vez.
-  Al conectar y cada 10 min pide `/v1/domains` al dominio actual. El tiempo real lee la URL del
-  dominio en uso al reconectar. Los tokens no dependen del dominio: la sesión se conserva.
+  Al conectar y cada 10 min pide `/v1/domains` al dominio actual. La lista y el dominio en uso se
+  guardan en el almacenamiento seguro de la app. Los tokens no dependen del dominio: la sesión se
+  conserva. El cliente de Centrifugo fija su URL al crearse, así que el tiempo real toma el dominio
+  en uso al abrir la app (la API rota en caliente); reconectar el tiempo real en otro dominio sin
+  reabrir la app queda para una etapa posterior.
 - **Rationale**: cumple FR-020–FR-022 y SC-005 (3 fallos × ≤ 10 s ≈ 30 s en el peor caso).

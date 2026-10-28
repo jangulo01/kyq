@@ -300,7 +300,8 @@ as int,
 mixin _$TowerCell {
 
  String get cell; GeoPoint get center; List<GeoPoint> get boundary; int get freeDrivers; int get busyDrivers; int get activeTrips; int get requests; int get unservedRequests;/// Solicitudes por conductor libre; null sin conductores libres.
- double? get pressure;@JsonKey(unknownEnumValue: PressureLevel.none) PressureLevel get level;
+ double? get pressure;@JsonKey(unknownEnumValue: PressureLevel.none) PressureLevel get level;/// 009: viajes activos del hexágono, para abrirlos desde la torre.
+ List<String> get tripIds;
 /// Create a copy of TowerCell
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -313,16 +314,16 @@ $TowerCellCopyWith<TowerCell> get copyWith => _$TowerCellCopyWithImpl<TowerCell>
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is TowerCell&&(identical(other.cell, cell) || other.cell == cell)&&(identical(other.center, center) || other.center == center)&&const DeepCollectionEquality().equals(other.boundary, boundary)&&(identical(other.freeDrivers, freeDrivers) || other.freeDrivers == freeDrivers)&&(identical(other.busyDrivers, busyDrivers) || other.busyDrivers == busyDrivers)&&(identical(other.activeTrips, activeTrips) || other.activeTrips == activeTrips)&&(identical(other.requests, requests) || other.requests == requests)&&(identical(other.unservedRequests, unservedRequests) || other.unservedRequests == unservedRequests)&&(identical(other.pressure, pressure) || other.pressure == pressure)&&(identical(other.level, level) || other.level == level));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is TowerCell&&(identical(other.cell, cell) || other.cell == cell)&&(identical(other.center, center) || other.center == center)&&const DeepCollectionEquality().equals(other.boundary, boundary)&&(identical(other.freeDrivers, freeDrivers) || other.freeDrivers == freeDrivers)&&(identical(other.busyDrivers, busyDrivers) || other.busyDrivers == busyDrivers)&&(identical(other.activeTrips, activeTrips) || other.activeTrips == activeTrips)&&(identical(other.requests, requests) || other.requests == requests)&&(identical(other.unservedRequests, unservedRequests) || other.unservedRequests == unservedRequests)&&(identical(other.pressure, pressure) || other.pressure == pressure)&&(identical(other.level, level) || other.level == level)&&const DeepCollectionEquality().equals(other.tripIds, tripIds));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,cell,center,const DeepCollectionEquality().hash(boundary),freeDrivers,busyDrivers,activeTrips,requests,unservedRequests,pressure,level);
+int get hashCode => Object.hash(runtimeType,cell,center,const DeepCollectionEquality().hash(boundary),freeDrivers,busyDrivers,activeTrips,requests,unservedRequests,pressure,level,const DeepCollectionEquality().hash(tripIds));
 
 @override
 String toString() {
-  return 'TowerCell(cell: $cell, center: $center, boundary: $boundary, freeDrivers: $freeDrivers, busyDrivers: $busyDrivers, activeTrips: $activeTrips, requests: $requests, unservedRequests: $unservedRequests, pressure: $pressure, level: $level)';
+  return 'TowerCell(cell: $cell, center: $center, boundary: $boundary, freeDrivers: $freeDrivers, busyDrivers: $busyDrivers, activeTrips: $activeTrips, requests: $requests, unservedRequests: $unservedRequests, pressure: $pressure, level: $level, tripIds: $tripIds)';
 }
 
 
@@ -333,7 +334,7 @@ abstract mixin class $TowerCellCopyWith<$Res>  {
   factory $TowerCellCopyWith(TowerCell value, $Res Function(TowerCell) _then) = _$TowerCellCopyWithImpl;
 @useResult
 $Res call({
- String cell, GeoPoint center, List<GeoPoint> boundary, int freeDrivers, int busyDrivers, int activeTrips, int requests, int unservedRequests, double? pressure,@JsonKey(unknownEnumValue: PressureLevel.none) PressureLevel level
+ String cell, GeoPoint center, List<GeoPoint> boundary, int freeDrivers, int busyDrivers, int activeTrips, int requests, int unservedRequests, double? pressure,@JsonKey(unknownEnumValue: PressureLevel.none) PressureLevel level, List<String> tripIds
 });
 
 
@@ -350,7 +351,7 @@ class _$TowerCellCopyWithImpl<$Res>
 
 /// Create a copy of TowerCell
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? cell = null,Object? center = null,Object? boundary = null,Object? freeDrivers = null,Object? busyDrivers = null,Object? activeTrips = null,Object? requests = null,Object? unservedRequests = null,Object? pressure = freezed,Object? level = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? cell = null,Object? center = null,Object? boundary = null,Object? freeDrivers = null,Object? busyDrivers = null,Object? activeTrips = null,Object? requests = null,Object? unservedRequests = null,Object? pressure = freezed,Object? level = null,Object? tripIds = null,}) {
   return _then(_self.copyWith(
 cell: null == cell ? _self.cell : cell // ignore: cast_nullable_to_non_nullable
 as String,center: null == center ? _self.center : center // ignore: cast_nullable_to_non_nullable
@@ -362,7 +363,8 @@ as int,requests: null == requests ? _self.requests : requests // ignore: cast_nu
 as int,unservedRequests: null == unservedRequests ? _self.unservedRequests : unservedRequests // ignore: cast_nullable_to_non_nullable
 as int,pressure: freezed == pressure ? _self.pressure : pressure // ignore: cast_nullable_to_non_nullable
 as double?,level: null == level ? _self.level : level // ignore: cast_nullable_to_non_nullable
-as PressureLevel,
+as PressureLevel,tripIds: null == tripIds ? _self.tripIds : tripIds // ignore: cast_nullable_to_non_nullable
+as List<String>,
   ));
 }
 /// Create a copy of TowerCell
@@ -456,10 +458,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String cell,  GeoPoint center,  List<GeoPoint> boundary,  int freeDrivers,  int busyDrivers,  int activeTrips,  int requests,  int unservedRequests,  double? pressure, @JsonKey(unknownEnumValue: PressureLevel.none)  PressureLevel level)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String cell,  GeoPoint center,  List<GeoPoint> boundary,  int freeDrivers,  int busyDrivers,  int activeTrips,  int requests,  int unservedRequests,  double? pressure, @JsonKey(unknownEnumValue: PressureLevel.none)  PressureLevel level,  List<String> tripIds)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _TowerCell() when $default != null:
-return $default(_that.cell,_that.center,_that.boundary,_that.freeDrivers,_that.busyDrivers,_that.activeTrips,_that.requests,_that.unservedRequests,_that.pressure,_that.level);case _:
+return $default(_that.cell,_that.center,_that.boundary,_that.freeDrivers,_that.busyDrivers,_that.activeTrips,_that.requests,_that.unservedRequests,_that.pressure,_that.level,_that.tripIds);case _:
   return orElse();
 
 }
@@ -477,10 +479,10 @@ return $default(_that.cell,_that.center,_that.boundary,_that.freeDrivers,_that.b
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String cell,  GeoPoint center,  List<GeoPoint> boundary,  int freeDrivers,  int busyDrivers,  int activeTrips,  int requests,  int unservedRequests,  double? pressure, @JsonKey(unknownEnumValue: PressureLevel.none)  PressureLevel level)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String cell,  GeoPoint center,  List<GeoPoint> boundary,  int freeDrivers,  int busyDrivers,  int activeTrips,  int requests,  int unservedRequests,  double? pressure, @JsonKey(unknownEnumValue: PressureLevel.none)  PressureLevel level,  List<String> tripIds)  $default,) {final _that = this;
 switch (_that) {
 case _TowerCell():
-return $default(_that.cell,_that.center,_that.boundary,_that.freeDrivers,_that.busyDrivers,_that.activeTrips,_that.requests,_that.unservedRequests,_that.pressure,_that.level);case _:
+return $default(_that.cell,_that.center,_that.boundary,_that.freeDrivers,_that.busyDrivers,_that.activeTrips,_that.requests,_that.unservedRequests,_that.pressure,_that.level,_that.tripIds);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -497,10 +499,10 @@ return $default(_that.cell,_that.center,_that.boundary,_that.freeDrivers,_that.b
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String cell,  GeoPoint center,  List<GeoPoint> boundary,  int freeDrivers,  int busyDrivers,  int activeTrips,  int requests,  int unservedRequests,  double? pressure, @JsonKey(unknownEnumValue: PressureLevel.none)  PressureLevel level)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String cell,  GeoPoint center,  List<GeoPoint> boundary,  int freeDrivers,  int busyDrivers,  int activeTrips,  int requests,  int unservedRequests,  double? pressure, @JsonKey(unknownEnumValue: PressureLevel.none)  PressureLevel level,  List<String> tripIds)?  $default,) {final _that = this;
 switch (_that) {
 case _TowerCell() when $default != null:
-return $default(_that.cell,_that.center,_that.boundary,_that.freeDrivers,_that.busyDrivers,_that.activeTrips,_that.requests,_that.unservedRequests,_that.pressure,_that.level);case _:
+return $default(_that.cell,_that.center,_that.boundary,_that.freeDrivers,_that.busyDrivers,_that.activeTrips,_that.requests,_that.unservedRequests,_that.pressure,_that.level,_that.tripIds);case _:
   return null;
 
 }
@@ -512,7 +514,7 @@ return $default(_that.cell,_that.center,_that.boundary,_that.freeDrivers,_that.b
 @JsonSerializable()
 
 class _TowerCell implements TowerCell {
-  const _TowerCell({required this.cell, required this.center, final  List<GeoPoint> boundary = const <GeoPoint>[], this.freeDrivers = 0, this.busyDrivers = 0, this.activeTrips = 0, this.requests = 0, this.unservedRequests = 0, this.pressure, @JsonKey(unknownEnumValue: PressureLevel.none) this.level = PressureLevel.none}): _boundary = boundary;
+  const _TowerCell({required this.cell, required this.center, final  List<GeoPoint> boundary = const <GeoPoint>[], this.freeDrivers = 0, this.busyDrivers = 0, this.activeTrips = 0, this.requests = 0, this.unservedRequests = 0, this.pressure, @JsonKey(unknownEnumValue: PressureLevel.none) this.level = PressureLevel.none, final  List<String> tripIds = const <String>[]}): _boundary = boundary,_tripIds = tripIds;
   factory _TowerCell.fromJson(Map<String, dynamic> json) => _$TowerCellFromJson(json);
 
 @override final  String cell;
@@ -532,6 +534,15 @@ class _TowerCell implements TowerCell {
 /// Solicitudes por conductor libre; null sin conductores libres.
 @override final  double? pressure;
 @override@JsonKey(unknownEnumValue: PressureLevel.none) final  PressureLevel level;
+/// 009: viajes activos del hexágono, para abrirlos desde la torre.
+ final  List<String> _tripIds;
+/// 009: viajes activos del hexágono, para abrirlos desde la torre.
+@override@JsonKey() List<String> get tripIds {
+  if (_tripIds is EqualUnmodifiableListView) return _tripIds;
+  // ignore: implicit_dynamic_type
+  return EqualUnmodifiableListView(_tripIds);
+}
+
 
 /// Create a copy of TowerCell
 /// with the given fields replaced by the non-null parameter values.
@@ -546,16 +557,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _TowerCell&&(identical(other.cell, cell) || other.cell == cell)&&(identical(other.center, center) || other.center == center)&&const DeepCollectionEquality().equals(other._boundary, _boundary)&&(identical(other.freeDrivers, freeDrivers) || other.freeDrivers == freeDrivers)&&(identical(other.busyDrivers, busyDrivers) || other.busyDrivers == busyDrivers)&&(identical(other.activeTrips, activeTrips) || other.activeTrips == activeTrips)&&(identical(other.requests, requests) || other.requests == requests)&&(identical(other.unservedRequests, unservedRequests) || other.unservedRequests == unservedRequests)&&(identical(other.pressure, pressure) || other.pressure == pressure)&&(identical(other.level, level) || other.level == level));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _TowerCell&&(identical(other.cell, cell) || other.cell == cell)&&(identical(other.center, center) || other.center == center)&&const DeepCollectionEquality().equals(other._boundary, _boundary)&&(identical(other.freeDrivers, freeDrivers) || other.freeDrivers == freeDrivers)&&(identical(other.busyDrivers, busyDrivers) || other.busyDrivers == busyDrivers)&&(identical(other.activeTrips, activeTrips) || other.activeTrips == activeTrips)&&(identical(other.requests, requests) || other.requests == requests)&&(identical(other.unservedRequests, unservedRequests) || other.unservedRequests == unservedRequests)&&(identical(other.pressure, pressure) || other.pressure == pressure)&&(identical(other.level, level) || other.level == level)&&const DeepCollectionEquality().equals(other._tripIds, _tripIds));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,cell,center,const DeepCollectionEquality().hash(_boundary),freeDrivers,busyDrivers,activeTrips,requests,unservedRequests,pressure,level);
+int get hashCode => Object.hash(runtimeType,cell,center,const DeepCollectionEquality().hash(_boundary),freeDrivers,busyDrivers,activeTrips,requests,unservedRequests,pressure,level,const DeepCollectionEquality().hash(_tripIds));
 
 @override
 String toString() {
-  return 'TowerCell(cell: $cell, center: $center, boundary: $boundary, freeDrivers: $freeDrivers, busyDrivers: $busyDrivers, activeTrips: $activeTrips, requests: $requests, unservedRequests: $unservedRequests, pressure: $pressure, level: $level)';
+  return 'TowerCell(cell: $cell, center: $center, boundary: $boundary, freeDrivers: $freeDrivers, busyDrivers: $busyDrivers, activeTrips: $activeTrips, requests: $requests, unservedRequests: $unservedRequests, pressure: $pressure, level: $level, tripIds: $tripIds)';
 }
 
 
@@ -566,7 +577,7 @@ abstract mixin class _$TowerCellCopyWith<$Res> implements $TowerCellCopyWith<$Re
   factory _$TowerCellCopyWith(_TowerCell value, $Res Function(_TowerCell) _then) = __$TowerCellCopyWithImpl;
 @override @useResult
 $Res call({
- String cell, GeoPoint center, List<GeoPoint> boundary, int freeDrivers, int busyDrivers, int activeTrips, int requests, int unservedRequests, double? pressure,@JsonKey(unknownEnumValue: PressureLevel.none) PressureLevel level
+ String cell, GeoPoint center, List<GeoPoint> boundary, int freeDrivers, int busyDrivers, int activeTrips, int requests, int unservedRequests, double? pressure,@JsonKey(unknownEnumValue: PressureLevel.none) PressureLevel level, List<String> tripIds
 });
 
 
@@ -583,7 +594,7 @@ class __$TowerCellCopyWithImpl<$Res>
 
 /// Create a copy of TowerCell
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? cell = null,Object? center = null,Object? boundary = null,Object? freeDrivers = null,Object? busyDrivers = null,Object? activeTrips = null,Object? requests = null,Object? unservedRequests = null,Object? pressure = freezed,Object? level = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? cell = null,Object? center = null,Object? boundary = null,Object? freeDrivers = null,Object? busyDrivers = null,Object? activeTrips = null,Object? requests = null,Object? unservedRequests = null,Object? pressure = freezed,Object? level = null,Object? tripIds = null,}) {
   return _then(_TowerCell(
 cell: null == cell ? _self.cell : cell // ignore: cast_nullable_to_non_nullable
 as String,center: null == center ? _self.center : center // ignore: cast_nullable_to_non_nullable
@@ -595,7 +606,8 @@ as int,requests: null == requests ? _self.requests : requests // ignore: cast_nu
 as int,unservedRequests: null == unservedRequests ? _self.unservedRequests : unservedRequests // ignore: cast_nullable_to_non_nullable
 as int,pressure: freezed == pressure ? _self.pressure : pressure // ignore: cast_nullable_to_non_nullable
 as double?,level: null == level ? _self.level : level // ignore: cast_nullable_to_non_nullable
-as PressureLevel,
+as PressureLevel,tripIds: null == tripIds ? _self._tripIds : tripIds // ignore: cast_nullable_to_non_nullable
+as List<String>,
   ));
 }
 
@@ -615,7 +627,8 @@ $GeoPointCopyWith<$Res> get center {
 /// @nodoc
 mixin _$TowerDriver {
 
- String get driverId; String get displayName; DriverPresence get presence; double get lat; double get lng; DateTime get locationAt; bool get stale; String get cell;
+ String get driverId; String get displayName; DriverPresence get presence; double get lat; double get lng; DateTime get locationAt; bool get stale; String get cell;/// 009: viaje activo del conductor ocupado.
+ String? get activeTripId;
 /// Create a copy of TowerDriver
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -628,16 +641,16 @@ $TowerDriverCopyWith<TowerDriver> get copyWith => _$TowerDriverCopyWithImpl<Towe
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is TowerDriver&&(identical(other.driverId, driverId) || other.driverId == driverId)&&(identical(other.displayName, displayName) || other.displayName == displayName)&&(identical(other.presence, presence) || other.presence == presence)&&(identical(other.lat, lat) || other.lat == lat)&&(identical(other.lng, lng) || other.lng == lng)&&(identical(other.locationAt, locationAt) || other.locationAt == locationAt)&&(identical(other.stale, stale) || other.stale == stale)&&(identical(other.cell, cell) || other.cell == cell));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is TowerDriver&&(identical(other.driverId, driverId) || other.driverId == driverId)&&(identical(other.displayName, displayName) || other.displayName == displayName)&&(identical(other.presence, presence) || other.presence == presence)&&(identical(other.lat, lat) || other.lat == lat)&&(identical(other.lng, lng) || other.lng == lng)&&(identical(other.locationAt, locationAt) || other.locationAt == locationAt)&&(identical(other.stale, stale) || other.stale == stale)&&(identical(other.cell, cell) || other.cell == cell)&&(identical(other.activeTripId, activeTripId) || other.activeTripId == activeTripId));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,driverId,displayName,presence,lat,lng,locationAt,stale,cell);
+int get hashCode => Object.hash(runtimeType,driverId,displayName,presence,lat,lng,locationAt,stale,cell,activeTripId);
 
 @override
 String toString() {
-  return 'TowerDriver(driverId: $driverId, displayName: $displayName, presence: $presence, lat: $lat, lng: $lng, locationAt: $locationAt, stale: $stale, cell: $cell)';
+  return 'TowerDriver(driverId: $driverId, displayName: $displayName, presence: $presence, lat: $lat, lng: $lng, locationAt: $locationAt, stale: $stale, cell: $cell, activeTripId: $activeTripId)';
 }
 
 
@@ -648,7 +661,7 @@ abstract mixin class $TowerDriverCopyWith<$Res>  {
   factory $TowerDriverCopyWith(TowerDriver value, $Res Function(TowerDriver) _then) = _$TowerDriverCopyWithImpl;
 @useResult
 $Res call({
- String driverId, String displayName, DriverPresence presence, double lat, double lng, DateTime locationAt, bool stale, String cell
+ String driverId, String displayName, DriverPresence presence, double lat, double lng, DateTime locationAt, bool stale, String cell, String? activeTripId
 });
 
 
@@ -665,7 +678,7 @@ class _$TowerDriverCopyWithImpl<$Res>
 
 /// Create a copy of TowerDriver
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? driverId = null,Object? displayName = null,Object? presence = null,Object? lat = null,Object? lng = null,Object? locationAt = null,Object? stale = null,Object? cell = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? driverId = null,Object? displayName = null,Object? presence = null,Object? lat = null,Object? lng = null,Object? locationAt = null,Object? stale = null,Object? cell = null,Object? activeTripId = freezed,}) {
   return _then(_self.copyWith(
 driverId: null == driverId ? _self.driverId : driverId // ignore: cast_nullable_to_non_nullable
 as String,displayName: null == displayName ? _self.displayName : displayName // ignore: cast_nullable_to_non_nullable
@@ -675,7 +688,8 @@ as double,lng: null == lng ? _self.lng : lng // ignore: cast_nullable_to_non_nul
 as double,locationAt: null == locationAt ? _self.locationAt : locationAt // ignore: cast_nullable_to_non_nullable
 as DateTime,stale: null == stale ? _self.stale : stale // ignore: cast_nullable_to_non_nullable
 as bool,cell: null == cell ? _self.cell : cell // ignore: cast_nullable_to_non_nullable
-as String,
+as String,activeTripId: freezed == activeTripId ? _self.activeTripId : activeTripId // ignore: cast_nullable_to_non_nullable
+as String?,
   ));
 }
 
@@ -760,10 +774,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String driverId,  String displayName,  DriverPresence presence,  double lat,  double lng,  DateTime locationAt,  bool stale,  String cell)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String driverId,  String displayName,  DriverPresence presence,  double lat,  double lng,  DateTime locationAt,  bool stale,  String cell,  String? activeTripId)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _TowerDriver() when $default != null:
-return $default(_that.driverId,_that.displayName,_that.presence,_that.lat,_that.lng,_that.locationAt,_that.stale,_that.cell);case _:
+return $default(_that.driverId,_that.displayName,_that.presence,_that.lat,_that.lng,_that.locationAt,_that.stale,_that.cell,_that.activeTripId);case _:
   return orElse();
 
 }
@@ -781,10 +795,10 @@ return $default(_that.driverId,_that.displayName,_that.presence,_that.lat,_that.
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String driverId,  String displayName,  DriverPresence presence,  double lat,  double lng,  DateTime locationAt,  bool stale,  String cell)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String driverId,  String displayName,  DriverPresence presence,  double lat,  double lng,  DateTime locationAt,  bool stale,  String cell,  String? activeTripId)  $default,) {final _that = this;
 switch (_that) {
 case _TowerDriver():
-return $default(_that.driverId,_that.displayName,_that.presence,_that.lat,_that.lng,_that.locationAt,_that.stale,_that.cell);case _:
+return $default(_that.driverId,_that.displayName,_that.presence,_that.lat,_that.lng,_that.locationAt,_that.stale,_that.cell,_that.activeTripId);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -801,10 +815,10 @@ return $default(_that.driverId,_that.displayName,_that.presence,_that.lat,_that.
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String driverId,  String displayName,  DriverPresence presence,  double lat,  double lng,  DateTime locationAt,  bool stale,  String cell)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String driverId,  String displayName,  DriverPresence presence,  double lat,  double lng,  DateTime locationAt,  bool stale,  String cell,  String? activeTripId)?  $default,) {final _that = this;
 switch (_that) {
 case _TowerDriver() when $default != null:
-return $default(_that.driverId,_that.displayName,_that.presence,_that.lat,_that.lng,_that.locationAt,_that.stale,_that.cell);case _:
+return $default(_that.driverId,_that.displayName,_that.presence,_that.lat,_that.lng,_that.locationAt,_that.stale,_that.cell,_that.activeTripId);case _:
   return null;
 
 }
@@ -816,7 +830,7 @@ return $default(_that.driverId,_that.displayName,_that.presence,_that.lat,_that.
 @JsonSerializable()
 
 class _TowerDriver implements TowerDriver {
-  const _TowerDriver({required this.driverId, required this.displayName, required this.presence, required this.lat, required this.lng, required this.locationAt, this.stale = false, required this.cell});
+  const _TowerDriver({required this.driverId, required this.displayName, required this.presence, required this.lat, required this.lng, required this.locationAt, this.stale = false, required this.cell, this.activeTripId});
   factory _TowerDriver.fromJson(Map<String, dynamic> json) => _$TowerDriverFromJson(json);
 
 @override final  String driverId;
@@ -827,6 +841,8 @@ class _TowerDriver implements TowerDriver {
 @override final  DateTime locationAt;
 @override@JsonKey() final  bool stale;
 @override final  String cell;
+/// 009: viaje activo del conductor ocupado.
+@override final  String? activeTripId;
 
 /// Create a copy of TowerDriver
 /// with the given fields replaced by the non-null parameter values.
@@ -841,16 +857,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _TowerDriver&&(identical(other.driverId, driverId) || other.driverId == driverId)&&(identical(other.displayName, displayName) || other.displayName == displayName)&&(identical(other.presence, presence) || other.presence == presence)&&(identical(other.lat, lat) || other.lat == lat)&&(identical(other.lng, lng) || other.lng == lng)&&(identical(other.locationAt, locationAt) || other.locationAt == locationAt)&&(identical(other.stale, stale) || other.stale == stale)&&(identical(other.cell, cell) || other.cell == cell));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _TowerDriver&&(identical(other.driverId, driverId) || other.driverId == driverId)&&(identical(other.displayName, displayName) || other.displayName == displayName)&&(identical(other.presence, presence) || other.presence == presence)&&(identical(other.lat, lat) || other.lat == lat)&&(identical(other.lng, lng) || other.lng == lng)&&(identical(other.locationAt, locationAt) || other.locationAt == locationAt)&&(identical(other.stale, stale) || other.stale == stale)&&(identical(other.cell, cell) || other.cell == cell)&&(identical(other.activeTripId, activeTripId) || other.activeTripId == activeTripId));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,driverId,displayName,presence,lat,lng,locationAt,stale,cell);
+int get hashCode => Object.hash(runtimeType,driverId,displayName,presence,lat,lng,locationAt,stale,cell,activeTripId);
 
 @override
 String toString() {
-  return 'TowerDriver(driverId: $driverId, displayName: $displayName, presence: $presence, lat: $lat, lng: $lng, locationAt: $locationAt, stale: $stale, cell: $cell)';
+  return 'TowerDriver(driverId: $driverId, displayName: $displayName, presence: $presence, lat: $lat, lng: $lng, locationAt: $locationAt, stale: $stale, cell: $cell, activeTripId: $activeTripId)';
 }
 
 
@@ -861,7 +877,7 @@ abstract mixin class _$TowerDriverCopyWith<$Res> implements $TowerDriverCopyWith
   factory _$TowerDriverCopyWith(_TowerDriver value, $Res Function(_TowerDriver) _then) = __$TowerDriverCopyWithImpl;
 @override @useResult
 $Res call({
- String driverId, String displayName, DriverPresence presence, double lat, double lng, DateTime locationAt, bool stale, String cell
+ String driverId, String displayName, DriverPresence presence, double lat, double lng, DateTime locationAt, bool stale, String cell, String? activeTripId
 });
 
 
@@ -878,7 +894,7 @@ class __$TowerDriverCopyWithImpl<$Res>
 
 /// Create a copy of TowerDriver
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? driverId = null,Object? displayName = null,Object? presence = null,Object? lat = null,Object? lng = null,Object? locationAt = null,Object? stale = null,Object? cell = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? driverId = null,Object? displayName = null,Object? presence = null,Object? lat = null,Object? lng = null,Object? locationAt = null,Object? stale = null,Object? cell = null,Object? activeTripId = freezed,}) {
   return _then(_TowerDriver(
 driverId: null == driverId ? _self.driverId : driverId // ignore: cast_nullable_to_non_nullable
 as String,displayName: null == displayName ? _self.displayName : displayName // ignore: cast_nullable_to_non_nullable
@@ -888,7 +904,8 @@ as double,lng: null == lng ? _self.lng : lng // ignore: cast_nullable_to_non_nul
 as double,locationAt: null == locationAt ? _self.locationAt : locationAt // ignore: cast_nullable_to_non_nullable
 as DateTime,stale: null == stale ? _self.stale : stale // ignore: cast_nullable_to_non_nullable
 as bool,cell: null == cell ? _self.cell : cell // ignore: cast_nullable_to_non_nullable
-as String,
+as String,activeTripId: freezed == activeTripId ? _self.activeTripId : activeTripId // ignore: cast_nullable_to_non_nullable
+as String?,
   ));
 }
 

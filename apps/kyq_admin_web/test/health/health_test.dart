@@ -28,6 +28,16 @@ void main() {
       );
     });
 
+    when(() => api.healthSessions()).thenAnswer(
+      (_) async => SessionsReport(
+        status: 'ok',
+        checkedAt: DateTime.utc(2026, 10, 27, 12),
+        apps: const [
+          AppSessions(app: 'driver', crashFree24h: 0.985, crashFree7d: 0.996, topRelease: '1.4.0', belowTarget: true),
+          AppSessions(app: 'rider', crashFree24h: 0.999, crashFree7d: 0.998),
+        ],
+      ),
+    );
     await tester.pumpWidget(
       MaterialApp(
         home: BlocProvider(
@@ -44,10 +54,38 @@ void main() {
     expect(tester.widget<Text>(find.byKey(const Key('health.latency.database'))).data, '3 ms');
     expect(tester.widget<Text>(find.byKey(const Key('health.latency.bold'))).data, '—');
     expect(find.text('Desactivado · pagos con Bold desactivados'), findsOneWidget);
+    // 009: sesiones sin fallos, resaltando las que están bajo el 99 % (FR-017).
+    await tester.scrollUntilVisible(find.byKey(const ValueKey('health.sessions.rider')), 200);
+    expect(find.text('24 h: 98,50 % · 7 días: 99,60 % · versión más usada 1.4.0'), findsOneWidget);
+    expect(find.byIcon(Icons.warning_amber), findsWidgets);
+    expect(find.text('Kyq Pasajero'), findsOneWidget);
 
     await tester.tap(find.byTooltip('Comprobar ahora'));
     await tester.pumpAndSettle();
     expect(find.text('Sin conexión con el servidor: el backend no responde.'), findsOneWidget);
     expect(find.byKey(const Key('health.overall')), findsOneWidget, reason: 'se conserva la última comprobación');
+  });
+
+  testWidgets('009: sin la herramienta de errores configurada, "no configurado" sin romper Salud (FR-018)', (
+    tester,
+  ) async {
+    final api = _MockApi();
+    when(() => api.adminHealth()).thenAnswer(
+      (_) async => HealthReport(status: HealthStatus.ok, checkedAt: DateTime.utc(2026, 10, 27, 12), checks: const []),
+    );
+    when(
+      () => api.healthSessions(),
+    ).thenAnswer((_) async => SessionsReport(status: 'not_configured', checkedAt: DateTime.utc(2026, 10, 27, 12)));
+    await tester.pumpWidget(
+      MaterialApp(
+        home: BlocProvider(
+          create: (_) => HealthCubit(api, refreshEvery: const Duration(hours: 1))..start(),
+          child: const HealthPage(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('health.overall')), findsOneWidget);
+    expect(find.textContaining('No configurado'), findsOneWidget);
   });
 }

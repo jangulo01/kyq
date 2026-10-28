@@ -8,6 +8,8 @@ import 'package:kyq_ptt/kyq_ptt.dart';
 import 'package:kyq_realtime/kyq_realtime.dart';
 import 'package:kyq_ui/kyq_ui.dart';
 
+import '../megaphone/megaphone_banner.dart';
+import '../megaphone/megaphone_cubit.dart';
 import '../dispatch/dispatch_settings_cubit.dart';
 import '../dispatch/dispatch_settings_page.dart';
 import '../background/location_reporter.dart';
@@ -52,13 +54,20 @@ const realtimeUrl = String.fromEnvironment(
 );
 
 /// Crea el cliente, la sesión con almacenamiento seguro y los servicios de plataforma.
-({KyqApiClient api, AuthCubit auth, DriverServices services}) bootstrap({TokenStore? tokenStore}) {
+/// Con [domains] (009) usa los dominios espejo: la API rota sola y el tiempo real toma el
+/// dominio en uso al abrir la app.
+({KyqApiClient api, AuthCubit auth, DriverServices services}) bootstrap({
+  TokenStore? tokenStore,
+  DomainRotator? domains,
+}) {
   late final AuthCubit auth;
   final api = KyqApiClient(
     baseUrl: apiBaseUrl,
     tokenStore: tokenStore ?? SecureTokenStore(),
     onSessionExpired: () => auth.sessionExpired(),
+    onSupportOnly: () => auth.supportOnly(),
   );
+  if (domains != null) useDomains(api, domains);
   auth = AuthCubit(
     api,
     allowedRoles: {UserRole.driver},
@@ -67,7 +76,7 @@ const realtimeUrl = String.fromEnvironment(
     signUpRole: UserRole.driver,
   )..start();
   final realtime = KyqRealtime(
-    url: realtimeUrl,
+    url: domains?.current.realtimeUrl ?? realtimeUrl,
     connectionToken: api.realtimeToken,
     subscriptionToken: api.subscriptionToken,
   );
@@ -89,6 +98,8 @@ class _KyqDriverAppState extends State<KyqDriverApp> {
   final _messenger = GlobalKey<ScaffoldMessengerState>();
   late final DriverEvents _events = DriverEvents(widget.services.events);
   late final OfferCubit _offers = OfferCubit(widget.api, _events.stream);
+  // 009: comunicados de Kyq por zona; esperan a que termine la voz del viaje.
+  late final MegaphoneCubit _megaphone = MegaphoneCubit(_events.stream, room: widget.services.megaphoneRoom);
   late final PresenceCubit _presence = PresenceCubit(
     api: widget.api,
     events: _events,
@@ -127,6 +138,8 @@ class _KyqDriverAppState extends State<KyqDriverApp> {
   late final GoRouter _router = buildAuthRouter(
     auth: widget.auth,
     title: 'Kyq Conductor',
+    // 009: Ayuda, y lo único que ve una cuenta suspendida.
+    withSupport: true,
     subtitle: 'Soy conductor',
     newAccountHint: 'Crearemos tu cuenta de conductor. Luego te pediremos tu vehículo y tus documentos.',
     guard: (context, state) => _onboardingRedirect(state.matchedLocation),
@@ -366,6 +379,7 @@ class _KyqDriverAppState extends State<KyqDriverApp> {
     _router.dispose();
     _onboardingSub.cancel();
     _offers.close();
+    _megaphone.close();
     _presence.close();
     _onboarding.close();
     _notices.close();
@@ -389,6 +403,7 @@ class _KyqDriverAppState extends State<KyqDriverApp> {
           BlocProvider.value(value: widget.auth),
           BlocProvider.value(value: _presence),
           BlocProvider.value(value: _offers),
+          BlocProvider.value(value: _megaphone),
           BlocProvider.value(value: _onboarding),
           BlocProvider.value(value: _notices),
           BlocProvider.value(value: _preconsults),
@@ -399,21 +414,23 @@ class _KyqDriverAppState extends State<KyqDriverApp> {
           theme: kyqTheme(),
           routerConfig: _router,
           scaffoldMessengerKey: _messenger,
-          builder: (context, child) => MultiBlocListener(
-            listeners: [
-              BlocListener<OfferCubit, OfferState>(
-                bloc: _offers,
-                listenWhen: (a, b) => a.runtimeType != b.runtimeType,
-                listener: _onOffer,
-              ),
-              // Motivo de cierre de una consulta de voz (005).
-              BlocListener<PreconsultCubit, PreconsultState>(
-                bloc: _preconsults,
-                listenWhen: (a, b) => b.notice != null && a.notice != b.notice,
-                listener: (context, s) => _messenger.currentState?.showSnackBar(SnackBar(content: Text(s.notice!))),
-              ),
-            ],
-            child: child!,
+          builder: (context, child) => MegaphoneBanner(
+            child: MultiBlocListener(
+              listeners: [
+                BlocListener<OfferCubit, OfferState>(
+                  bloc: _offers,
+                  listenWhen: (a, b) => a.runtimeType != b.runtimeType,
+                  listener: _onOffer,
+                ),
+                // Motivo de cierre de una consulta de voz (005).
+                BlocListener<PreconsultCubit, PreconsultState>(
+                  bloc: _preconsults,
+                  listenWhen: (a, b) => b.notice != null && a.notice != b.notice,
+                  listener: (context, s) => _messenger.currentState?.showSnackBar(SnackBar(content: Text(s.notice!))),
+                ),
+              ],
+              child: child!,
+            ),
           ),
         ),
       ),

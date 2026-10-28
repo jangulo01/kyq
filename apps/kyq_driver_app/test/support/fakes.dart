@@ -164,6 +164,7 @@ DriverServices fakeServices({
   handsFreePrefs: handsFreePrefs ?? FakeHandsFreePrefs(),
   overlayPermission: overlay ?? FakeOverlayPermission(),
   safety: safety ?? fakeSafety(),
+  megaphoneRoom: FakeVoice.new,
 );
 
 /// GPS, menú de compartir y marcador falsos del kit de seguridad (003).

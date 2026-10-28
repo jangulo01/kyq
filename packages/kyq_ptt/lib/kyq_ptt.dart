@@ -6,6 +6,7 @@ export 'src/audio_focus.dart';
 export 'src/hands_free.dart';
 export 'src/livekit_voice_room.dart';
 export 'src/mic_permission.dart';
+export 'src/ptt_activity.dart';
 export 'src/ptt_api.dart';
 export 'src/ptt_button.dart';
 export 'src/ptt_controller.dart';

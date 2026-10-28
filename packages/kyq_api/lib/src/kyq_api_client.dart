@@ -3,9 +3,11 @@ import 'dart:typed_data';
 import 'package:dio/dio.dart';
 
 import 'admin_models.dart';
+import 'domain_rotator.dart';
 import 'cooperative_models.dart';
 import 'models.dart';
 import 'onboarding_models.dart';
+import 'ops_models.dart';
 import 'preconsult_models.dart';
 import 'safety_models.dart';
 import 'token_store.dart';
@@ -52,6 +54,7 @@ class KyqApiClient implements SafetyApi {
     required String baseUrl,
     required TokenStore tokenStore,
     this.onSessionExpired,
+    this.onSupportOnly,
     Dio? dio,
     Dio? refreshDio,
     Dio? uploadDio,
@@ -77,7 +80,37 @@ class KyqApiClient implements SafetyApi {
   /// Se llama cuando la sesión ya no se puede renovar y hay que volver al login.
   final void Function()? onSessionExpired;
 
+  /// 009: la cuenta se suspendió con la sesión abierta; queda solo el centro de soporte.
+  void Function()? onSupportOnly;
+
   Dio get dio => _dio;
+
+  DomainRotator? _domains;
+
+  /// 009: usa los dominios espejo de [rotator]: toma el dominio en uso y, ante fallos de red
+  /// seguidos, pasa al siguiente y repite la petición una vez, sin perder la sesión (FR-021).
+  void useDomains(DomainRotator rotator) {
+    _domains = rotator;
+    _setBaseUrl(rotator.current.apiUrl);
+    rotator.changes.listen((d) => _setBaseUrl(d.apiUrl));
+    _dio.interceptors.add(_DomainInterceptor(this, rotator));
+  }
+
+  void _setBaseUrl(String url) {
+    _dio.options.baseUrl = url;
+    _refreshDio.options.baseUrl = url;
+  }
+
+  /// 009: pide la lista firmada al dominio en uso y la aplica si es válida y más nueva (FR-020).
+  Future<bool> refreshDomains() async {
+    final rotator = _domains;
+    if (rotator == null) return false;
+    try {
+      return await rotator.accept(await signedDomains());
+    } on ApiException {
+      return false;
+    }
+  }
 
   // Auth
 
@@ -87,8 +120,9 @@ class KyqApiClient implements SafetyApi {
   /// [role] solo cuenta en el primer registro: con `driver` crea una cuenta de conductor. Si el
   /// teléfono ya existe con otro rol, lanza [ApiException] 409 `phone_has_other_role`.
   Future<Tokens> verifyOtp(String phoneE164, String code, {String? displayName, UserRole? role}) async {
-    final res = await _send(
-      () => _dio.post<Map<String, dynamic>>(
+    final Response<Map<String, dynamic>> res;
+    try {
+      res = await _dio.post<Map<String, dynamic>>(
         '/v1/auth/otp/verify',
         data: {
           'phone_e164': phoneE164,
@@ -96,11 +130,24 @@ class KyqApiClient implements SafetyApi {
           if (displayName != null && displayName.trim().isNotEmpty) 'display_name': displayName.trim(),
           'role': ?role?.name,
         },
-      ),
-    );
+      );
+    } on DioException catch (e) {
+      // 009: el 403 de una cuenta suspendida trae una sesión que solo abre soporte.
+      final support = _supportSession(e);
+      if (support == null) throw _toApiException(e);
+      await _tokens.write(support);
+      return support;
+    }
     final tokens = Tokens.fromJson(res.data!);
     await _tokens.write(tokens);
     return tokens;
+  }
+
+  /// Sesión de solo soporte del `403 account_suspended` (009), o null.
+  static Tokens? _supportSession(DioException e) {
+    final data = e.response?.data;
+    if (e.response?.statusCode != 403 || data is! Map || data['support_session'] is! Map) return null;
+    return Tokens.fromJson((data['support_session'] as Map).cast<String, dynamic>());
   }
 
   Future<Tokens?> currentSession() => _tokens.read();
@@ -118,7 +165,14 @@ class KyqApiClient implements SafetyApi {
       final tokens = Tokens.fromJson(res.data!);
       await _tokens.write(tokens);
       return tokens;
-    } on DioException {
+    } on DioException catch (e) {
+      // 009: suspendido mientras tenía sesión: sigue solo con soporte.
+      final support = _supportSession(e);
+      if (support != null) {
+        await _tokens.write(support);
+        onSupportOnly?.call();
+        return support;
+      }
       await _tokens.clear();
       onSessionExpired?.call();
       return null;
@@ -1088,6 +1142,193 @@ class KyqApiClient implements SafetyApi {
     ),
   );
 
+  // 009: inspección de viajes desde la torre
+
+  /// Detalle de un viaje sin teléfonos; el backend registra cada apertura (FR-002, FR-004).
+  Future<TripInspection> inspectTrip(String tripId) async {
+    final res = await _send(() => _dio.get<Map<String, dynamic>>('/v1/admin/trips/$tripId'));
+    return TripInspection.fromJson(res.data!);
+  }
+
+  // 009: centro de soporte (usuarios, también con la sesión de solo soporte)
+
+  Future<List<SupportCase>> supportCases() async {
+    final res = await _send(() => _dio.get<List<dynamic>>('/v1/support/cases'));
+    return res.data!.map((e) => SupportCase.fromJson(e as Map<String, dynamic>)).toList();
+  }
+
+  /// 400 `invalid_topic`, `invalid_text` (10 a 2 000 caracteres) o `invalid_trip`.
+  Future<SupportCaseDetail> openSupportCase(SupportTopic topic, String description, {String? tripId}) async {
+    final res = await _send(
+      () => _dio.post<Map<String, dynamic>>(
+        '/v1/support/cases',
+        data: {'topic': supportTopicToApi(topic), 'description': description, 'trip_id': ?tripId},
+      ),
+    );
+    return SupportCaseDetail.fromJson(res.data!);
+  }
+
+  Future<SupportCaseDetail> supportCase(String caseId) async {
+    final res = await _send(() => _dio.get<Map<String, dynamic>>('/v1/support/cases/$caseId'));
+    return SupportCaseDetail.fromJson(res.data!);
+  }
+
+  /// 409 `case_closed`: hay que abrir otro caso.
+  Future<SupportCaseDetail> replySupportCase(String caseId, String body) async {
+    final res = await _send(
+      () => _dio.post<Map<String, dynamic>>('/v1/support/cases/$caseId/messages', data: {'body': body}),
+    );
+    return SupportCaseDetail.fromJson(res.data!);
+  }
+
+  /// Viajes de los últimos 30 días para asociar a un caso.
+  Future<List<SupportTripRef>> supportTrips() async {
+    final res = await _send(() => _dio.get<List<dynamic>>('/v1/support/trips'));
+    return res.data!.map((e) => SupportTripRef.fromJson(e as Map<String, dynamic>)).toList();
+  }
+
+  // 009: soporte en el panel
+
+  Future<List<SupportCase>> adminSupportCases({
+    SupportStatus? status,
+    SupportTopic? topic,
+    bool assignedToMe = false,
+    bool unanswered = false,
+    bool includeClosed = false,
+  }) async {
+    final res = await _send(
+      () => _dio.get<List<dynamic>>(
+        '/v1/admin/support/cases',
+        queryParameters: {
+          if (status != null) 'status': supportStatusToApi(status),
+          if (topic != null) 'topic': supportTopicToApi(topic),
+          if (assignedToMe) 'assigned_to': 'me',
+          if (unanswered) 'unanswered': 'true',
+          if (includeClosed) 'include_closed': 'true',
+        },
+      ),
+    );
+    return res.data!.map((e) => SupportCase.fromJson(e as Map<String, dynamic>)).toList();
+  }
+
+  Future<SupportCaseDetail> adminSupportCase(String caseId) async {
+    final res = await _send(() => _dio.get<Map<String, dynamic>>('/v1/admin/support/cases/$caseId'));
+    return SupportCaseDetail.fromJson(res.data!);
+  }
+
+  /// Con [internal] es una nota que el usuario no ve (FR-006).
+  Future<SupportCaseDetail> adminReplySupportCase(String caseId, String body, {bool internal = false}) async {
+    final res = await _send(
+      () => _dio.post<Map<String, dynamic>>(
+        '/v1/admin/support/cases/$caseId/messages',
+        data: {'body': body, if (internal) 'internal': true},
+      ),
+    );
+    return SupportCaseDetail.fromJson(res.data!);
+  }
+
+  Future<SupportCaseDetail> setSupportCaseStatus(String caseId, SupportStatus status) async {
+    final res = await _send(
+      () => _dio.post<Map<String, dynamic>>(
+        '/v1/admin/support/cases/$caseId/status',
+        data: {'status': supportStatusToApi(status)},
+      ),
+    );
+    return SupportCaseDetail.fromJson(res.data!);
+  }
+
+  /// Sin [adminId] el caso queda sin asignar.
+  Future<SupportCaseDetail> assignSupportCase(String caseId, {String? adminId}) async {
+    final res = await _send(
+      () => _dio.post<Map<String, dynamic>>('/v1/admin/support/cases/$caseId/assign', data: {'admin_id': adminId}),
+    );
+    return SupportCaseDetail.fromJson(res.data!);
+  }
+
+  /// Resuelve el pago de un caso de disputa con las reglas de 004 (`paid` o `unpaid`).
+  Future<SupportCaseDetail> resolveSupportPayment(String caseId, {required bool paid, required String note}) async {
+    final res = await _send(
+      () => _dio.post<Map<String, dynamic>>(
+        '/v1/admin/support/cases/$caseId/resolve-payment',
+        data: {'outcome': paid ? 'paid' : 'unpaid', 'note': note},
+      ),
+    );
+    return SupportCaseDetail.fromJson(res.data!);
+  }
+
+  // 009: megáfono por zonas
+
+  /// 409 `on_air` o `no_recipients`; 400 `invalid_cells`.
+  Future<MegaphoneOnAir> startMegaphone(List<String> cells) async {
+    final res = await _send(() => _dio.post<Map<String, dynamic>>('/v1/admin/megaphone', data: {'cells': cells}));
+    return MegaphoneOnAir.fromJson(res.data!);
+  }
+
+  Future<void> endMegaphone(String broadcastId) => _send(() => _dio.post<void>('/v1/admin/megaphone/$broadcastId/end'));
+
+  Future<List<MegaphoneBroadcast>> megaphoneLog({int limit = 50}) async {
+    final res = await _send(() => _dio.get<List<dynamic>>('/v1/admin/megaphone', queryParameters: {'limit': limit}));
+    return res.data!.map((e) => MegaphoneBroadcast.fromJson(e as Map<String, dynamic>)).toList();
+  }
+
+  // 009: sesiones sin fallos
+
+  Future<SessionsReport> healthSessions() async {
+    final res = await _send(() => _dio.get<Map<String, dynamic>>('/v1/admin/health/sessions'));
+    return SessionsReport.fromJson(res.data!);
+  }
+
+  // 009: dominios espejo
+
+  Future<MirrorDomainListing> mirrorDomains() async {
+    final res = await _send(() => _dio.get<Map<String, dynamic>>('/v1/admin/domains'));
+    return MirrorDomainListing.fromJson(res.data!);
+  }
+
+  /// 400 `invalid_url`; 409 `duplicate_domain`.
+  Future<MirrorDomain> createMirrorDomain({
+    required String apiUrl,
+    required String realtimeUrl,
+    bool active = true,
+  }) async {
+    final res = await _send(
+      () => _dio.post<Map<String, dynamic>>(
+        '/v1/admin/domains',
+        data: {'api_url': apiUrl, 'realtime_url': realtimeUrl, 'active': active},
+      ),
+    );
+    return MirrorDomain.fromJson(res.data!);
+  }
+
+  /// 409 `last_active_domain` si se desactiva el último activo.
+  Future<MirrorDomain> updateMirrorDomain(
+    String id, {
+    required String apiUrl,
+    required String realtimeUrl,
+    required bool active,
+  }) async {
+    final res = await _send(
+      () => _dio.put<Map<String, dynamic>>(
+        '/v1/admin/domains/$id',
+        data: {'api_url': apiUrl, 'realtime_url': realtimeUrl, 'active': active},
+      ),
+    );
+    return MirrorDomain.fromJson(res.data!);
+  }
+
+  Future<void> deleteMirrorDomain(String id) => _send(() => _dio.delete<void>('/v1/admin/domains/$id'));
+
+  Future<MirrorDomainListing> reorderMirrorDomains(List<String> ids) async {
+    final res = await _send(() => _dio.put<Map<String, dynamic>>('/v1/admin/domains/order', data: {'ids': ids}));
+    return MirrorDomainListing.fromJson(res.data!);
+  }
+
+  /// Lista firmada pública; la verifica [DomainRotator] antes de usarla.
+  Future<SignedDomainList> signedDomains() async {
+    final res = await _send(() => _dio.get<Map<String, dynamic>>('/v1/domains'));
+    return SignedDomainList.fromJson(res.data!);
+  }
+
   Future<Response<T>> _send<T>(Future<Response<T>> Function() request) async {
     try {
       return await request();
@@ -1121,6 +1362,42 @@ ApiException _toApiException(DioException e) {
     return const ApiException(null, 'network', 'sin conexión con el servidor');
   }
   return ApiException(e.response?.statusCode, 'unknown', e.message ?? 'error desconocido');
+}
+
+/// Cuenta los fallos de red del dominio en uso y repite la petición en el siguiente al rotar.
+class _DomainInterceptor extends Interceptor {
+  _DomainInterceptor(this._client, this._rotator);
+
+  final KyqApiClient _client;
+  final DomainRotator _rotator;
+  static const _retried = 'kyq_domain_retried';
+
+  @override
+  void onResponse(Response<dynamic> response, ResponseInterceptorHandler handler) {
+    _rotator.reportSuccess();
+    handler.next(response);
+  }
+
+  @override
+  Future<void> onError(DioException err, ErrorInterceptorHandler handler) async {
+    // Con respuesta, el dominio funciona aunque la petición falle.
+    if (err.response != null) {
+      _rotator.reportSuccess();
+      return handler.next(err);
+    }
+    if (err.type == DioExceptionType.cancel) return handler.next(err);
+    final rotated = await _rotator.reportFailure();
+    final options = err.requestOptions;
+    if (!rotated || options.extra[_retried] == true) return handler.next(err);
+    try {
+      options
+        ..extra[_retried] = true
+        ..baseUrl = _rotator.current.apiUrl;
+      handler.resolve(await _client._dio.fetch<dynamic>(options));
+    } on DioException catch (e) {
+      handler.next(e);
+    }
+  }
 }
 
 class _AuthInterceptor extends QueuedInterceptor {

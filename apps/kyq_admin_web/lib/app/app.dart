@@ -7,6 +7,10 @@ import 'package:kyq_realtime/kyq_realtime.dart';
 import 'package:kyq_ui/kyq_ui.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../domains/domains_page.dart';
+import '../emergencies/session_user.dart';
+import '../support/support_admin_cubits.dart';
+import '../support/support_admin_pages.dart';
 import '../billing/billing_cubits.dart';
 import '../billing/driver_payments_page.dart';
 import '../billing/subscriptions_page.dart';
@@ -30,6 +34,7 @@ import '../health/health_page.dart';
 import '../kyc/kyc_cubits.dart';
 import '../kyc/kyc_driver_page.dart';
 import '../kyc/kyc_queue_page.dart';
+import '../tower/megaphone_cubit.dart';
 import '../tower/tower_cubit.dart';
 import '../tower/tower_page.dart';
 import '../trip_payments/driver_ledger_page.dart';
@@ -70,17 +75,23 @@ Future<void> _openInNewTab(String url) async {
 }
 
 /// Crea el cliente, la sesión con almacenamiento seguro y los avisos en vivo de la torre.
-({KyqApiClient api, AuthCubit auth, TowerEvents towerEvents}) bootstrap({TokenStore? tokenStore}) {
+/// Con [domains] (009) usa los dominios espejo: la API rota sola y el tiempo real toma el
+/// dominio en uso al abrir el panel.
+({KyqApiClient api, AuthCubit auth, TowerEvents towerEvents}) bootstrap({
+  TokenStore? tokenStore,
+  DomainRotator? domains,
+}) {
   late final AuthCubit auth;
   final api = KyqApiClient(
     baseUrl: apiBaseUrl,
     tokenStore: tokenStore ?? SecureTokenStore(),
     onSessionExpired: () => auth.sessionExpired(),
   );
+  if (domains != null) useDomains(api, domains);
   auth = AuthCubit(api, allowedRoles: {UserRole.admin}, wrongRoleMessage: 'Solo los administradores pueden entrar.')
     ..start();
   final realtime = KyqRealtime(
-    url: realtimeUrl,
+    url: domains?.current.realtimeUrl ?? realtimeUrl,
     connectionToken: api.realtimeToken,
     subscriptionToken: api.subscriptionToken,
   );
@@ -117,6 +128,17 @@ class _KyqAdminAppState extends State<KyqAdminApp> {
         sound: BeepAlertSound(),
       );
 
+  /// Administrador de la sesión (claim `sub`), para asignarse casos de soporte.
+  String? _adminId;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.api.currentSession().then((t) {
+      if (t != null) _adminId = userIdFromAccessToken(t.accessToken);
+    });
+  }
+
   late final GoRouter _router = buildAuthRouter(
     auth: widget.auth,
     title: 'Kyq Admin',
@@ -129,8 +151,14 @@ class _KyqAdminAppState extends State<KyqAdminApp> {
           GoRoute(path: 'fares', builder: (context, state) => const FareTablePage()),
           GoRoute(
             path: 'tower',
-            builder: (context, state) => BlocProvider(
-              create: (_) => TowerCubit(widget.api, events: widget.towerEvents)..start(),
+            builder: (context, state) => MultiBlocProvider(
+              providers: [
+                BlocProvider(create: (_) => TowerCubit(widget.api, events: widget.towerEvents)..start()),
+                // 009: megáfono por hexágonos.
+                BlocProvider(
+                  create: (_) => AdminMegaphoneCubit(widget.api, room: widget.ops?.voice ?? LiveKitVoiceRoom.new),
+                ),
+              ],
               child: const TowerPage(),
             ),
           ),
@@ -241,6 +269,27 @@ class _KyqAdminAppState extends State<KyqAdminApp> {
                 ],
               ),
             ],
+          ),
+          // 009: centro de soporte y disputas.
+          GoRoute(
+            path: 'support',
+            builder: (context, state) =>
+                BlocProvider(create: (_) => SupportInboxCubit(widget.api)..load(), child: const SupportInboxPage()),
+            routes: [
+              GoRoute(
+                path: ':id',
+                builder: (context, state) => BlocProvider(
+                  create: (_) => SupportAdminCaseCubit(widget.api, state.pathParameters['id']!)..load(),
+                  child: SupportAdminCasePage(adminId: _adminId),
+                ),
+              ),
+            ],
+          ),
+          // 009: dominios espejo.
+          GoRoute(
+            path: 'domains',
+            builder: (context, state) =>
+                BlocProvider(create: (_) => DomainsCubit(widget.api)..load(), child: const DomainsPage()),
           ),
           GoRoute(
             path: 'costs',

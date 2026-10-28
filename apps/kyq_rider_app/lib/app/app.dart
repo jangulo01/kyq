@@ -34,20 +34,28 @@ const realtimeUrl = String.fromEnvironment(
 );
 
 /// Crea el cliente, la sesión con almacenamiento seguro y el tiempo real (conecta al primer uso).
-({KyqApiClient api, AuthCubit auth, RealtimeEvents realtime}) bootstrap({TokenStore? tokenStore}) {
+/// Con [domains] (009) usa los dominios espejo: la API rota sola y el tiempo real toma el
+/// dominio en uso al abrir la app.
+({KyqApiClient api, AuthCubit auth, RealtimeEvents realtime}) bootstrap({
+  TokenStore? tokenStore,
+  DomainRotator? domains,
+}) {
   late final AuthCubit auth;
   final api = KyqApiClient(
     baseUrl: apiBaseUrl,
     tokenStore: tokenStore ?? SecureTokenStore(),
     onSessionExpired: () => auth.sessionExpired(),
+    onSupportOnly: () => auth.supportOnly(),
   );
+  if (domains != null) useDomains(api, domains);
+  final realtimeAt = domains?.current.realtimeUrl ?? realtimeUrl;
   auth = AuthCubit(
     api,
     allowedRoles: {UserRole.passenger},
     wrongRoleMessage: 'Esta app es para pasajeros. Usa Kyq Conductor.',
   )..start();
   final realtime = CentrifugoRealtimeEvents(
-    () => KyqRealtime(url: realtimeUrl, connectionToken: api.realtimeToken, subscriptionToken: api.subscriptionToken),
+    () => KyqRealtime(url: realtimeAt, connectionToken: api.realtimeToken, subscriptionToken: api.subscriptionToken),
   );
   return (api: api, auth: auth, realtime: realtime);
 }
@@ -92,6 +100,8 @@ class _KyqRiderAppState extends State<KyqRiderApp> {
   late final GoRouter _router = buildAuthRouter(
     auth: widget.auth,
     title: 'Kyq Pasajero',
+    // 009: Ayuda, y lo único que ve una cuenta suspendida.
+    withSupport: true,
     // 008: el enlace del conductor abre la app con `kyq://affiliate/{token}`.
     guard: (context, state) => affiliateLinkRedirect(state.uri),
     routes: [

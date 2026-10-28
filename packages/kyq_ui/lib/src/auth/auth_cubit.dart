@@ -38,6 +38,13 @@ final class AuthSignedIn extends AuthState {
   final UserRole role;
 }
 
+/// 009: cuenta suspendida; la sesión solo abre el centro de soporte (FR-011).
+final class AuthSupportOnly extends AuthState {
+  const AuthSupportOnly(this.role);
+
+  final UserRole role;
+}
+
 /// Login por OTP. Solo acepta sesiones de [allowedRoles]: cada app es para un tipo de usuario.
 class AuthCubit extends Cubit<AuthState> {
   AuthCubit(this._api, {required this.allowedRoles, required this.wrongRoleMessage, this.signUpRole})
@@ -54,7 +61,7 @@ class AuthCubit extends Cubit<AuthState> {
   Future<void> start() async {
     final session = await _api.currentSession();
     if (session != null && allowedRoles.contains(session.role)) {
-      emit(AuthSignedIn(session.role));
+      emit(session.supportOnly ? AuthSupportOnly(session.role) : AuthSignedIn(session.role));
     } else {
       emit(const AuthSignedOut());
     }
@@ -81,7 +88,7 @@ class AuthCubit extends Cubit<AuthState> {
         emit(AuthSignedOut(error: wrongRoleMessage));
         return;
       }
-      emit(AuthSignedIn(tokens.role));
+      emit(tokens.supportOnly ? AuthSupportOnly(tokens.role) : AuthSignedIn(tokens.role));
     } on ApiException catch (e) {
       if (e.code == 'display_name_required') {
         emit(current.copyWith(needsName: true));
@@ -99,6 +106,12 @@ class AuthCubit extends Cubit<AuthState> {
     emit(const AuthSignedOut());
   }
 
+  /// Llamar desde `KyqApiClient.onSupportOnly`: la cuenta se suspendió con la sesión abierta.
+  Future<void> supportOnly() async {
+    final session = await _api.currentSession();
+    if (session != null && session.supportOnly) emit(AuthSupportOnly(session.role));
+  }
+
   /// Llamar desde `KyqApiClient.onSessionExpired`.
   void sessionExpired() => emit(const AuthSignedOut(error: 'Tu sesión caducó. Vuelve a entrar.'));
 
@@ -109,6 +122,7 @@ class AuthCubit extends Cubit<AuthState> {
     'phone_has_other_role' =>
       'Este número ya tiene una cuenta de pasajero o de administrador en Kyq. Para registrarte como conductor usa otro número.',
     'network' => 'Sin conexión. Revisa tu internet.',
+    'account_suspended' => 'Tu cuenta está suspendida; comunícate con el soporte de Kyq.',
     _ => 'Algo salió mal. Inténtalo de nuevo.',
   };
 }

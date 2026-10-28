@@ -36,7 +36,8 @@ Cinco piezas de operación sobre lo que ya existe:
 
 **Primary Dependencies**: las existentes (pgx, sqlc, goose, PostGIS, h3-go, Centrifugo, LiveKit,
 Sentry). Nuevas: `crypto/ed25519` de la biblioteca estándar de Go y `cryptography` (Ed25519 en
-Dart puro) en `kyq_api`; `shared_preferences` para guardar la lista de dominios.
+Dart puro) en `kyq_api`; la lista de dominios se guarda con `flutter_secure_storage`, que ya usa
+`kyq_ui` para la sesión.
 
 **Storage**: PostgreSQL 17; migración `00014_ops_support.sql` ([data-model.md](data-model.md)).
 

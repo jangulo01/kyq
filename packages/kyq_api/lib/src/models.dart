@@ -78,9 +78,22 @@ enum TripStatus {
 
 @freezed
 abstract class Tokens with _$Tokens {
-  const factory Tokens({required String accessToken, required String refreshToken, required UserRole role}) = _Tokens;
+  const factory Tokens({
+    required String accessToken,
+    required String refreshToken,
+    required UserRole role,
+
+    /// 009: `support` en la sesión de un usuario suspendido: solo abre soporte.
+    String? scope,
+  }) = _Tokens;
 
   factory Tokens.fromJson(Map<String, dynamic> json) => _$TokensFromJson(json);
+}
+
+/// 009: lectura del alcance de la sesión.
+extension TokensScope on Tokens {
+  /// Sesión de un usuario suspendido: solo puede usar el centro de soporte.
+  bool get supportOnly => scope == 'support';
 }
 
 @freezed
