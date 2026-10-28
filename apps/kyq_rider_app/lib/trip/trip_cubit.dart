@@ -173,6 +173,8 @@ class TripCubit extends Cubit<TripState> {
 
   String _message(ApiException e) => switch (e.code) {
     'network' => 'Sin conexión con el servidor. Revisa tu internet.',
+    'account_suspended' => 'Tu cuenta está suspendida; comunícate con el soporte de Kyq.',
+    'driver_not_free' => 'Tu conductor ya no está disponible para este viaje.',
     _ when e.statusCode == 409 => 'El viaje cambió antes de tu respuesta. Te mostramos el estado actual.',
     _ => 'No pudimos completar la acción. Inténtalo de nuevo.',
   };

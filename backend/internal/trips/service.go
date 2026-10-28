@@ -16,10 +16,13 @@ import (
 )
 
 var (
-	ErrNotFound              = errors.New("trip not found")
-	ErrNotAffiliated         = errors.New("driver is not one of the passenger's chosen drivers")
-	ErrDriverNotFree         = errors.New("driver is not free")
-	ErrPassengerHasTrip      = errors.New("passenger already has an active trip")
+	ErrNotFound         = errors.New("trip not found")
+	ErrNotAffiliated    = errors.New("driver is not one of the passenger's chosen drivers")
+	ErrDriverNotFree    = errors.New("driver is not free")
+	ErrPassengerHasTrip = errors.New("passenger already has an active trip")
+	// ErrAccountSuspended: quien actúa está suspendido (007, FR-016) y no puede iniciar un viaje
+	// con la sesión que aún le queda.
+	ErrAccountSuspended      = errors.New("account suspended")
 	ErrCityNotConfigured     = errors.New("fare table not configured for city")
 	ErrNoRoute               = fares.ErrNoRoute
 	errUniqueActiveViolation = errors.New("unique active trip violation")
@@ -124,6 +127,14 @@ func (s *Service) RequestWith(ctx context.Context, passengerID, driverID uuid.UU
 		}
 		if !affiliated {
 			return ErrNotAffiliated
+		}
+		// 007 (FR-016): la sesión que aún le quede a un pasajero suspendido no le deja pedir.
+		suspended, err := q.IsUserSuspended(ctx, passengerID)
+		if err != nil {
+			return err
+		}
+		if suspended {
+			return ErrAccountSuspended
 		}
 		if _, err := q.GetActiveTripForPassenger(ctx, passengerID); err == nil {
 			return ErrPassengerHasTrip
@@ -237,6 +248,11 @@ func (s *Service) Act(ctx context.Context, userID, tripID uuid.UUID, op func(t *
 		before, beforeProposal := snapshot(trip)
 		if err := op(trip, party, now); err != nil {
 			return err
+		}
+		if before != StatusAccepted && trip.Status == StatusAccepted {
+			if err := checkNotSuspended(ctx, q, trip, userID); err != nil {
+				return err
+			}
 		}
 		msgs, err = s.persist(ctx, q, trip, before, beforeProposal, now)
 		return err
@@ -353,6 +369,30 @@ func (s *Service) persist(ctx context.Context, q *store.Queries, t *Trip, before
 		passengerName = name
 	}
 	return append(eventsFor(before, beforeProposal, t, false, passengerName, driver, now), msgs...), nil
+}
+
+// checkNotSuspended impide que un viaje empiece (pase a ACCEPTED) si alguna de las partes está
+// suspendida (007: "no puede iniciar otro"). Quien acepta recibe ErrAccountSuspended si el
+// suspendido es él; si es la otra parte, el conductor cuenta como no libre y el pasajero como
+// inexistente para el viaje.
+func checkNotSuspended(ctx context.Context, q *store.Queries, t *Trip, actor uuid.UUID) error {
+	for _, party := range []struct {
+		id        uuid.UUID
+		otherwise error
+	}{{t.DriverID, ErrDriverNotFree}, {t.PassengerID, ErrNotFound}} {
+		suspended, err := q.IsUserSuspended(ctx, party.id)
+		if err != nil {
+			return err
+		}
+		if !suspended {
+			continue
+		}
+		if party.id == actor {
+			return ErrAccountSuspended
+		}
+		return party.otherwise
+	}
+	return nil
 }
 
 // releaseDriver deja libre al conductor cuando termina su viaje u oferta, salvo que lo hayan

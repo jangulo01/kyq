@@ -266,6 +266,11 @@ paths:
                       description: Consentimiento para pasar a la cooperativa del conductor (RN-KYQ-008)
       responses:
         '201': { $ref: '#/components/responses/Trip' }
+        '403':
+          description: '`code` = account_suspended: quien actúa está suspendido y no puede iniciar un viaje (007, FR-016)'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
         '409':
           description: '`code` = driver_not_free | not_affiliated | passenger_has_active_trip | no_cooperative | no_driver_available'
           content:
@@ -291,6 +296,11 @@ paths:
                 fare_minor: { type: integer, minimum: 1 }
       responses:
         '200': { $ref: '#/components/responses/Trip' }
+        '403':
+          description: '`code` = account_suspended: quien actúa está suspendido y no puede iniciar un viaje (007, FR-016)'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
         '409': { $ref: '#/components/responses/Error' }
   /v1/trips/{tripId}/reject:
     post:
@@ -348,6 +358,11 @@ paths:
         - { name: decision, in: path, required: true, schema: { type: string, enum: [accept, reject] } }
       responses:
         '200': { $ref: '#/components/responses/Trip' }
+        '403':
+          description: '`code` = account_suspended: quien actúa está suspendido y no puede iniciar un viaje (007, FR-016)'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
         '409': { $ref: '#/components/responses/Error' }
   /v1/trips/{tripId}/{transition}:
     post:

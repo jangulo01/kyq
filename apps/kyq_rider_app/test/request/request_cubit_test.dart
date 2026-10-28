@@ -112,6 +112,27 @@ void main() {
   );
 
   blocTest<RequestCubit, RequestState>(
+    'account_suspended (007, FR-016) explica que la cuenta está suspendida',
+    setUp: () => when(
+      () => api.requestTrip(
+        driverId: any(named: 'driverId'),
+        pickup: any(named: 'pickup'),
+        dropoff: any(named: 'dropoff'),
+      ),
+    ).thenThrow(const ApiException(403, 'account_suspended', 'x')),
+    build: build,
+    act: (c) async {
+      await c.start();
+      await c.setPoint(_there);
+      await c.request();
+    },
+    verify: (c) {
+      expect(c.state.tripId, isNull);
+      expect(c.state.error, contains('Tu cuenta está suspendida'));
+    },
+  );
+
+  blocTest<RequestCubit, RequestState>(
     'no_route muestra un mensaje en español y no hay tarifa',
     setUp: () => when(() => api.quote(any(), any())).thenThrow(const ApiException(422, 'no_route', 'x')),
     build: build,

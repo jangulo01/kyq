@@ -326,6 +326,7 @@ func writeError(w http.ResponseWriter, r *http.Request, err error) {
 		ErrNotAffiliated:     {http.StatusConflict, "not_affiliated", "ese conductor no está en tu lista"},
 		ErrDriverNotFree:     {http.StatusConflict, "driver_not_free", "tu conductor ya no está libre"},
 		ErrPassengerHasTrip:  {http.StatusConflict, "passenger_has_active_trip", "ya tienes un viaje en curso"},
+		ErrAccountSuspended:  {http.StatusForbidden, "account_suspended", "tu cuenta está suspendida; comunícate con el soporte de Kyq"},
 		ErrCityNotConfigured: {http.StatusServiceUnavailable, "city_not_configured", "la ciudad aún no tiene tarifas"},
 		ErrNoRoute:           {http.StatusUnprocessableEntity, "no_route", "no encontramos una ruta por carretera"},
 		ErrNoCooperative:     {http.StatusConflict, "no_cooperative", "tu conductor no pertenece a una cooperativa activa"},

@@ -231,6 +231,7 @@ class RequestCubit extends Cubit<RequestState> {
     'no_cooperative' => '$driverName ya no pertenece a una cooperativa activa.',
     'not_affiliated' => '$driverName ya no está en tus Conductores Elegidos.',
     'passenger_has_active_trip' => 'Ya tienes un viaje en curso. Termínalo o cancélalo antes de pedir otro.',
+    'account_suspended' => 'Tu cuenta está suspendida; comunícate con el soporte de Kyq.',
     'no_route' => 'No encontramos una ruta entre esos puntos. Prueba con otro destino.',
     'city_not_configured' => 'Kyq todavía no tiene tarifas para esta ciudad.',
     'network' => 'Sin conexión con el servidor. Revisa tu internet.',

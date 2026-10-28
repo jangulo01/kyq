@@ -112,3 +112,48 @@ func TestIntegrationSuspendedDriverHandsOverOffline(t *testing.T) {
 	assert.Equal(t, store.DriverPresenceOffline, c.presenceOf(t, c.driver))
 	assert.Equal(t, store.DriverPresenceOffline, c.pub.lastPresence(c.driver))
 }
+
+// 007: "suspender a alguien con un viaje en curso: el viaje sigue hasta terminar; no puede iniciar
+// otro". Con la sesión que aún le quede (hasta 15 min, FR-016) un suspendido no empieza un viaje.
+func TestIntegrationSuspendedUserCannotStartTrip(t *testing.T) {
+	f := setup(t)
+	ctx := context.Background()
+
+	// El pasajero suspendido no puede pedir.
+	suspend(t, f.st, f.passenger, *f.clock)
+	_, err := f.svc.Request(ctx, f.passenger, f.driver, pickup, dropoff)
+	assert.ErrorIs(t, err, ErrAccountSuspended)
+	assert.Equal(t, store.DriverPresenceFree, f.presence(t), "no se reserva al conductor")
+	require.NoError(t, f.st.SetUserSuspension(ctx, store.SetUserSuspensionParams{ID: f.passenger}))
+
+	// El conductor suspendido con una oferta abierta no puede aceptarla, pero sí rechazarla.
+	trip, err := f.svc.Request(ctx, f.passenger, f.driver, pickup, dropoff)
+	require.NoError(t, err)
+	suspend(t, f.st, f.driver, *f.clock)
+	_, err = f.svc.Act(ctx, f.driver, trip.ID, func(t *Trip, p Party, now time.Time) error { return t.Accept(p, nil, now) })
+	assert.ErrorIs(t, err, ErrAccountSuspended)
+	got, err := f.svc.Get(ctx, f.passenger, trip.ID)
+	require.NoError(t, err)
+	assert.Equal(t, StatusRequested, got.Status, "la aceptación no se guarda")
+	_, err = f.svc.Act(ctx, f.driver, trip.ID, reject)
+	require.NoError(t, err)
+	assert.Equal(t, store.DriverPresenceOffline, f.presence(t))
+}
+
+func TestIntegrationPassengerCannotAcceptFareOfSuspendedDriver(t *testing.T) {
+	f := setup(t)
+	ctx := context.Background()
+	trip, err := f.svc.Request(ctx, f.passenger, f.driver, pickup, dropoff)
+	require.NoError(t, err)
+	fare := trip.SuggestedFare + 100_000
+	trip, err = f.svc.Act(ctx, f.driver, trip.ID, func(t *Trip, p Party, now time.Time) error { return t.Accept(p, &fare, now) })
+	require.NoError(t, err)
+	require.Equal(t, StatusFarePending, trip.Status)
+
+	suspend(t, f.st, f.driver, *f.clock)
+	proposal := trip.Proposal.ID
+	_, err = f.svc.Act(ctx, f.passenger, trip.ID, func(t *Trip, p Party, now time.Time) error {
+		return t.DecideProposal(p, proposal, true, now)
+	})
+	assert.ErrorIs(t, err, ErrDriverNotFree, "al pasajero no se le habla de la suspensión del conductor")
+}
