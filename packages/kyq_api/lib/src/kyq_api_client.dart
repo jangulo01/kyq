@@ -6,6 +6,7 @@ import 'admin_models.dart';
 import 'domain_rotator.dart';
 import 'cooperative_models.dart';
 import 'models.dart';
+import 'native_models.dart';
 import 'onboarding_models.dart';
 import 'ops_models.dart';
 import 'preconsult_models.dart';
@@ -371,7 +372,14 @@ class KyqApiClient implements SafetyApi {
     return DriverPresence.values.byName(res.data!['presence'] as String);
   }
 
-  Future<void> sendLocation(GeoPoint point, {double? heading, double? speedMps, DateTime? recordedAt}) => _send(
+  /// [accuracyM] (010): precisión del GPS; con 50 m o menos cuenta para la llegada automática.
+  Future<void> sendLocation(
+    GeoPoint point, {
+    double? heading,
+    double? speedMps,
+    DateTime? recordedAt,
+    double? accuracyM,
+  }) => _send(
     () => _dio.post<void>(
       '/v1/driver/location',
       data: {
@@ -379,6 +387,7 @@ class KyqApiClient implements SafetyApi {
         'lng': point.lng,
         'heading': ?heading,
         'speed_mps': ?speedMps,
+        'accuracy_m': ?accuracyM,
         if (recordedAt != null) 'recorded_at': recordedAt.toUtc().toIso8601String(),
       },
     ),
@@ -1141,6 +1150,80 @@ class KyqApiClient implements SafetyApi {
       },
     ),
   );
+
+  // 010: agenda de reservas
+
+  /// Reserva con un Conductor Elegido entre 30 minutos y 7 días. 400 `invalid_time`, 403
+  /// `not_affiliated`, 409 `too_many_reservations`.
+  Future<Reservation> createReservation({
+    required String driverId,
+    required GeoPoint pickup,
+    required GeoPoint dropoff,
+    required DateTime scheduledAt,
+    String? pickupLabel,
+    String? dropoffLabel,
+  }) async {
+    final res = await _send(
+      () => _dio.post<Map<String, dynamic>>(
+        '/v1/reservations',
+        data: {
+          'driver_id': driverId,
+          'pickup': pickup.toJson(),
+          'dropoff': dropoff.toJson(),
+          'scheduled_at': scheduledAt.toUtc().toIso8601String(),
+          'pickup_label': ?pickupLabel,
+          'dropoff_label': ?dropoffLabel,
+        },
+      ),
+    );
+    return Reservation.fromJson(res.data!);
+  }
+
+  Future<List<Reservation>> reservations() => _reservations('/v1/reservations');
+
+  Future<Reservation> cancelReservation(String id) => _reservation('/v1/reservations/$id/cancel');
+
+  /// Agenda del conductor (010 FR-002).
+  Future<List<Reservation>> driverAgenda() => _reservations('/v1/driver/reservations');
+
+  Future<Reservation> acceptReservation(String id) => _reservation('/v1/driver/reservations/$id/accept');
+
+  Future<Reservation> rejectReservation(String id) => _reservation('/v1/driver/reservations/$id/reject');
+
+  Future<Reservation> driverCancelReservation(String id) => _reservation('/v1/driver/reservations/$id/cancel');
+
+  Future<List<Reservation>> _reservations(String path) async {
+    final res = await _send(() => _dio.get<List<dynamic>>(path));
+    return res.data!.map((e) => Reservation.fromJson(e as Map<String, dynamic>)).toList();
+  }
+
+  Future<Reservation> _reservation(String path) async {
+    final res = await _send(() => _dio.post<Map<String, dynamic>>(path));
+    return Reservation.fromJson(res.data!);
+  }
+
+  // 010: ficha del cliente y nota privada del conductor
+
+  Future<ClientCard> clientCard(String passengerId) async {
+    final res = await _send(() => _dio.get<Map<String, dynamic>>('/v1/driver/clients/$passengerId'));
+    return ClientCard.fromJson(res.data!);
+  }
+
+  /// Vacía, borra la nota (máximo 500 caracteres).
+  Future<ClientCard> setClientNote(String passengerId, String note) async {
+    final res = await _send(
+      () => _dio.put<Map<String, dynamic>>('/v1/driver/clients/$passengerId/note', data: {'body': note}),
+    );
+    return ClientCard.fromJson(res.data!);
+  }
+
+  // 010: buscador de direcciones
+
+  /// Sugerencias de la ciudad desde 3 caracteres; 503 `places_unavailable` sin buscador.
+  Future<List<Place>> searchPlaces(String query) async {
+    final res = await _send(() => _dio.get<List<dynamic>>('/v1/places', queryParameters: {'q': query}));
+    return res.data!.map((e) => Place.fromJson(e as Map<String, dynamic>)).toList();
+  }
 
   // 009: inspección de viajes desde la torre
 

@@ -8,6 +8,8 @@ import 'package:kyq_driver_app/background/location_reporter.dart';
 import 'package:kyq_driver_app/background/online_permissions.dart';
 import 'package:kyq_driver_app/handsfree/platform_hands_free.dart';
 import 'package:kyq_driver_app/onboarding/photo_source.dart';
+import 'package:kyq_driver_app/onboarding/scan/document_scanner.dart';
+import 'package:kyq_driver_app/onboarding/scan/image_tools.dart';
 import 'package:kyq_driver_app/realtime/driver_events.dart';
 import 'package:kyq_driver_app/subscription/checkout_launcher.dart';
 import 'package:kyq_ptt/kyq_ptt.dart';
@@ -64,6 +66,35 @@ class FakePhotoSource implements PhotoSource {
     if (e != null) throw e;
     return next ?? tinyImage;
   }
+
+  @override
+  Future<Uint8List?> compress(Uint8List input) async => input;
+}
+
+/// Escáner falso (010): devuelve [next] o lanza [error]; [sharp] es la nitidez que mide.
+class FakeScanner implements DocumentScanner {
+  int scans = 0;
+  Uint8List? next;
+  Object? error;
+  double? sharp = 200;
+  final rectified = <Corners>[];
+
+  @override
+  Future<Uint8List?> scan() async {
+    scans++;
+    final e = error;
+    if (e != null) throw e;
+    return next ?? tinyImage;
+  }
+
+  @override
+  Future<Uint8List?> rectify(Uint8List photo, Corners corners) async {
+    rectified.add(corners);
+    return photo;
+  }
+
+  @override
+  Future<double?> sharpness(Uint8List photo) async => sharp;
 }
 
 /// Custom Tab falsa: solo anota las URLs abiertas.
@@ -145,6 +176,7 @@ DriverServices fakeServices({
   FakeOnlineService? service,
   PttControllerFactory? ptt,
   FakePhotoSource? photos,
+  FakeScanner? scanner,
   FakeCheckout? checkout,
   PttControllerFactory? preconsultPtt,
   FakeHandsFreePlatform? handsFree,
@@ -158,6 +190,7 @@ DriverServices fakeServices({
   positions: FakePositions(),
   ptt: ptt ?? fakePttFactory([]),
   photos: photos ?? FakePhotoSource(),
+  scanner: scanner ?? FakeScanner(),
   checkout: checkout ?? FakeCheckout(),
   preconsultPtt: preconsultPtt ?? fakePttFactory([]),
   handsFree: handsFree ?? FakeHandsFreePlatform(),

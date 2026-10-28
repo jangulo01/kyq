@@ -8,7 +8,14 @@ import '../app/session_user.dart';
 import '../realtime/realtime_events.dart';
 
 class TripState {
-  const TripState({this.trip, this.loading = false, this.busy = false, this.driverPosition, this.error});
+  const TripState({
+    this.trip,
+    this.loading = false,
+    this.busy = false,
+    this.driverPosition,
+    this.driverHeading,
+    this.error,
+  });
 
   final Trip? trip;
   final bool loading;
@@ -18,16 +25,26 @@ class TripState {
 
   /// Última posición del conductor recibida por `trip:{tripId}` (FR-014).
   final GeoPoint? driverPosition;
+
+  /// 010: rumbo del GPS del conductor, si lo envía; si no, el mapa lo deduce del movimiento.
+  final double? driverHeading;
   final String? error;
 
-  TripState copyWith({Trip? trip, bool? loading, bool? busy, GeoPoint? driverPosition, String? Function()? error}) =>
-      TripState(
-        trip: trip ?? this.trip,
-        loading: loading ?? this.loading,
-        busy: busy ?? this.busy,
-        driverPosition: driverPosition ?? this.driverPosition,
-        error: error != null ? error() : this.error,
-      );
+  TripState copyWith({
+    Trip? trip,
+    bool? loading,
+    bool? busy,
+    GeoPoint? driverPosition,
+    double? Function()? driverHeading,
+    String? Function()? error,
+  }) => TripState(
+    trip: trip ?? this.trip,
+    loading: loading ?? this.loading,
+    busy: busy ?? this.busy,
+    driverPosition: driverPosition ?? this.driverPosition,
+    driverHeading: driverHeading != null ? driverHeading() : this.driverHeading,
+    error: error != null ? error() : this.error,
+  );
 }
 
 /// Estados en los que el conductor ya va hacia el pasajero o lo lleva.
@@ -91,6 +108,7 @@ class TripCubit extends Cubit<TripState> {
       emit(
         state.copyWith(
           driverPosition: GeoPoint(lat: e.lat, lng: e.lng),
+          driverHeading: () => e.heading,
         ),
       );
     }

@@ -14,6 +14,10 @@ class _MockApi extends Mock implements KyqApiClient {
   // Ni viajes sin pagar (004).
   @override
   Future<List<TripPayment>> pendingTripPayments() async => const [];
+
+  // Ni reservas (010).
+  @override
+  Future<List<Reservation>> reservations() async => const [];
 }
 
 const _session = Tokens(accessToken: 'a', refreshToken: 'r', role: UserRole.passenger);

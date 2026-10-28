@@ -81,6 +81,17 @@ class _OfferCard extends StatelessWidget {
                   const SizedBox(height: 4),
                 ],
                 Text(offer.passengerName, style: theme.textTheme.headlineSmall),
+                if (offer.clientNote case final note?) ...[
+                  const SizedBox(height: 4),
+                  Row(
+                    key: const Key('offer.note'),
+                    children: [
+                      const Icon(Icons.sticky_note_2_outlined, size: 18),
+                      const SizedBox(width: 6),
+                      Expanded(child: Text(note, style: theme.textTheme.bodyMedium)),
+                    ],
+                  ),
+                ],
                 const SizedBox(height: 12),
                 _Row(icon: Icons.trip_origin, label: 'Recogida', value: formatPoint(offer.pickup)),
                 _Row(icon: Icons.place, label: 'Destino', value: formatPoint(offer.dropoff)),

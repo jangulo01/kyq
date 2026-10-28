@@ -36,6 +36,7 @@ class GeolocatorPositionSource implements PositionSource {
         heading: p.heading >= 0 ? p.heading : null,
         speedMps: p.speed >= 0 ? p.speed : null,
         recordedAt: p.timestamp,
+        accuracyM: p.accuracy > 0 ? p.accuracy : null,
       ),
       onError: (Object e) {
         debugPrint('GPS: $e');

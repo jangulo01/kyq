@@ -4,16 +4,23 @@ import 'package:go_router/go_router.dart';
 import 'package:kyq_api/kyq_api.dart';
 import 'package:kyq_ui/kyq_ui.dart';
 
+import '../map/trip_map.dart';
 import '../payments/pending_payments_banner.dart';
 import '../payments/pending_payments_cubit.dart';
 import '../preconsult/preconsult_page.dart';
 import '../request/request_page.dart';
+import '../reservations/booking_page.dart';
+import '../reservations/reservations_cubit.dart';
+import '../reservations/reservations_page.dart';
 import '../trip/trip_route.dart';
 import 'chosen_drivers_cubit.dart';
 
 /// Pantalla principal del pasajero: sus Conductores Elegidos primero (RN-KYQ-006).
 class ChosenDriversPage extends StatelessWidget {
-  const ChosenDriversPage({super.key});
+  const ChosenDriversPage({super.key, this.map = maplibreTripMap});
+
+  /// Mapa de pines dorados (010); las pruebas lo sustituyen.
+  final TripMapBuilder map;
 
   Future<void> _scan(BuildContext context) async {
     final saved = await context.push<bool>('/scan');
@@ -26,6 +33,15 @@ class ChosenDriversPage extends StatelessWidget {
       appBar: AppBar(
         title: const Text('Mis Conductores Elegidos'),
         actions: [
+          IconButton(
+            key: const Key('home.reservations'),
+            tooltip: 'Mis reservas',
+            icon: const Icon(Icons.event_note),
+            onPressed: () async {
+              await context.push(reservationsLocation);
+              if (context.mounted) await context.read<ReservationsCubit>().load();
+            },
+          ),
           IconButton(
             key: const Key('home.support'),
             tooltip: 'Ayuda',
@@ -52,6 +68,7 @@ class ChosenDriversPage extends StatelessWidget {
       ),
       body: Column(
         children: [
+          const _NextReservation(),
           BlocListener<ChosenDriversCubit, ChosenDriversState>(
             // Un conductor que vuelve a estar libre suele significar un viaje recién terminado.
             listenWhen: (a, b) => _presenceKey(a) != _presenceKey(b),
@@ -79,11 +96,37 @@ class ChosenDriversPage extends StatelessWidget {
               label: const Text('Pedir un viaje a un conductor cercano'),
             ),
           ),
+          // 010: Conductores Elegidos libres como pines dorados en su zona aproximada (FR-018).
+          BlocBuilder<ChosenDriversCubit, ChosenDriversState>(
+            buildWhen: (a, b) => goldenPins(a.drivers).join() != goldenPins(b.drivers).join(),
+            builder: (context, state) {
+              final pins = goldenPins(state.drivers);
+              if (pins.isEmpty) return const SizedBox.shrink();
+              return Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: SizedBox(
+                    key: const Key('home.goldenMap'),
+                    height: 160,
+                    child: map(TripMapMarkers(golden: pins), null),
+                  ),
+                ),
+              );
+            },
+          ),
           Expanded(child: _driverList()),
         ],
       ),
     );
   }
+
+  /// Zonas de los Conductores Elegidos libres; el backend solo la envía si está libre y su
+  /// ubicación es reciente, y nunca la posición exacta.
+  static List<GeoPoint> goldenPins(List<ChosenDriver> drivers) => [
+    for (final d in drivers)
+      if (d.presence == DriverPresence.free && d.zone != null) GeoPoint(lat: d.zone!.lat, lng: d.zone!.lng),
+  ];
 
   static String _presenceKey(ChosenDriversState state) =>
       state.drivers.map((d) => '${d.driverId}:${d.presence.name}').join(',');
@@ -164,6 +207,16 @@ class _DriverTile extends StatelessWidget {
             children: [
               PresenceChip(presence: driver.presence, busyUntil: driver.busyUntilEstimate),
               const Spacer(),
+              // 010: reservar para más tarde, esté libre o no (FR-001).
+              IconButton(
+                key: Key('chosen.book.${driver.driverId}'),
+                tooltip: 'Reservar',
+                icon: const Icon(Icons.event),
+                onPressed: () async {
+                  final booked = await context.push<bool>(bookingLocation(driver.driverId, driver.displayName));
+                  if (booked == true && context.mounted) await context.read<ReservationsCubit>().load();
+                },
+              ),
               if (canAskByVoice)
                 IconButton(
                   key: Key('chosen.voice.${driver.driverId}'),
@@ -221,5 +274,34 @@ class PresenceChip extends StatelessWidget {
     if (until == null) return 'Ocupado';
     final minutes = until.difference(now ?? DateTime.now()).inMinutes;
     return minutes <= 1 ? 'Se libera ya' : 'Ocupado · $minutes min';
+  }
+}
+
+/// Próxima reserva abierta y avisos de reservas (recordatorio, vencida, conductor no disponible).
+class _NextReservation extends StatelessWidget {
+  const _NextReservation();
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocConsumer<ReservationsCubit, ReservationsState>(
+      listenWhen: (a, b) => b.notice != null && a.notice != b.notice,
+      listener: (context, s) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(s.notice!.message))),
+      builder: (context, state) {
+        final next = state.next;
+        if (next == null) return const SizedBox.shrink();
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
+          child: Card(
+            child: ListTile(
+              key: const Key('home.nextReservation'),
+              leading: const Icon(Icons.event_available),
+              title: Text('Reserva ${formatSlot(next.scheduledAt)} con ${next.driver.displayName}'),
+              subtitle: Text(reservationStatusLabel(next)),
+              onTap: () => context.push(reservationsLocation),
+            ),
+          ),
+        );
+      },
+    );
   }
 }

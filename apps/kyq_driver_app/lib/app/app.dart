@@ -8,6 +8,9 @@ import 'package:kyq_ptt/kyq_ptt.dart';
 import 'package:kyq_realtime/kyq_realtime.dart';
 import 'package:kyq_ui/kyq_ui.dart';
 
+import '../onboarding/client_card_page.dart';
+import '../reservations/agenda_cubit.dart';
+import '../reservations/agenda_page.dart';
 import '../megaphone/megaphone_banner.dart';
 import '../megaphone/megaphone_cubit.dart';
 import '../dispatch/dispatch_settings_cubit.dart';
@@ -112,6 +115,7 @@ class _KyqDriverAppState extends State<KyqDriverApp> {
         heading: fix.heading,
         speedMps: fix.speedMps,
         recordedAt: fix.recordedAt,
+        accuracyM: fix.accuracyM,
       ),
       onError: (e) => debugPrint('Ubicación: $e'),
     ),
@@ -160,6 +164,7 @@ class _KyqDriverAppState extends State<KyqDriverApp> {
                 create: (_) => DocumentCaptureCubit(
                   api: widget.api,
                   photos: widget.services.photos,
+                  scanner: widget.services.scanner,
                   docType: type,
                   onSubmitted: _onboarding.load,
                 ),
@@ -174,7 +179,23 @@ class _KyqDriverAppState extends State<KyqDriverApp> {
         builder: (context, state) => const HomePage(),
         routes: [
           GoRoute(path: 'qr', builder: (context, state) => const MyQrPage()),
-          GoRoute(path: 'clients', builder: (context, state) => const ClientsPage()),
+          GoRoute(
+            path: 'clients',
+            builder: (context, state) => const ClientsPage(),
+            routes: [
+              // 010: ficha del cliente con nota privada.
+              GoRoute(
+                path: ':id',
+                builder: (context, state) => ClientCardPage(passengerId: state.pathParameters['id']!),
+              ),
+            ],
+          ),
+          // 010: agenda de reservas.
+          GoRoute(
+            path: 'agenda',
+            builder: (context, state) =>
+                BlocProvider(create: (_) => AgendaCubit(widget.api, _events.stream)..load(), child: const AgendaPage()),
+          ),
           GoRoute(
             path: 'dispatch',
             builder: (context, state) => BlocProvider(

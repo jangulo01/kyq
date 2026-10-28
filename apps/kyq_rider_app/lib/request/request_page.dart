@@ -5,6 +5,7 @@ import 'package:kyq_api/kyq_api.dart';
 import 'package:kyq_ui/kyq_ui.dart';
 
 import '../map/trip_map.dart';
+import '../places/place_search_page.dart';
 import '../trip/trip_route.dart';
 import 'request_cubit.dart';
 
@@ -81,12 +82,33 @@ class _PointSelector extends StatelessWidget {
               onSelectionChanged: (s) => cubit.edit(s.first),
             ),
             const SizedBox(height: 4),
+            // 010: buscar la dirección; el mapa sigue sirviendo (FR-016).
+            OutlinedButton.icon(
+              key: const Key('request.search'),
+              onPressed: () async {
+                final place = await showPlaceSearch(
+                  context,
+                  title: state.editing == RequestPoint.pickup ? '¿Dónde te recogen?' : '¿A dónde vas?',
+                );
+                if (place != null) await cubit.setPlace(place);
+              },
+              icon: const Icon(Icons.search),
+              label: Text(
+                switch (state.editing) {
+                  RequestPoint.pickup => state.pickupLabel ?? 'Buscar dirección de recogida',
+                  RequestPoint.dropoff => state.dropoffLabel ?? 'Buscar destino',
+                },
+                key: const Key('request.searchLabel'),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            const SizedBox(height: 4),
             Text(
               state.editing == RequestPoint.pickup
-                  ? 'Toca el mapa donde te recogen.'
+                  ? 'O toca el mapa donde te recogen.'
                   : state.dropoff == null
-                  ? 'Toca el mapa para marcar tu destino.'
-                  : 'Toca el mapa para cambiar el destino.',
+                  ? 'O toca el mapa para marcar tu destino.'
+                  : 'O toca el mapa para cambiar el destino.',
               textAlign: TextAlign.center,
             ),
           ],

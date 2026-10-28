@@ -1,6 +1,6 @@
 # Entorno de desarrollo completo. Secretos en infra/.env (copiar de .env.example; no se versiona).
 #   docker compose up -d --build            # backend + servicios
-#   docker compose --profile routing up -d  # además OSRM (requiere infra/data/osrm, ver README)
+#   docker compose --profile routing up -d  # además OSRM, teselas y Photon (requieren infra/data, ver README)
 services:
   postgres:
     image: postgis/postgis:17-3.5
@@ -73,6 +73,9 @@ services:
       KYQ_S3_SOS_BUCKET: kyq-sos
       KYQ_SOS_RECORDING: ${KYQ_SOS_RECORDING:-true}
       KYQ_TWILIO_SMS_FROM: ${KYQ_TWILIO_SMS_FROM:-}
+      # Buscador de direcciones (010): Photon del perfil routing; si no corre, la app usa el mapa.
+      KYQ_GEOCODER_URL: ${KYQ_GEOCODER_URL:-http://photon:2322}
+      KYQ_CITY_BBOX: ${KYQ_CITY_BBOX:-}
     ports:
       - "8080:8080"
     depends_on:
@@ -195,6 +198,19 @@ services:
       - ./tiles/Caddyfile:/etc/caddy/Caddyfile:ro
     ports:
       - "8081:8081"
+    restart: unless-stopped
+
+  # Geocodificador de OpenStreetMap para el buscador de direcciones (010, research R5): jar y
+  # base de datos del país en infra/data/photon (ver README). Solo lo consulta la API.
+  photon:
+    profiles: ["routing"]
+    image: eclipse-temurin:21-jre
+    working_dir: /photon
+    command: ["java", "-jar", "/photon/photon.jar", "-data-dir", "/photon", "-listen-ip", "0.0.0.0"]
+    volumes:
+      - ./data/photon:/photon
+    ports:
+      - "127.0.0.1:2322:2322"
     restart: unless-stopped
 
 volumes:

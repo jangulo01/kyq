@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kyq_api/kyq_api.dart';
 import 'package:kyq_driver_app/onboarding/document_capture_cubit.dart';
 import 'package:kyq_driver_app/onboarding/photo_source.dart';
+import 'package:kyq_driver_app/onboarding/scan/document_scanner.dart';
 import 'package:mocktail/mocktail.dart';
 
 import '../support/fakes.dart';
@@ -19,6 +20,7 @@ CreatedDocument _created(DocType type) => CreatedDocument(
 void main() {
   late MockApi api;
   late FakePhotoSource photos;
+  late FakeScanner scanner;
   late int submitted;
 
   setUpAll(() {
@@ -30,6 +32,7 @@ void main() {
   setUp(() {
     api = MockApi();
     photos = FakePhotoSource();
+    scanner = FakeScanner();
     submitted = 0;
     when(() => api.submitDocument(any())).thenAnswer((_) async {});
     when(() => api.uploadPhoto(any(), any(), backoff: any(named: 'backoff'))).thenAnswer((_) async {});
@@ -38,6 +41,7 @@ void main() {
   DocumentCaptureCubit cubit(DocType type) => DocumentCaptureCubit(
     api: api,
     photos: photos,
+    scanner: scanner,
     docType: type,
     onSubmitted: () async => submitted++,
     uploadBackoff: Duration.zero,
@@ -211,6 +215,51 @@ void main() {
     test('null si ni la menor calidad cabe', () async {
       Future<Uint8List> fake(Uint8List input, {required int quality, required int side}) async => Uint8List(2000);
       expect(await compressToLimit(Uint8List(5000), fake, limit: 1000), isNull);
+    });
+  });
+
+  group('escaneo (010, US4)', () {
+    Future<Uint8List?> noCrop(Uint8List _) async => fail('no debía recortar a mano');
+    Future<BlurryChoice?> noBlur() async => fail('no debía avisar');
+
+    test('ML Kit: el documento recortado queda como foto del lado', () async {
+      final c = cubit(DocType.nationalId);
+      scanner.next = Uint8List.fromList([7]);
+      await c.scan(DocSide.front, crop: noCrop, onBlurry: noBlur);
+      expect(c.state.photos[DocSide.front], [7]);
+      expect(photos.origins, isEmpty);
+    });
+
+    test('sin ML Kit: foto de cámara y recorte manual', () async {
+      final c = cubit(DocType.nationalId);
+      scanner.error = const ScannerUnavailableException();
+      photos.next = Uint8List.fromList([1]);
+      await c.scan(DocSide.front, crop: (photo) async => Uint8List.fromList([...photo, 2]), onBlurry: noBlur);
+      expect(photos.origins, [PhotoOrigin.camera]);
+      expect(c.state.photos[DocSide.front], [1, 2]);
+    });
+
+    test('recorte manual cancelado: no cambia nada', () async {
+      final c = cubit(DocType.nationalId);
+      scanner.error = const ScannerUnavailableException();
+      await c.scan(DocSide.front, crop: (_) async => null, onBlurry: noBlur);
+      expect(c.state.photos, isEmpty);
+    });
+
+    test('borrosa: repetir vuelve a escanear; usar igual la acepta', () async {
+      final c = cubit(DocType.nationalId);
+      scanner.sharp = 12;
+      final answers = [BlurryChoice.retake, BlurryChoice.useAnyway];
+      await c.scan(DocSide.front, crop: noCrop, onBlurry: () async => answers.removeAt(0));
+      expect(scanner.scans, 2);
+      expect(c.state.photos, contains(DocSide.front));
+    });
+
+    test('borrosa y aviso cerrado: no se usa', () async {
+      final c = cubit(DocType.nationalId);
+      scanner.sharp = 12;
+      await c.scan(DocSide.front, crop: noCrop, onBlurry: () async => null);
+      expect(c.state.photos, isEmpty);
     });
   });
 }

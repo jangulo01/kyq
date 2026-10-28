@@ -160,6 +160,14 @@ abstract class AdminDriver with _$AdminDriver {
   factory AdminDriver.fromJson(Map<String, dynamic> json) => _$AdminDriverFromJson(json);
 }
 
+/// 010: zona aproximada de un Conductor Elegido libre (pin dorado).
+@freezed
+abstract class DriverZone with _$DriverZone {
+  const factory DriverZone({required String cell, required double lat, required double lng}) = _DriverZone;
+
+  factory DriverZone.fromJson(Map<String, dynamic> json) => _$DriverZoneFromJson(json);
+}
+
 @freezed
 abstract class ChosenDriver with _$ChosenDriver {
   const factory ChosenDriver({
@@ -171,6 +179,9 @@ abstract class ChosenDriver with _$ChosenDriver {
 
     /// 006: cooperativa activa del conductor, si tiene (selector de despacho).
     CooperativeRef? cooperative,
+
+    /// 010: zona aproximada (centro de su hexágono) si está libre; nunca su posición.
+    DriverZone? zone,
   }) = _ChosenDriver;
 
   factory ChosenDriver.fromJson(Map<String, dynamic> json) => _$ChosenDriverFromJson(json);

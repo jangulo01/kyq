@@ -65,6 +65,29 @@ se muestra en el botón (i) del mapa. Caddy (`tiles/Caddyfile`) sirve los archiv
 La app de pasajero usa por defecto `http://<host de KYQ_API_URL>:8081/style.json`; se puede fijar
 otro estilo con `--dart-define=KYQ_MAP_STYLE_URL=...`.
 
+### Photon (buscador de direcciones, 010)
+
+La API consulta Photon (`KYQ_GEOCODER_URL`, por defecto `http://photon:2322`) y descarta lo que
+cae fuera de la caja de la ciudad (`KYQ_CITY_BBOX=minLng,minLat,maxLng,maxLat`; vacía, Bogotá:
+`-74.25,4.45,-73.98,4.85`). Las búsquedas no salen de nuestra infraestructura.
+
+1. Descargar en `infra/data/photon/` el jar de Photon y la base de datos del país **de la misma
+   versión** (ver la página de versiones de komoot/photon y las descargas de GraphHopper):
+
+```bash
+mkdir -p infra/data/photon && cd infra/data/photon
+curl -L -o photon.jar https://github.com/komoot/photon/releases/download/0.7.0/photon-0.7.0.jar
+curl -L https://download1.graphhopper.com/public/extracts/by-country-code/co/photon-db-co-latest.tar.bz2 | tar -xj
+```
+
+   Debe quedar `infra/data/photon/photon.jar` y `infra/data/photon/photon_data/`.
+2. `docker compose --profile routing up -d photon` (arranca en ~1 minuto). Prueba:
+   `curl "http://localhost:2322/api?q=Andino&limit=3"`.
+3. Desde la API: `GET /v1/places?q=Andino` con un token de pasajero. Sin Photon responde
+   `503 places_unavailable` y la app deja marcar el punto en el mapa.
+
+Repetir la descarga cada pocos meses para tener direcciones nuevas.
+
 ## Documentos KYC en MinIO (002)
 
 - La API guarda las fotos de los documentos en el bucket privado `kyq-kyc` (job `minio-init`) y

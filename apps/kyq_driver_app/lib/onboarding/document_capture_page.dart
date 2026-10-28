@@ -8,6 +8,7 @@ import 'package:kyq_ui/kyq_ui.dart';
 
 import 'document_capture_cubit.dart';
 import 'photo_source.dart';
+import 'scan/manual_crop_page.dart';
 
 String _numberLabel(DocType type) => switch (type) {
   DocType.nationalId => 'Número de cédula',
@@ -79,7 +80,9 @@ class _DocumentCapturePageState extends State<DocumentCapturePage> {
                     subtitle: Text(widget.rejectReason!),
                   ),
                 ),
-              const Text('Toma la foto sobre una superficie oscura, con buena luz y sin reflejos. Que se lea todo.'),
+              const Text(
+                'Escanea el documento sobre una superficie oscura, con buena luz y sin reflejos. Que se lea todo.',
+              ),
               const SizedBox(height: 12),
               for (final side in type.sides)
                 _PhotoSlot(
@@ -138,6 +141,38 @@ class _DocumentCapturePageState extends State<DocumentCapturePage> {
   }
 }
 
+/// Escanea [side] (010, US4): recorte manual si no hay escáner y aviso si la foto sale borrosa.
+Future<void> _scan(BuildContext context, DocumentCaptureCubit cubit, DocSide side) {
+  final navigator = Navigator.of(context);
+  return cubit.scan(
+    side,
+    crop: (photo) => navigator.push<Uint8List>(
+      MaterialPageRoute(
+        builder: (_) => ManualCropPage(photo: photo, scanner: cubit.scanner),
+      ),
+    ),
+    onBlurry: () => showDialog<BlurryChoice>(
+      context: navigator.context,
+      builder: (context) => AlertDialog(
+        title: const Text('La foto parece borrosa'),
+        content: const Text('Si no se leen bien los datos, la revisión la rechazará. Apoya el teléfono y repítela.'),
+        actions: [
+          TextButton(
+            key: const Key('capture.blurry.use'),
+            onPressed: () => Navigator.pop(context, BlurryChoice.useAnyway),
+            child: const Text('Usar igual'),
+          ),
+          FilledButton(
+            key: const Key('capture.blurry.retake'),
+            onPressed: () => Navigator.pop(context, BlurryChoice.retake),
+            child: const Text('Repetir'),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
 class _PhotoSlot extends StatelessWidget {
   const _PhotoSlot({required this.side, required this.title, required this.photo, required this.enabled});
 
@@ -181,9 +216,9 @@ class _PhotoSlot extends StatelessWidget {
               ),
               TextButton.icon(
                 key: Key('capture.camera.${side.name}'),
-                onPressed: enabled ? () => cubit.pick(side, PhotoOrigin.camera) : null,
-                icon: const Icon(Icons.photo_camera_outlined),
-                label: Text(bytes == null ? 'Tomar foto' : 'Repetir'),
+                onPressed: enabled ? () => _scan(context, cubit, side) : null,
+                icon: const Icon(Icons.document_scanner_outlined),
+                label: Text(bytes == null ? 'Escanear' : 'Repetir'),
               ),
             ],
           ),

@@ -1698,10 +1698,280 @@ as List<DriverDocument>,
 
 
 /// @nodoc
+mixin _$DriverZone {
+
+ String get cell; double get lat; double get lng;
+/// Create a copy of DriverZone
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$DriverZoneCopyWith<DriverZone> get copyWith => _$DriverZoneCopyWithImpl<DriverZone>(this as DriverZone, _$identity);
+
+  /// Serializes this DriverZone to a JSON map.
+  Map<String, dynamic> toJson();
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is DriverZone&&(identical(other.cell, cell) || other.cell == cell)&&(identical(other.lat, lat) || other.lat == lat)&&(identical(other.lng, lng) || other.lng == lng));
+}
+
+@JsonKey(includeFromJson: false, includeToJson: false)
+@override
+int get hashCode => Object.hash(runtimeType,cell,lat,lng);
+
+@override
+String toString() {
+  return 'DriverZone(cell: $cell, lat: $lat, lng: $lng)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $DriverZoneCopyWith<$Res>  {
+  factory $DriverZoneCopyWith(DriverZone value, $Res Function(DriverZone) _then) = _$DriverZoneCopyWithImpl;
+@useResult
+$Res call({
+ String cell, double lat, double lng
+});
+
+
+
+
+}
+/// @nodoc
+class _$DriverZoneCopyWithImpl<$Res>
+    implements $DriverZoneCopyWith<$Res> {
+  _$DriverZoneCopyWithImpl(this._self, this._then);
+
+  final DriverZone _self;
+  final $Res Function(DriverZone) _then;
+
+/// Create a copy of DriverZone
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') @override $Res call({Object? cell = null,Object? lat = null,Object? lng = null,}) {
+  return _then(_self.copyWith(
+cell: null == cell ? _self.cell : cell // ignore: cast_nullable_to_non_nullable
+as String,lat: null == lat ? _self.lat : lat // ignore: cast_nullable_to_non_nullable
+as double,lng: null == lng ? _self.lng : lng // ignore: cast_nullable_to_non_nullable
+as double,
+  ));
+}
+
+}
+
+
+/// Adds pattern-matching-related methods to [DriverZone].
+extension DriverZonePatterns on DriverZone {
+/// A variant of `map` that fallback to returning `orElse`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeMap<TResult extends Object?>(TResult Function( _DriverZone value)?  $default,{required TResult orElse(),}){
+final _that = this;
+switch (_that) {
+case _DriverZone() when $default != null:
+return $default(_that);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// Callbacks receives the raw object, upcasted.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case final Subclass2 value:
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult map<TResult extends Object?>(TResult Function( _DriverZone value)  $default,){
+final _that = this;
+switch (_that) {
+case _DriverZone():
+return $default(_that);case _:
+  throw StateError('Unexpected subclass');
+
+}
+}
+/// A variant of `map` that fallback to returning `null`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>(TResult? Function( _DriverZone value)?  $default,){
+final _that = this;
+switch (_that) {
+case _DriverZone() when $default != null:
+return $default(_that);case _:
+  return null;
+
+}
+}
+/// A variant of `when` that fallback to an `orElse` callback.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String cell,  double lat,  double lng)?  $default,{required TResult orElse(),}) {final _that = this;
+switch (_that) {
+case _DriverZone() when $default != null:
+return $default(_that.cell,_that.lat,_that.lng);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// As opposed to `map`, this offers destructuring.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case Subclass2(:final field2):
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String cell,  double lat,  double lng)  $default,) {final _that = this;
+switch (_that) {
+case _DriverZone():
+return $default(_that.cell,_that.lat,_that.lng);case _:
+  throw StateError('Unexpected subclass');
+
+}
+}
+/// A variant of `when` that fallback to returning `null`
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String cell,  double lat,  double lng)?  $default,) {final _that = this;
+switch (_that) {
+case _DriverZone() when $default != null:
+return $default(_that.cell,_that.lat,_that.lng);case _:
+  return null;
+
+}
+}
+
+}
+
+/// @nodoc
+@JsonSerializable()
+
+class _DriverZone implements DriverZone {
+  const _DriverZone({required this.cell, required this.lat, required this.lng});
+  factory _DriverZone.fromJson(Map<String, dynamic> json) => _$DriverZoneFromJson(json);
+
+@override final  String cell;
+@override final  double lat;
+@override final  double lng;
+
+/// Create a copy of DriverZone
+/// with the given fields replaced by the non-null parameter values.
+@override @JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+_$DriverZoneCopyWith<_DriverZone> get copyWith => __$DriverZoneCopyWithImpl<_DriverZone>(this, _$identity);
+
+@override
+Map<String, dynamic> toJson() {
+  return _$DriverZoneToJson(this, );
+}
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _DriverZone&&(identical(other.cell, cell) || other.cell == cell)&&(identical(other.lat, lat) || other.lat == lat)&&(identical(other.lng, lng) || other.lng == lng));
+}
+
+@JsonKey(includeFromJson: false, includeToJson: false)
+@override
+int get hashCode => Object.hash(runtimeType,cell,lat,lng);
+
+@override
+String toString() {
+  return 'DriverZone(cell: $cell, lat: $lat, lng: $lng)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class _$DriverZoneCopyWith<$Res> implements $DriverZoneCopyWith<$Res> {
+  factory _$DriverZoneCopyWith(_DriverZone value, $Res Function(_DriverZone) _then) = __$DriverZoneCopyWithImpl;
+@override @useResult
+$Res call({
+ String cell, double lat, double lng
+});
+
+
+
+
+}
+/// @nodoc
+class __$DriverZoneCopyWithImpl<$Res>
+    implements _$DriverZoneCopyWith<$Res> {
+  __$DriverZoneCopyWithImpl(this._self, this._then);
+
+  final _DriverZone _self;
+  final $Res Function(_DriverZone) _then;
+
+/// Create a copy of DriverZone
+/// with the given fields replaced by the non-null parameter values.
+@override @pragma('vm:prefer-inline') $Res call({Object? cell = null,Object? lat = null,Object? lng = null,}) {
+  return _then(_DriverZone(
+cell: null == cell ? _self.cell : cell // ignore: cast_nullable_to_non_nullable
+as String,lat: null == lat ? _self.lat : lat // ignore: cast_nullable_to_non_nullable
+as double,lng: null == lng ? _self.lng : lng // ignore: cast_nullable_to_non_nullable
+as double,
+  ));
+}
+
+
+}
+
+
+/// @nodoc
 mixin _$ChosenDriver {
 
  String get driverId; String get displayName; String get vehicleDescription; DriverPresence get presence; DateTime? get busyUntilEstimate;/// 006: cooperativa activa del conductor, si tiene (selector de despacho).
- CooperativeRef? get cooperative;
+ CooperativeRef? get cooperative;/// 010: zona aproximada (centro de su hexágono) si está libre; nunca su posición.
+ DriverZone? get zone;
 /// Create a copy of ChosenDriver
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -1714,16 +1984,16 @@ $ChosenDriverCopyWith<ChosenDriver> get copyWith => _$ChosenDriverCopyWithImpl<C
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is ChosenDriver&&(identical(other.driverId, driverId) || other.driverId == driverId)&&(identical(other.displayName, displayName) || other.displayName == displayName)&&(identical(other.vehicleDescription, vehicleDescription) || other.vehicleDescription == vehicleDescription)&&(identical(other.presence, presence) || other.presence == presence)&&(identical(other.busyUntilEstimate, busyUntilEstimate) || other.busyUntilEstimate == busyUntilEstimate)&&(identical(other.cooperative, cooperative) || other.cooperative == cooperative));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is ChosenDriver&&(identical(other.driverId, driverId) || other.driverId == driverId)&&(identical(other.displayName, displayName) || other.displayName == displayName)&&(identical(other.vehicleDescription, vehicleDescription) || other.vehicleDescription == vehicleDescription)&&(identical(other.presence, presence) || other.presence == presence)&&(identical(other.busyUntilEstimate, busyUntilEstimate) || other.busyUntilEstimate == busyUntilEstimate)&&(identical(other.cooperative, cooperative) || other.cooperative == cooperative)&&(identical(other.zone, zone) || other.zone == zone));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,driverId,displayName,vehicleDescription,presence,busyUntilEstimate,cooperative);
+int get hashCode => Object.hash(runtimeType,driverId,displayName,vehicleDescription,presence,busyUntilEstimate,cooperative,zone);
 
 @override
 String toString() {
-  return 'ChosenDriver(driverId: $driverId, displayName: $displayName, vehicleDescription: $vehicleDescription, presence: $presence, busyUntilEstimate: $busyUntilEstimate, cooperative: $cooperative)';
+  return 'ChosenDriver(driverId: $driverId, displayName: $displayName, vehicleDescription: $vehicleDescription, presence: $presence, busyUntilEstimate: $busyUntilEstimate, cooperative: $cooperative, zone: $zone)';
 }
 
 
@@ -1734,11 +2004,11 @@ abstract mixin class $ChosenDriverCopyWith<$Res>  {
   factory $ChosenDriverCopyWith(ChosenDriver value, $Res Function(ChosenDriver) _then) = _$ChosenDriverCopyWithImpl;
 @useResult
 $Res call({
- String driverId, String displayName, String vehicleDescription, DriverPresence presence, DateTime? busyUntilEstimate, CooperativeRef? cooperative
+ String driverId, String displayName, String vehicleDescription, DriverPresence presence, DateTime? busyUntilEstimate, CooperativeRef? cooperative, DriverZone? zone
 });
 
 
-$CooperativeRefCopyWith<$Res>? get cooperative;
+$CooperativeRefCopyWith<$Res>? get cooperative;$DriverZoneCopyWith<$Res>? get zone;
 
 }
 /// @nodoc
@@ -1751,7 +2021,7 @@ class _$ChosenDriverCopyWithImpl<$Res>
 
 /// Create a copy of ChosenDriver
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? driverId = null,Object? displayName = null,Object? vehicleDescription = null,Object? presence = null,Object? busyUntilEstimate = freezed,Object? cooperative = freezed,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? driverId = null,Object? displayName = null,Object? vehicleDescription = null,Object? presence = null,Object? busyUntilEstimate = freezed,Object? cooperative = freezed,Object? zone = freezed,}) {
   return _then(_self.copyWith(
 driverId: null == driverId ? _self.driverId : driverId // ignore: cast_nullable_to_non_nullable
 as String,displayName: null == displayName ? _self.displayName : displayName // ignore: cast_nullable_to_non_nullable
@@ -1759,7 +2029,8 @@ as String,vehicleDescription: null == vehicleDescription ? _self.vehicleDescript
 as String,presence: null == presence ? _self.presence : presence // ignore: cast_nullable_to_non_nullable
 as DriverPresence,busyUntilEstimate: freezed == busyUntilEstimate ? _self.busyUntilEstimate : busyUntilEstimate // ignore: cast_nullable_to_non_nullable
 as DateTime?,cooperative: freezed == cooperative ? _self.cooperative : cooperative // ignore: cast_nullable_to_non_nullable
-as CooperativeRef?,
+as CooperativeRef?,zone: freezed == zone ? _self.zone : zone // ignore: cast_nullable_to_non_nullable
+as DriverZone?,
   ));
 }
 /// Create a copy of ChosenDriver
@@ -1773,6 +2044,18 @@ $CooperativeRefCopyWith<$Res>? get cooperative {
 
   return $CooperativeRefCopyWith<$Res>(_self.cooperative!, (value) {
     return _then(_self.copyWith(cooperative: value));
+  });
+}/// Create a copy of ChosenDriver
+/// with the given fields replaced by the non-null parameter values.
+@override
+@pragma('vm:prefer-inline')
+$DriverZoneCopyWith<$Res>? get zone {
+    if (_self.zone == null) {
+    return null;
+  }
+
+  return $DriverZoneCopyWith<$Res>(_self.zone!, (value) {
+    return _then(_self.copyWith(zone: value));
   });
 }
 }
@@ -1856,10 +2139,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String driverId,  String displayName,  String vehicleDescription,  DriverPresence presence,  DateTime? busyUntilEstimate,  CooperativeRef? cooperative)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String driverId,  String displayName,  String vehicleDescription,  DriverPresence presence,  DateTime? busyUntilEstimate,  CooperativeRef? cooperative,  DriverZone? zone)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _ChosenDriver() when $default != null:
-return $default(_that.driverId,_that.displayName,_that.vehicleDescription,_that.presence,_that.busyUntilEstimate,_that.cooperative);case _:
+return $default(_that.driverId,_that.displayName,_that.vehicleDescription,_that.presence,_that.busyUntilEstimate,_that.cooperative,_that.zone);case _:
   return orElse();
 
 }
@@ -1877,10 +2160,10 @@ return $default(_that.driverId,_that.displayName,_that.vehicleDescription,_that.
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String driverId,  String displayName,  String vehicleDescription,  DriverPresence presence,  DateTime? busyUntilEstimate,  CooperativeRef? cooperative)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String driverId,  String displayName,  String vehicleDescription,  DriverPresence presence,  DateTime? busyUntilEstimate,  CooperativeRef? cooperative,  DriverZone? zone)  $default,) {final _that = this;
 switch (_that) {
 case _ChosenDriver():
-return $default(_that.driverId,_that.displayName,_that.vehicleDescription,_that.presence,_that.busyUntilEstimate,_that.cooperative);case _:
+return $default(_that.driverId,_that.displayName,_that.vehicleDescription,_that.presence,_that.busyUntilEstimate,_that.cooperative,_that.zone);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -1897,10 +2180,10 @@ return $default(_that.driverId,_that.displayName,_that.vehicleDescription,_that.
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String driverId,  String displayName,  String vehicleDescription,  DriverPresence presence,  DateTime? busyUntilEstimate,  CooperativeRef? cooperative)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String driverId,  String displayName,  String vehicleDescription,  DriverPresence presence,  DateTime? busyUntilEstimate,  CooperativeRef? cooperative,  DriverZone? zone)?  $default,) {final _that = this;
 switch (_that) {
 case _ChosenDriver() when $default != null:
-return $default(_that.driverId,_that.displayName,_that.vehicleDescription,_that.presence,_that.busyUntilEstimate,_that.cooperative);case _:
+return $default(_that.driverId,_that.displayName,_that.vehicleDescription,_that.presence,_that.busyUntilEstimate,_that.cooperative,_that.zone);case _:
   return null;
 
 }
@@ -1912,7 +2195,7 @@ return $default(_that.driverId,_that.displayName,_that.vehicleDescription,_that.
 @JsonSerializable()
 
 class _ChosenDriver implements ChosenDriver {
-  const _ChosenDriver({required this.driverId, required this.displayName, required this.vehicleDescription, required this.presence, this.busyUntilEstimate, this.cooperative});
+  const _ChosenDriver({required this.driverId, required this.displayName, required this.vehicleDescription, required this.presence, this.busyUntilEstimate, this.cooperative, this.zone});
   factory _ChosenDriver.fromJson(Map<String, dynamic> json) => _$ChosenDriverFromJson(json);
 
 @override final  String driverId;
@@ -1922,6 +2205,8 @@ class _ChosenDriver implements ChosenDriver {
 @override final  DateTime? busyUntilEstimate;
 /// 006: cooperativa activa del conductor, si tiene (selector de despacho).
 @override final  CooperativeRef? cooperative;
+/// 010: zona aproximada (centro de su hexágono) si está libre; nunca su posición.
+@override final  DriverZone? zone;
 
 /// Create a copy of ChosenDriver
 /// with the given fields replaced by the non-null parameter values.
@@ -1936,16 +2221,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ChosenDriver&&(identical(other.driverId, driverId) || other.driverId == driverId)&&(identical(other.displayName, displayName) || other.displayName == displayName)&&(identical(other.vehicleDescription, vehicleDescription) || other.vehicleDescription == vehicleDescription)&&(identical(other.presence, presence) || other.presence == presence)&&(identical(other.busyUntilEstimate, busyUntilEstimate) || other.busyUntilEstimate == busyUntilEstimate)&&(identical(other.cooperative, cooperative) || other.cooperative == cooperative));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ChosenDriver&&(identical(other.driverId, driverId) || other.driverId == driverId)&&(identical(other.displayName, displayName) || other.displayName == displayName)&&(identical(other.vehicleDescription, vehicleDescription) || other.vehicleDescription == vehicleDescription)&&(identical(other.presence, presence) || other.presence == presence)&&(identical(other.busyUntilEstimate, busyUntilEstimate) || other.busyUntilEstimate == busyUntilEstimate)&&(identical(other.cooperative, cooperative) || other.cooperative == cooperative)&&(identical(other.zone, zone) || other.zone == zone));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,driverId,displayName,vehicleDescription,presence,busyUntilEstimate,cooperative);
+int get hashCode => Object.hash(runtimeType,driverId,displayName,vehicleDescription,presence,busyUntilEstimate,cooperative,zone);
 
 @override
 String toString() {
-  return 'ChosenDriver(driverId: $driverId, displayName: $displayName, vehicleDescription: $vehicleDescription, presence: $presence, busyUntilEstimate: $busyUntilEstimate, cooperative: $cooperative)';
+  return 'ChosenDriver(driverId: $driverId, displayName: $displayName, vehicleDescription: $vehicleDescription, presence: $presence, busyUntilEstimate: $busyUntilEstimate, cooperative: $cooperative, zone: $zone)';
 }
 
 
@@ -1956,11 +2241,11 @@ abstract mixin class _$ChosenDriverCopyWith<$Res> implements $ChosenDriverCopyWi
   factory _$ChosenDriverCopyWith(_ChosenDriver value, $Res Function(_ChosenDriver) _then) = __$ChosenDriverCopyWithImpl;
 @override @useResult
 $Res call({
- String driverId, String displayName, String vehicleDescription, DriverPresence presence, DateTime? busyUntilEstimate, CooperativeRef? cooperative
+ String driverId, String displayName, String vehicleDescription, DriverPresence presence, DateTime? busyUntilEstimate, CooperativeRef? cooperative, DriverZone? zone
 });
 
 
-@override $CooperativeRefCopyWith<$Res>? get cooperative;
+@override $CooperativeRefCopyWith<$Res>? get cooperative;@override $DriverZoneCopyWith<$Res>? get zone;
 
 }
 /// @nodoc
@@ -1973,7 +2258,7 @@ class __$ChosenDriverCopyWithImpl<$Res>
 
 /// Create a copy of ChosenDriver
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? driverId = null,Object? displayName = null,Object? vehicleDescription = null,Object? presence = null,Object? busyUntilEstimate = freezed,Object? cooperative = freezed,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? driverId = null,Object? displayName = null,Object? vehicleDescription = null,Object? presence = null,Object? busyUntilEstimate = freezed,Object? cooperative = freezed,Object? zone = freezed,}) {
   return _then(_ChosenDriver(
 driverId: null == driverId ? _self.driverId : driverId // ignore: cast_nullable_to_non_nullable
 as String,displayName: null == displayName ? _self.displayName : displayName // ignore: cast_nullable_to_non_nullable
@@ -1981,7 +2266,8 @@ as String,vehicleDescription: null == vehicleDescription ? _self.vehicleDescript
 as String,presence: null == presence ? _self.presence : presence // ignore: cast_nullable_to_non_nullable
 as DriverPresence,busyUntilEstimate: freezed == busyUntilEstimate ? _self.busyUntilEstimate : busyUntilEstimate // ignore: cast_nullable_to_non_nullable
 as DateTime?,cooperative: freezed == cooperative ? _self.cooperative : cooperative // ignore: cast_nullable_to_non_nullable
-as CooperativeRef?,
+as CooperativeRef?,zone: freezed == zone ? _self.zone : zone // ignore: cast_nullable_to_non_nullable
+as DriverZone?,
   ));
 }
 
@@ -1996,6 +2282,18 @@ $CooperativeRefCopyWith<$Res>? get cooperative {
 
   return $CooperativeRefCopyWith<$Res>(_self.cooperative!, (value) {
     return _then(_self.copyWith(cooperative: value));
+  });
+}/// Create a copy of ChosenDriver
+/// with the given fields replaced by the non-null parameter values.
+@override
+@pragma('vm:prefer-inline')
+$DriverZoneCopyWith<$Res>? get zone {
+    if (_self.zone == null) {
+    return null;
+  }
+
+  return $DriverZoneCopyWith<$Res>(_self.zone!, (value) {
+    return _then(_self.copyWith(zone: value));
   });
 }
 }

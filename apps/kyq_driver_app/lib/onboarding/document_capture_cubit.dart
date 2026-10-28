@@ -4,8 +4,13 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:kyq_api/kyq_api.dart';
 
 import 'photo_source.dart';
+import 'scan/document_scanner.dart';
+import 'scan/image_tools.dart';
 
 enum CapturePhase { editing, sending, done }
+
+/// Respuesta del conductor al aviso de foto borrosa; null si cierra el aviso.
+enum BlurryChoice { retake, useAnyway }
 
 class DocumentCaptureState {
   const DocumentCaptureState({
@@ -51,6 +56,7 @@ class DocumentCaptureCubit extends Cubit<DocumentCaptureState> {
   DocumentCaptureCubit({
     required this._api,
     required this._photos,
+    required this._scanner,
     required DocType docType,
     required this.onSubmitted,
     this.uploadBackoff = const Duration(seconds: 1),
@@ -58,6 +64,10 @@ class DocumentCaptureCubit extends Cubit<DocumentCaptureState> {
 
   final KyqApiClient _api;
   final PhotoSource _photos;
+  final DocumentScanner _scanner;
+
+  /// Para el recorte manual de la página.
+  DocumentScanner get scanner => _scanner;
 
   /// Tras confirmar el envío (recarga el estado de alta).
   final Future<void> Function() onSubmitted;
@@ -79,6 +89,51 @@ class DocumentCaptureCubit extends Cubit<DocumentCaptureState> {
     } on Object {
       emit(state.copyWith(error: 'No pudimos abrir la cámara o la galería. Revisa los permisos de Kyq.'));
     }
+  }
+
+  /// Escanea un lado (010, US4): ML Kit recorta y endereza; sin él, una foto normal pasa por
+  /// [crop] (recorte manual de cuatro esquinas). Si la foto parece borrosa, [onBlurry] deja
+  /// repetirla o usarla igual.
+  Future<void> scan(
+    DocSide side, {
+    required Future<Uint8List?> Function(Uint8List photo) crop,
+    required Future<BlurryChoice?> Function() onBlurry,
+  }) async {
+    try {
+      while (!isClosed) {
+        Uint8List? doc;
+        try {
+          doc = await _scanner.scan();
+        } on ScannerUnavailableException {
+          final photo = await _photos.pick(PhotoOrigin.camera);
+          if (photo == null || isClosed) return;
+          doc = await crop(photo);
+        }
+        if (doc == null || isClosed) return;
+        final sharpness = await _scanner.sharpness(doc);
+        if (sharpness != null && sharpness < minSharpness) {
+          final choice = await onBlurry();
+          if (choice == null) return;
+          if (choice == BlurryChoice.retake) continue;
+        }
+        await usePhoto(side, doc);
+        return;
+      }
+    } on PhotoTooLargeException {
+      emit(state.copyWith(error: 'La foto es demasiado pesada. Tómala de nuevo con buena luz y sin zoom.'));
+    } on Object {
+      if (!isClosed) emit(state.copyWith(error: 'No pudimos abrir la cámara. Revisa los permisos de Kyq.'));
+    }
+  }
+
+  /// Usa [bytes] (un escaneo o un recorte) como foto de [side], comprimida.
+  Future<void> usePhoto(DocSide side, Uint8List bytes) async {
+    final jpeg = await _photos.compress(bytes);
+    if (isClosed) return;
+    if (jpeg == null) throw const PhotoTooLargeException();
+    _created = null;
+    _uploaded.clear();
+    emit(state.copyWith(photos: {...state.photos, side: jpeg}));
   }
 
   void setExpiresAt(DateTime date) => emit(state.copyWith(expiresAt: date));

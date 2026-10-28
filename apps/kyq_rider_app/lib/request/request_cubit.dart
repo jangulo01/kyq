@@ -25,6 +25,8 @@ class RequestState {
     this.tripId,
     this.dispatch = TripDispatch.chosenDriver,
     this.allowDelegation = false,
+    this.pickupLabel,
+    this.dropoffLabel,
   });
 
   final GeoPoint? pickup;
@@ -49,6 +51,10 @@ class RequestState {
   final TripDispatch dispatch;
   final bool allowDelegation;
 
+  /// 010: nombre del lugar elegido en el buscador; null si se marcó en el mapa.
+  final String? pickupLabel;
+  final String? dropoffLabel;
+
   /// Con la cooperativa como respaldo, un conductor ocupado no impide pedir: el backend busca a
   /// un compañero libre (RN-KYQ-008). En la bolsa zonal (008) no se pide a él.
   bool get coversBusyDriver => dispatch != TripDispatch.chosenDriver || allowDelegation;
@@ -69,6 +75,8 @@ class RequestState {
     String? tripId,
     TripDispatch? dispatch,
     bool? allowDelegation,
+    String? Function()? pickupLabel,
+    String? Function()? dropoffLabel,
   }) => RequestState(
     pickup: pickup ?? this.pickup,
     dropoff: dropoff ?? this.dropoff,
@@ -83,6 +91,8 @@ class RequestState {
     tripId: tripId ?? this.tripId,
     dispatch: dispatch ?? this.dispatch,
     allowDelegation: allowDelegation ?? this.allowDelegation,
+    pickupLabel: pickupLabel != null ? pickupLabel() : this.pickupLabel,
+    dropoffLabel: dropoffLabel != null ? dropoffLabel() : this.dropoffLabel,
   );
 }
 
@@ -174,7 +184,7 @@ class RequestCubit extends Cubit<RequestState> {
     try {
       final here = await _location.current();
       if (isClosed) return;
-      emit(state.copyWith(pickup: here, locating: false, editing: RequestPoint.dropoff));
+      emit(state.copyWith(pickup: here, pickupLabel: () => null, locating: false, editing: RequestPoint.dropoff));
       await _requote();
     } on LocationUnavailable catch (e) {
       if (isClosed) return;
@@ -185,11 +195,22 @@ class RequestCubit extends Cubit<RequestState> {
   void edit(RequestPoint point) => emit(state.copyWith(editing: point));
 
   /// Toque en el mapa: fija el punto que se está editando y vuelve a cotizar.
-  Future<void> setPoint(GeoPoint point) async {
+  Future<void> setPoint(GeoPoint point) => _setPoint(point, null);
+
+  /// 010: lugar elegido en el buscador (FR-014); se cotiza igual que con el mapa.
+  Future<void> setPlace(Place place) => _setPoint(place.point, place.label);
+
+  Future<void> _setPoint(GeoPoint point, String? label) async {
     if (state.editing == RequestPoint.pickup) {
-      emit(state.copyWith(pickup: point, editing: state.dropoff == null ? RequestPoint.dropoff : RequestPoint.pickup));
+      emit(
+        state.copyWith(
+          pickup: point,
+          pickupLabel: () => label,
+          editing: state.dropoff == null ? RequestPoint.dropoff : RequestPoint.pickup,
+        ),
+      );
     } else {
-      emit(state.copyWith(dropoff: point));
+      emit(state.copyWith(dropoff: point, dropoffLabel: () => label));
     }
     await _requote();
   }

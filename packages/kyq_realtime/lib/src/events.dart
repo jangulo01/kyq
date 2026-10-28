@@ -59,6 +59,8 @@ sealed class RealtimeEvent {
         tripsTogether: data['trips_together'] as int? ?? 0,
         pickupDistanceM: data['pickup_distance_m'] as int?,
         preferentialDiscountPct: data['preferential_discount_pct'] as int? ?? 0,
+        reservation: data['reservation'] as bool? ?? false,
+        clientNote: data['client_note'] as String?,
       ),
       'trip.delegated' => TripDelegated(
         at,
@@ -187,6 +189,17 @@ sealed class RealtimeEvent {
         endsAt: DateTime.parse(data['ends_at'] as String),
       ),
       'megaphone.ended' => MegaphoneEnded(at, broadcastId: data['broadcast_id'] as String),
+      'reservation.updated' => ReservationUpdated(
+        at,
+        reservationId: data['reservation_id'] as String,
+        status: data['status'] as String? ?? '',
+      ),
+      'reservation.notice' => ReservationNotice(
+        at,
+        reservationId: data['reservation_id'] as String,
+        status: data['status'] as String? ?? '',
+        message: data['message'] as String? ?? '',
+      ),
       _ => UnknownEvent(at, type: type, data: data),
     };
   }
@@ -237,6 +250,8 @@ final class TripOffered extends RealtimeEvent {
     this.tripsTogether = 0,
     this.pickupDistanceM,
     this.preferentialDiscountPct = 0,
+    this.reservation = false,
+    this.clientNote,
   });
 
   final String tripId;
@@ -271,6 +286,12 @@ final class TripOffered extends RealtimeEvent {
 
   /// 008: descuento preferencial ya aplicado a [suggestedFareMinor] (RN-KYQ-013).
   final int preferentialDiscountPct;
+
+  /// 010: la oferta cumple una reserva de la agenda.
+  final bool reservation;
+
+  /// 010: nota privada del conductor sobre este cliente (solo llega al conductor).
+  final String? clientNote;
 }
 
 /// 008: origen de una oferta de viaje.
@@ -586,6 +607,23 @@ final class MegaphoneEnded extends RealtimeEvent {
   const MegaphoneEnded(super.occurredAt, {required this.broadcastId});
 
   final String broadcastId;
+}
+
+/// 010: una reserva cambió de estado (a las dos partes).
+final class ReservationUpdated extends RealtimeEvent {
+  const ReservationUpdated(super.occurredAt, {required this.reservationId, required this.status});
+
+  final String reservationId;
+  final String status;
+}
+
+/// 010: aviso para el pasajero sobre su reserva (recordatorio, vencida, conductor no disponible).
+final class ReservationNotice extends RealtimeEvent {
+  const ReservationNotice(super.occurredAt, {required this.reservationId, required this.status, required this.message});
+
+  final String reservationId;
+  final String status;
+  final String message;
 }
 
 final class UnknownEvent extends RealtimeEvent {

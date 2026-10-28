@@ -356,4 +356,36 @@ void main() {
     expect(started.endsAt, DateTime.utc(2026, 10, 27, 12, 1));
     expect(RealtimeEvent.fromEnvelope(envelope('megaphone.ended', {'broadcast_id': 'b1'})), isA<MegaphoneEnded>());
   });
+
+  test('010: reservas y nota en la oferta', () {
+    expect(
+      RealtimeEvent.fromEnvelope(envelope('reservation.updated', {'reservation_id': 'r1', 'status': 'confirmed'})),
+      isA<ReservationUpdated>().having((e) => e.status, 'status', 'confirmed'),
+    );
+    expect(
+      RealtimeEvent.fromEnvelope(
+        envelope('reservation.notice', {'reservation_id': 'r1', 'status': 'missed', 'message': 'Tu conductor no está'}),
+      ),
+      isA<ReservationNotice>().having((e) => e.message, 'message', 'Tu conductor no está'),
+    );
+    final offer =
+        RealtimeEvent.fromEnvelope(
+              envelope('trip.offer', {
+                'trip_id': 't1',
+                'passenger_name': 'Ana',
+                'pickup': {'lat': 4.6, 'lng': -74.08},
+                'dropoff': {'lat': 4.65, 'lng': -74.05},
+                'distance_m': 5200,
+                'duration_s': 900,
+                'suggested_fare_minor': 1320000,
+                'currency': 'COP',
+                'expires_at': '2026-10-27T12:00:25Z',
+                'reservation': true,
+                'client_note': 'Portería 2',
+              }),
+            )
+            as TripOffered;
+    expect(offer.reservation, isTrue);
+    expect(offer.clientNote, 'Portería 2');
+  });
 }

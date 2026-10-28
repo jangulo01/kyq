@@ -8,6 +8,7 @@ import '../background/location_reporter.dart';
 import '../background/online_permissions.dart';
 import '../handsfree/platform_hands_free.dart';
 import '../onboarding/photo_source.dart';
+import '../onboarding/scan/document_scanner.dart';
 import '../realtime/driver_events.dart';
 import '../safety/platform_safety.dart';
 import '../subscription/checkout_launcher.dart';
@@ -22,6 +23,7 @@ class DriverServices {
     required this.positions,
     required this.ptt,
     required this.photos,
+    required this.scanner,
     required this.checkout,
     required this.preconsultPtt,
     required this.handsFree,
@@ -39,6 +41,7 @@ class DriverServices {
     positions: GeolocatorPositionSource(),
     ptt: PttController.live,
     photos: PlatformPhotoSource(),
+    scanner: const MlKitDocumentScanner(),
     checkout: const CustomTabCheckout(),
     preconsultPtt: PttController.livePreconsult,
     handsFree: const MethodChannelHandsFree(),
@@ -58,6 +61,9 @@ class DriverServices {
 
   /// Fotos de los documentos (T017).
   final PhotoSource photos;
+
+  /// Escáner de documentos con recorte manual de respaldo (010).
+  final DocumentScanner scanner;
 
   /// Checkout de Bold (T032).
   final CheckoutLauncher checkout;

@@ -6,6 +6,7 @@ export 'src/cooperative_models.dart';
 export 'src/domain_rotator.dart';
 export 'src/kyq_api_client.dart';
 export 'src/models.dart';
+export 'src/native_models.dart';
 export 'src/onboarding_models.dart';
 export 'src/ops_models.dart';
 export 'src/preconsult_models.dart';

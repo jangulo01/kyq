@@ -136,6 +136,16 @@ class HomePage extends StatelessWidget {
             ),
             Card(
               child: ListTile(
+                key: const Key('home.agenda'),
+                leading: const Icon(Icons.event_note),
+                title: const Text('Agenda'),
+                subtitle: const Text('Reservas de tus clientes: acéptalas y te avisamos antes'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => context.push('/agenda'),
+              ),
+            ),
+            Card(
+              child: ListTile(
                 key: const Key('home.dispatch'),
                 leading: const Icon(Icons.tune),
                 title: const Text('Despacho y tarifas'),

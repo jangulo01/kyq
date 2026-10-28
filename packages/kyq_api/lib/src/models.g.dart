@@ -145,6 +145,18 @@ Map<String, dynamic> _$AdminDriverToJson(_AdminDriver instance) => <String, dyna
   'documents': instance.documents.map((e) => e.toJson()).toList(),
 };
 
+_DriverZone _$DriverZoneFromJson(Map<String, dynamic> json) => _DriverZone(
+  cell: json['cell'] as String,
+  lat: (json['lat'] as num).toDouble(),
+  lng: (json['lng'] as num).toDouble(),
+);
+
+Map<String, dynamic> _$DriverZoneToJson(_DriverZone instance) => <String, dynamic>{
+  'cell': instance.cell,
+  'lat': instance.lat,
+  'lng': instance.lng,
+};
+
 _ChosenDriver _$ChosenDriverFromJson(Map<String, dynamic> json) => _ChosenDriver(
   driverId: json['driver_id'] as String,
   displayName: json['display_name'] as String,
@@ -154,6 +166,7 @@ _ChosenDriver _$ChosenDriverFromJson(Map<String, dynamic> json) => _ChosenDriver
   cooperative: json['cooperative'] == null
       ? null
       : CooperativeRef.fromJson(json['cooperative'] as Map<String, dynamic>),
+  zone: json['zone'] == null ? null : DriverZone.fromJson(json['zone'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$ChosenDriverToJson(_ChosenDriver instance) => <String, dynamic>{
@@ -163,6 +176,7 @@ Map<String, dynamic> _$ChosenDriverToJson(_ChosenDriver instance) => <String, dy
   'presence': _$DriverPresenceEnumMap[instance.presence]!,
   'busy_until_estimate': instance.busyUntilEstimate?.toIso8601String(),
   'cooperative': instance.cooperative?.toJson(),
+  'zone': instance.zone?.toJson(),
 };
 
 _FareTableInput _$FareTableInputFromJson(Map<String, dynamic> json) => _FareTableInput(

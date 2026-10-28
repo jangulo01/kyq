@@ -21,6 +21,12 @@ class MockApi extends Mock implements KyqApiClient {
   Future<List<TripPayment>> pendingTripPayments() async => pending;
 
   List<TripPayment> pending = const [];
+
+  // Ni reservas (010).
+  @override
+  Future<List<Reservation>> reservations() async => reservationList;
+
+  List<Reservation> reservationList = const [];
 }
 
 /// Tiempo real en memoria: las pruebas empujan eventos con [emit].

@@ -11,13 +11,19 @@ import '../chosen_drivers/chosen_drivers_cubit.dart';
 import '../chosen_drivers/chosen_drivers_page.dart';
 import '../chosen_drivers/scan_cubit.dart';
 import '../chosen_drivers/scan_page.dart';
+import '../map/trip_map.dart';
 import '../payments/pending_payments_cubit.dart';
+import '../places/saved_places.dart';
 import '../preconsult/preconsult_cubit.dart';
 import '../preconsult/preconsult_page.dart';
 import '../realtime/realtime_events.dart';
 import '../request/location_source.dart';
 import '../request/request_cubit.dart';
 import '../request/request_page.dart';
+import '../reservations/booking_cubit.dart';
+import '../reservations/booking_page.dart';
+import '../reservations/reservations_cubit.dart';
+import '../reservations/reservations_page.dart';
 import '../safety/platform_safety.dart';
 import '../trip/checkout_launcher.dart';
 import '../trip/trip_cubit.dart';
@@ -71,6 +77,9 @@ class KyqRiderApp extends StatefulWidget {
     this.preconsultPtt = PttController.livePreconsult,
     this.safety,
     this.checkout = const CustomTabCheckout(),
+    this.places = const SharedPrefsSavedPlaces(),
+    this.map = maplibreTripMap,
+    this.pickDateTime = materialDateTimePicker,
   });
 
   final KyqApiClient api;
@@ -89,6 +98,15 @@ class KyqRiderApp extends StatefulWidget {
 
   /// Checkout de Bold para pagar el viaje (004); las pruebas pasan un falso.
   final CheckoutLauncher checkout;
+
+  /// Casa, Trabajo y destinos recientes (010); las pruebas pasan uno en memoria.
+  final SavedPlacesStore places;
+
+  /// Mapa del inicio (pines dorados, 010); las pruebas lo sustituyen.
+  final TripMapBuilder map;
+
+  /// Fecha y hora de una reserva; las pruebas no abren los diálogos.
+  final DateTimePicker pickDateTime;
 
   @override
   State<KyqRiderApp> createState() => _KyqRiderAppState();
@@ -117,10 +135,35 @@ class _KyqRiderAppState extends State<KyqRiderApp> {
               create: (context) =>
                   PendingPaymentsCubit(context.read<KyqApiClient>(), realtime: context.read<RealtimeEvents>())..start(),
             ),
+            BlocProvider(
+              create: (context) =>
+                  ReservationsCubit(context.read<KyqApiClient>(), realtime: context.read<RealtimeEvents>())..start(),
+            ),
           ],
-          child: const ChosenDriversPage(),
+          child: ChosenDriversPage(map: widget.map),
         ),
         routes: [
+          // 010: reservar con un Conductor Elegido y "Mis reservas" (US1).
+          GoRoute(
+            path: 'book/:driverId',
+            builder: (context, state) => BlocProvider(
+              create: (context) => BookingCubit(
+                api: context.read<KyqApiClient>(),
+                location: widget.location,
+                driverId: state.pathParameters['driverId']!,
+                driverName: state.uri.queryParameters['name'] ?? 'tu conductor',
+              )..start(),
+              child: BookingPage(pickDateTime: widget.pickDateTime),
+            ),
+          ),
+          GoRoute(
+            path: 'reservations',
+            builder: (context, state) => BlocProvider(
+              create: (context) =>
+                  ReservationsCubit(context.read<KyqApiClient>(), realtime: context.read<RealtimeEvents>())..start(),
+              child: const ReservationsPage(),
+            ),
+          ),
           GoRoute(path: 'scan', builder: (context, state) => const ScanPage()),
           GoRoute(
             path: 'affiliate/:token',
@@ -244,6 +287,7 @@ class _KyqRiderAppState extends State<KyqRiderApp> {
       providers: [
         RepositoryProvider.value(value: widget.api),
         RepositoryProvider<RealtimeEvents>.value(value: widget.realtime),
+        RepositoryProvider<SavedPlacesStore>.value(value: widget.places),
       ],
       child: BlocProvider.value(
         value: widget.auth,

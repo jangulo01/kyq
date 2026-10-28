@@ -22,6 +22,8 @@ class Offer {
     this.tripsTogether = 0,
     this.pickupDistanceM,
     this.preferentialDiscountPct = 0,
+    this.reservation = false,
+    this.clientNote,
   });
 
   factory Offer.fromEvent(TripOffered e) => Offer(
@@ -43,6 +45,8 @@ class Offer {
     tripsTogether: e.tripsTogether,
     pickupDistanceM: e.pickupDistanceM,
     preferentialDiscountPct: e.preferentialDiscountPct,
+    reservation: e.reservation,
+    clientNote: e.clientNote,
   );
 
   final String tripId;
@@ -72,8 +76,15 @@ class Offer {
   /// 008: descuento preferencial ya aplicado a [suggestedFareMinor] (RN-KYQ-013).
   final int preferentialDiscountPct;
 
+  /// 010: cumple una reserva de la agenda.
+  final bool reservation;
+
+  /// 010: nota privada del conductor sobre el cliente.
+  final String? clientNote;
+
   /// Etiqueta de la tarjeta de oferta (FR-005–FR-007), o null si no lleva.
   String? get label {
+    if (reservation) return '📅 Reserva de tu agenda';
     if (loyalClient) {
       final together = switch (tripsTogether) {
         0 => '',
