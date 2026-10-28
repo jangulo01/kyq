@@ -11,6 +11,10 @@ class MockApi extends Mock implements KyqApiClient {
   // La pantalla de inicio siempre pregunta por un viaje en curso; por defecto no hay ninguno.
   @override
   Future<Trip?> activeTrip() async => null;
+
+  // Pantalla del viaje: por defecto no hay alerta SOS abierta (003).
+  @override
+  Future<SosAlertSelf?> activeSos() async => null;
 }
 
 /// Tiempo real en memoria: las pruebas empujan eventos con [emit].

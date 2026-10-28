@@ -66,12 +66,21 @@ services:
       KYQ_BOLD_ENV: ${KYQ_BOLD_ENV:-}
       KYQ_BOLD_IDENTITY_KEY: ${KYQ_BOLD_IDENTITY_KEY:-}
       KYQ_BOLD_SECRET_KEY: ${KYQ_BOLD_SECRET_KEY:-}
+      # SOS (003): enlaces de viaje compartido que reciben los contactos, estilo del mapa de esa
+      # página y grabaciones en el bucket kyq-sos (KYQ_SOS_RECORDING=false si egress no corre).
+      KYQ_PUBLIC_BASE_URL: ${KYQ_PUBLIC_BASE_URL:-http://${KYQ_PUBLIC_HOST}:8080}
+      KYQ_MAP_STYLE_URL: ${KYQ_MAP_STYLE_URL:-}
+      KYQ_S3_SOS_BUCKET: kyq-sos
+      KYQ_SOS_RECORDING: ${KYQ_SOS_RECORDING:-true}
+      KYQ_TWILIO_SMS_FROM: ${KYQ_TWILIO_SMS_FROM:-}
     ports:
       - "8080:8080"
     depends_on:
       migrate:
         condition: service_completed_successfully
       minio-init:
+        condition: service_completed_successfully
+      minio-init-sos:
         condition: service_completed_successfully
     restart: unless-stopped
 
@@ -95,6 +104,17 @@ services:
   minio-init:
     image: cgr.dev/chainguard/minio-client@sha256:799a60aa839c0d79b53f1dccdddc974d0fe94282cca712fbfbad3b196f88d0ee
     command: ["mb", "--ignore-existing", "local/${KYQ_S3_BUCKET:-kyq-kyc}"]
+    environment:
+      MC_HOST_local: http://${KYQ_S3_ACCESS_KEY}:${KYQ_S3_SECRET_KEY}@minio:9000
+    depends_on:
+      - minio
+    restart: on-failure
+
+  # Bucket privado de las grabaciones SOS (003, FR-018). La API le pone al arrancar la regla de
+  # ciclo de vida que borra el audio a los 90 días (storage.EnsureExpiry, también válida en R2).
+  minio-init-sos:
+    image: cgr.dev/chainguard/minio-client@sha256:799a60aa839c0d79b53f1dccdddc974d0fe94282cca712fbfbad3b196f88d0ee
+    command: ["mb", "--ignore-existing", "local/kyq-sos"]
     environment:
       MC_HOST_local: http://${KYQ_S3_ACCESS_KEY}:${KYQ_S3_SECRET_KEY}@minio:9000
     depends_on:
@@ -125,6 +145,34 @@ services:
       - "7880:7880"
       - "7881:7881"
       - "7882:7882/udp"
+    depends_on:
+      - redis
+    restart: unless-stopped
+
+  # Redis: lo exigen LiveKit Egress y el servidor LiveKit para comunicarse con él (003, solo para
+  # grabar el audio SOS; ver Complexity Tracking del plan).
+  redis:
+    image: redis:7.4.1-alpine
+    command: redis-server --save "" --appendonly no
+    restart: unless-stopped
+
+  # Grabación del audio de las salas SOS (RoomCompositeEgress solo audio, OGG) hacia el bucket
+  # kyq-sos de MinIO. La configuración no secreta está en egress.yaml; las credenciales S3 llegan
+  # por las variables estándar de AWS que egress usa cuando egress.yaml no las trae.
+  egress:
+    image: livekit/egress:v1.9.0
+    environment:
+      EGRESS_CONFIG_FILE: /etc/egress.yaml
+      AWS_ACCESS_KEY_ID: ${KYQ_S3_ACCESS_KEY}
+      AWS_SECRET_ACCESS_KEY: ${KYQ_S3_SECRET_KEY}
+    volumes:
+      - ./egress.yaml:/etc/egress.yaml:ro
+    cap_add:
+      - SYS_ADMIN
+    depends_on:
+      - redis
+      - livekit
+      - minio-init-sos
     restart: unless-stopped
 
   osrm:

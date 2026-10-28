@@ -47,6 +47,28 @@ func TestAuthorize(t *testing.T) {
 	assert.ErrorIs(t, empty.Authorize(ctx, me, "trip:"+trip.String()), ErrForbiddenChannel, "sin verificador se deniega")
 }
 
+type fakeOperators map[uuid.UUID]bool
+
+func (f fakeOperators) IsEmergencyOperator(_ context.Context, user uuid.UUID) (bool, error) {
+	return f[user], nil
+}
+
+// 003: la cola de la consola y la ubicación de cada alerta son solo para operadores (FR-006,
+// FR-012).
+func TestAuthorizeEmergencyChannels(t *testing.T) {
+	ctx := context.Background()
+	operator, admin, passenger, alert := uuid.New(), uuid.New(), uuid.New(), uuid.New()
+	a := Authorizer{Operators: fakeOperators{operator: true}}
+	assert.NoError(t, a.Authorize(ctx, operator, OpsSOSChannel))
+	assert.NoError(t, a.Authorize(ctx, operator, "sos:"+alert.String()))
+	for _, user := range []uuid.UUID{admin, passenger} {
+		assert.ErrorIs(t, a.Authorize(ctx, user, OpsSOSChannel), ErrForbiddenChannel)
+		assert.ErrorIs(t, a.Authorize(ctx, user, "sos:"+alert.String()), ErrForbiddenChannel)
+	}
+	assert.ErrorIs(t, a.Authorize(ctx, operator, "ops:otra"), ErrForbiddenChannel)
+	assert.ErrorIs(t, Authorizer{}.Authorize(ctx, operator, OpsSOSChannel), ErrForbiddenChannel, "sin verificador se deniega")
+}
+
 func TestPublish(t *testing.T) {
 	var got struct {
 		Channel string `json:"channel"`

@@ -4,4 +4,5 @@ library;
 export 'src/kyq_api_client.dart';
 export 'src/models.dart';
 export 'src/onboarding_models.dart';
+export 'src/safety_models.dart';
 export 'src/token_store.dart';

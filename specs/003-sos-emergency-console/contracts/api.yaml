@@ -1,0 +1,541 @@
+openapi: 3.1.0
+info:
+  title: Kyq API — SOS, viaje compartido y consola de emergencias (003)
+  version: 0.3.0
+  description: |
+    Rutas nuevas de 003. Ya están fusionadas en el contrato principal
+    (`specs/001-chosen-driver-trip-ptt/contracts/api.yaml`), que es el que validan las pruebas de
+    contrato del backend; este archivo es la vista de 003. Convenciones de autenticación y
+    errores: las de 001.
+
+    - `/v1/trips/{tripId}/sos`, `/v1/trips/{tripId}/share`, `/v1/sos/*` y `/v1/me/*`: rol
+      `passenger` o `driver`; quien no es parte del viaje o de la alerta recibe `404`.
+    - `/v1/ops/*`: rol `admin` con permiso de operador de emergencias (`403
+      not_emergency_operator`); cada acceso y acción queda en `sos_audit` (FR-012).
+    - `/v1/share/{token}` y `/s/{token}`: públicas, sin cuenta (FR-014).
+    - Tiempo real: `ops:sos` y `sos:{alertId}` (solo operadores) y `sos.closed` en
+      `user:{raisedBy}`; ver `specs/001-chosen-driver-trip-ptt/contracts/realtime.md`.
+servers:
+  - url: http://localhost:8080
+security:
+  - bearer: []
+
+paths:
+  /v1/trips/{tripId}/sos:
+    post:
+      summary: Activa el SOS del llamante en el viaje (RN-KYQ-015, FR-001..FR-004)
+      description: |
+        Solo pasajero o conductor del viaje, desde ACCEPTED hasta 15 min después de COMPLETED.
+        Crea la alerta, la sala de voz `sos-{alertId}` (la persona publica micrófono desde el
+        inicio) y la grabación; avisa a la consola (`ops:sos`) y por SMS a los contactos de
+        emergencia. La otra parte del viaje no recibe nada (FR-006). Si ya hay una alerta abierta
+        de la persona en el viaje la devuelve con 200.
+      parameters: [ { $ref: '#/components/parameters/TripId' } ]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                location: { $ref: '#/components/schemas/SosPoint' }
+      responses:
+        '201':
+          description: Alerta creada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SosRaise' }
+        '200':
+          description: Ya había una alerta abierta
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SosRaise' }
+        '400': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { description: 'Fuera de la ventana del viaje, `sos_unavailable` (la app ofrece llamar al 123)' }
+  /v1/sos/active:
+    get:
+      summary: Alerta abierta del llamante, para retomarla al reabrir la app
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SosAlertSelf' }
+        '204': { description: Sin alerta abierta }
+        '403': { $ref: '#/components/responses/Error' }
+  /v1/sos/{alertId}/locations:
+    post:
+      summary: Lote de 1 a 5 ubicaciones (cada segundo) de quien activó la alerta (FR-003)
+      parameters: [ { $ref: '#/components/parameters/AlertId' } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [points]
+              properties:
+                points:
+                  type: array
+                  minItems: 1
+                  maxItems: 5
+                  items: { $ref: '#/components/schemas/SosPoint' }
+      responses:
+        '200':
+          description: Guardadas; el cuerpo dice si ya hay operador o si se escaló
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SosAlertSelf' }
+        '400': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '410': { description: 'Alerta cerrada, `sos_closed`: la app deja de enviar' }
+        '403': { $ref: '#/components/responses/Error' }
+  /v1/sos/{alertId}/cancel:
+    post:
+      summary: Estoy bien, cancela solo con el PIN de seguridad (FR-005)
+      parameters: [ { $ref: '#/components/parameters/AlertId' } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [pin]
+              properties:
+                pin: { type: string }
+      responses:
+        '204': { description: Cancelada por el usuario }
+        '403':
+          description: |
+            `invalid_pin` o `no_pin`: la alerta sigue abierta y queda marcada como cancelación
+            sin PIN para el operador.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '410': { description: Alerta ya cerrada }
+        '423':
+          description: '5 intentos fallidos, `pin_locked`: solo el operador la cierra'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+  /v1/sos/{alertId}/token:
+    get:
+      summary: Credenciales de la sala SOS para reconectar (publica micrófono)
+      parameters: [ { $ref: '#/components/parameters/AlertId' } ]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SosVoice' }
+        '404': { $ref: '#/components/responses/Error' }
+        '410': { description: Alerta cerrada }
+        '503': { description: 'LiveKit no responde, `sos_voice_unavailable`' }
+        '403': { $ref: '#/components/responses/Error' }
+
+  /v1/trips/{tripId}/share:
+    post:
+      summary: Enlace del viaje en vivo del llamante (FR-013); el mismo si se pide otra vez
+      parameters: [ { $ref: '#/components/parameters/TripId' } ]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ShareLink' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { description: 'Viaje sin aceptar o terminado, `share_unavailable`' }
+        '403': { $ref: '#/components/responses/Error' }
+  /v1/share/{token}:
+    get:
+      summary: Vista pública del viaje compartido (sin cuenta), sondeada cada 3 s (FR-014, FR-015)
+      description: Sin teléfonos, documentos ni datos de pago. Terminado el viaje muestra `FINISHED` sin ubicación; 15 min después responde 410.
+      security: []
+      parameters: [ { $ref: '#/components/parameters/ShareToken' } ]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SharedTrip' }
+        '404': { $ref: '#/components/responses/Error' }
+        '410': { $ref: '#/components/responses/Error' }
+  /s/{token}:
+    get:
+      summary: Página HTML del viaje compartido (MapLibre GL JS, sin instalar nada)
+      security: []
+      parameters: [ { $ref: '#/components/parameters/ShareToken' } ]
+      responses:
+        '200':
+          description: Página
+          content:
+            text/html:
+              schema: { type: string }
+
+  /v1/me/emergency-contacts:
+    get:
+      summary: Contactos de emergencia del llamante (pasajero o conductor)
+      responses:
+        '200': { $ref: '#/components/responses/EmergencyContacts' }
+        '403': { $ref: '#/components/responses/Error' }
+    put:
+      summary: Reemplaza los contactos (máximo 3, teléfono E.164) (FR-016)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [contacts]
+              properties:
+                contacts:
+                  type: array
+                  items: { $ref: '#/components/schemas/EmergencyContact' }
+      responses:
+        '200': { $ref: '#/components/responses/EmergencyContacts' }
+        '400': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+  /v1/me/safety-pin:
+    get:
+      summary: Si el llamante tiene PIN de seguridad
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  has_pin: { type: boolean }
+        '403': { $ref: '#/components/responses/Error' }
+    put:
+      summary: Fija o cambia el PIN de 4 dígitos (bcrypt)
+      description: Cambiarlo exige `current_pin`. Con una alerta abierta no se puede fijar ni cambiar (`409 sos_active`).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [pin]
+              properties:
+                pin: { type: string }
+                current_pin: { type: [string, 'null'] }
+      responses:
+        '204': { description: Guardado }
+        '400': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+
+  /v1/ops/sos:
+    get:
+      summary: Cola de alertas abiertas o historial filtrable (FR-007)
+      description: Solo administradores con permiso de operador de emergencias (`403 not_emergency_operator`). Cada acceso queda auditado (FR-012).
+      parameters:
+        - { name: view, in: query, schema: { type: string, enum: [open, history], default: open } }
+        - { name: from, in: query, schema: { type: string, format: date }, description: 'Historial; por defecto hace 30 días' }
+        - { name: to, in: query, schema: { type: string, format: date }, description: 'Historial; incluido' }
+        - { name: outcome, in: query, schema: { $ref: '#/components/schemas/SosOutcome' } }
+      responses:
+        '200':
+          description: Abiertas (más antiguas primero) o cerradas (más recientes primero)
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/SosAlertSummary' } }
+        '400': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+  /v1/ops/sos/{alertId}:
+    get:
+      summary: Detalle de la alerta para el operador (FR-009)
+      parameters: [ { $ref: '#/components/parameters/AlertId' } ]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SosAlertDetail' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+  /v1/ops/sos/{alertId}/claim:
+    post:
+      summary: Toma la alerta y concede hablar en la sala (FR-008); repetirla vuelve a conceder la voz
+      parameters: [ { $ref: '#/components/parameters/AlertId' } ]
+      responses:
+        '200':
+          description: Tomada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SosAlertSummary' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '410': { $ref: '#/components/responses/Error' }
+        '503': { description: 'Tomada, pero LiveKit no concedió la voz; reintentar, `sos_voice_unavailable`' }
+  /v1/ops/sos/{alertId}/release:
+    post:
+      summary: Libera la alerta y retira la voz
+      parameters: [ { $ref: '#/components/parameters/AlertId' } ]
+      responses:
+        '204': { description: Liberada }
+        '403': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '503': { description: 'LiveKit no confirmó la retirada: sigue tomada' }
+  /v1/ops/sos/{alertId}/notes:
+    post:
+      summary: Nota con hora (FR-010)
+      parameters: [ { $ref: '#/components/parameters/AlertId' } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [body]
+              properties:
+                body: { type: string }
+      responses:
+        '201':
+          description: Creada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SosNote' }
+        '400': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+  /v1/ops/sos/{alertId}/close:
+    post:
+      summary: Cierra el caso con desenlace obligatorio (FR-010); solo quien la tomó
+      description: Detiene la ubicación de la app (`410` en el siguiente lote y `sos.closed` en `user:{id}`), borra la sala y detiene la grabación.
+      parameters: [ { $ref: '#/components/parameters/AlertId' } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [outcome]
+              properties:
+                outcome: { type: string, description: 'false_alarm | resolved | escalated_authorities | no_response' }
+      responses:
+        '204': { description: Cerrada }
+        '400': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '410': { $ref: '#/components/responses/Error' }
+  /v1/ops/sos/{alertId}/token:
+    post:
+      summary: Credenciales del operador para escuchar la sala (hablar exige tomar la alerta)
+      parameters: [ { $ref: '#/components/parameters/AlertId' } ]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SosVoice' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '410': { $ref: '#/components/responses/Error' }
+        '503': { description: LiveKit no responde }
+  /v1/ops/duty:
+    get:
+      summary: Si el operador está de guardia (recibe la escalada por SMS a los 60 s, FR-011)
+      responses:
+        '200': { $ref: '#/components/responses/Duty' }
+        '403': { $ref: '#/components/responses/Error' }
+    put:
+      summary: Entra o sale de guardia
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [on_duty]
+              properties:
+                on_duty: { type: boolean }
+      responses:
+        '200': { $ref: '#/components/responses/Duty' }
+        '403': { $ref: '#/components/responses/Error' }
+
+components:
+  securitySchemes:
+    bearer: { type: http, scheme: bearer, bearerFormat: JWT }
+
+  parameters:
+    TripId: { name: tripId, in: path, required: true, schema: { type: string, format: uuid } }
+    AlertId: { name: alertId, in: path, required: true, schema: { type: string, format: uuid } }
+    ShareToken: { name: token, in: path, required: true, schema: { type: string } }
+
+  responses:
+    Error:
+      description: Error
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    EmergencyContacts:
+      description: OK
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              contacts: { type: array, items: { $ref: '#/components/schemas/EmergencyContact' } }
+    Duty:
+      description: OK
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              on_duty: { type: boolean }
+
+  schemas:
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code: { type: string }
+        message: { type: string }
+    Point:
+      type: object
+      required: [lat, lng]
+      properties:
+        lat: { type: number, minimum: -90, maximum: 90 }
+        lng: { type: number, minimum: -180, maximum: 180 }
+    SosPoint:
+      type: object
+      required: [lat, lng]
+      properties:
+        lat: { type: number }
+        lng: { type: number }
+        accuracy_m: { type: [number, 'null'], minimum: 0 }
+        recorded_at: { type: string, format: date-time, description: 'Futura o ausente: se toma la hora del servidor' }
+    SosLocation:
+      type: object
+      properties:
+        lat: { type: number }
+        lng: { type: number }
+        accuracy_m: { type: [number, 'null'] }
+        at: { type: string, format: date-time }
+    SosStatus: { type: string, enum: [open, claimed, closed, cancelled_by_user] }
+    SosOutcome: { type: string, enum: [false_alarm, resolved, escalated_authorities, no_response] }
+    SosAlertSelf:
+      type: object
+      description: Lo que ve quien activó la alerta
+      properties:
+        id: { type: string, format: uuid }
+        trip_id: { type: string, format: uuid }
+        status: { $ref: '#/components/schemas/SosStatus' }
+        operator_connected: { type: boolean, description: 'Un operador tomó la alerta' }
+        escalated: { type: boolean, description: 'Pasó 60 s sin operador: «Seguimos intentando conectar»' }
+        created_at: { type: string, format: date-time }
+    SosVoice:
+      type: object
+      properties:
+        url: { type: string }
+        token: { type: string }
+        room: { type: string, example: 'sos-0192...' }
+        can_publish: { type: boolean }
+    SosRaise:
+      type: object
+      properties:
+        alert: { $ref: '#/components/schemas/SosAlertSelf' }
+        voice:
+          description: Null si LiveKit no respondió; la app pide GET /v1/sos/{alertId}/token
+          oneOf:
+            - { $ref: '#/components/schemas/SosVoice' }
+            - { type: 'null' }
+        needs_pin: { type: boolean, description: 'Sin PIN: pedir configurarlo al terminar (US4-3)' }
+    SosAlertSummary:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        trip_id: { type: string, format: uuid }
+        raised_role: { type: string, enum: [passenger, driver] }
+        raised_by_name: { type: string }
+        status: { $ref: '#/components/schemas/SosStatus' }
+        cancel_without_pin: { type: boolean, description: 'Intento de cancelar sin PIN válido (posible coacción)' }
+        claimed_by: { type: [string, 'null'], format: uuid }
+        claimed_by_name: { type: [string, 'null'] }
+        outcome:
+          oneOf:
+            - { $ref: '#/components/schemas/SosOutcome' }
+            - { type: 'null' }
+        escalated: { type: boolean }
+        has_recording: { type: boolean }
+        created_at: { type: string, format: date-time }
+        claimed_at: { type: [string, 'null'], format: date-time }
+        closed_at: { type: [string, 'null'], format: date-time }
+        last_location:
+          oneOf:
+            - { $ref: '#/components/schemas/SosLocation' }
+            - { type: 'null' }
+    SosNote:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        operator_id: { type: string, format: uuid }
+        operator_name: { type: string }
+        body: { type: string }
+        created_at: { type: string, format: date-time }
+    SosAlertDetail:
+      allOf:
+        - $ref: '#/components/schemas/SosAlertSummary'
+        - type: object
+          properties:
+            raised_by_phone_e164: { type: string, description: 'Solo operadores, para llamar a la persona' }
+            emergency_contacts: { type: array, items: { $ref: '#/components/schemas/EmergencyContact' } }
+            trip:
+              type: object
+              properties:
+                status: { type: string }
+                pickup: { $ref: '#/components/schemas/Point' }
+                dropoff: { $ref: '#/components/schemas/Point' }
+            passenger:
+              type: object
+              properties:
+                user_id: { type: string, format: uuid }
+                name: { type: string }
+            driver:
+              type: object
+              properties:
+                user_id: { type: string, format: uuid }
+                name: { type: string }
+                vehicle_plate: { type: string }
+                vehicle_description: { type: string }
+                vehicle_brand: { type: [string, 'null'] }
+                vehicle_model: { type: [string, 'null'] }
+                vehicle_color: { type: [string, 'null'] }
+            track: { type: array, items: { $ref: '#/components/schemas/SosLocation' }, description: Recorrido desde el SOS }
+            notes: { type: array, items: { $ref: '#/components/schemas/SosNote' } }
+            related_alert_ids: { type: array, items: { type: string, format: uuid }, description: 'Otras alertas del mismo viaje' }
+            recording_url: { type: [string, 'null'], description: 'URL firmada de 5 min cuando la grabación existe (FR-018)' }
+            raised_by_alerts: { type: integer, description: 'Alertas de la persona (historial de abusos)' }
+            raised_by_false_alarms: { type: integer }
+    ShareLink:
+      type: object
+      properties:
+        token: { type: string, description: '128 bits aleatorios en base64url' }
+        url: { type: string, example: 'https://kyq.example/s/3q2-7wAAAAAAAAAAAAAAAA' }
+    SharedTrip:
+      type: object
+      description: Sin teléfonos, documentos ni pagos (FR-015)
+      properties:
+        status: { type: string, enum: [ACCEPTED, ARRIVED, IN_PROGRESS, FINISHED] }
+        finished: { type: boolean }
+        driver_name: { type: string }
+        vehicle_plate: { type: string }
+        vehicle_description: { type: string }
+        location:
+          oneOf:
+            - { $ref: '#/components/schemas/SosLocation' }
+            - { type: 'null' }
+    EmergencyContact:
+      type: object
+      required: [name, phone_e164]
+      properties:
+        name: { type: string }
+        phone_e164: { type: string }

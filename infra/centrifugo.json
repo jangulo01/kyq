@@ -7,7 +7,9 @@
     "namespaces": [
       { "name": "user", "history_size": 50, "history_ttl": "300s", "force_recovery": true },
       { "name": "driver_presence", "history_size": 1, "history_ttl": "300s", "force_recovery": true },
-      { "name": "trip", "history_size": 10, "history_ttl": "120s", "force_recovery": true }
+      { "name": "trip", "history_size": 10, "history_ttl": "120s", "force_recovery": true },
+      { "name": "ops", "history_size": 100, "history_ttl": "600s", "force_recovery": true },
+      { "name": "sos", "history_size": 30, "history_ttl": "120s", "force_recovery": true }
     ]
   }
 }

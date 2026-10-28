@@ -137,6 +137,11 @@ class _KyqDriverAppState extends State<KyqDriverApp> {
           GoRoute(path: 'clients', builder: (context, state) => const ClientsPage()),
           GoRoute(path: 'notices', builder: (context, state) => const NoticesPage()),
           GoRoute(
+            path: 'safety',
+            builder: (context, state) =>
+                BlocProvider(create: (_) => SafetyCubit(widget.api)..load(), child: const SafetyPage()),
+          ),
+          GoRoute(
             path: 'subscription',
             builder: (context, state) => BlocProvider(
               create: (_) => SubscriptionCubit(
@@ -169,8 +174,21 @@ class _KyqDriverAppState extends State<KyqDriverApp> {
                       _events.stream.where((e) => e is PttClosed && e.tripId == tripId),
                     ),
                   ),
+                  // SOS del conductor (003): el pasajero no ve nada de la alerta (FR-006).
+                  BlocProvider(create: (_) => widget.services.safety.sosFor(widget.api, tripId)),
                 ],
-                child: Builder(builder: (context) => TripPage(ptt: context.read<PttController>())),
+                child: Builder(
+                  builder: (context) => TripPage(
+                    ptt: context.read<PttController>(),
+                    safety: TripSafety(
+                      api: widget.api,
+                      tripId: tripId,
+                      sos: context.read<SosCubit>(),
+                      platform: widget.services.safety,
+                      onSetupPin: () => context.push('/safety'),
+                    ),
+                  ),
+                ),
               );
             },
           ),

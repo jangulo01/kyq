@@ -13,6 +13,7 @@ import (
 
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
+	"github.com/minio/minio-go/v7/pkg/lifecycle"
 )
 
 // ErrNotFound means the object does not exist.
@@ -96,6 +97,23 @@ func (s *S3) EnsureBucket(ctx context.Context) error {
 		return nil
 	}
 	return s.api.MakeBucket(ctx, s.bucket, minio.MakeBucketOptions{})
+}
+
+// EnsureExpiry makes the bucket delete every object days after it was written (S3 lifecycle,
+// also supported by R2). Idempotent: it replaces the bucket's lifecycle with this single rule.
+// The SOS recordings bucket keeps audio 90 days (003, FR-018).
+func (s *S3) EnsureExpiry(ctx context.Context, days int) error {
+	cfg := lifecycle.NewConfiguration()
+	cfg.Rules = []lifecycle.Rule{{
+		ID:         fmt.Sprintf("expire-%dd", days),
+		Status:     "Enabled",
+		RuleFilter: lifecycle.Filter{Prefix: ""},
+		Expiration: lifecycle.Expiration{Days: lifecycle.ExpirationDays(days)},
+	}}
+	if err := s.api.SetBucketLifecycle(ctx, s.bucket, cfg); err != nil {
+		return fmt.Errorf("s3 bucket lifecycle: %w", err)
+	}
+	return nil
 }
 
 func (s *S3) PresignPut(ctx context.Context, key, contentType string, ttl time.Duration) (string, error) {

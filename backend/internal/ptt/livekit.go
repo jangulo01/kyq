@@ -26,6 +26,9 @@ type Rooms interface {
 // errNotFound is a Twirp not_found answer (room or participant gone).
 var errNotFound = errors.New("livekit: not found")
 
+// errPrecondition is a Twirp failed_precondition answer (e.g. an egress already finished).
+var errPrecondition = errors.New("livekit: failed precondition")
+
 // LiveKit signs access tokens and calls the RoomService Twirp API. A small client instead of
 // the server SDK: three calls and one JWT are all the MVP needs.
 type LiveKit struct {
@@ -55,6 +58,7 @@ type videoGrant struct {
 	CanSubscribe      *bool    `json:"canSubscribe,omitempty"`
 	CanPublishData    *bool    `json:"canPublishData,omitempty"`
 	CanPublishSources []string `json:"canPublishSources,omitempty"`
+	RoomRecord        bool     `json:"roomRecord,omitempty"`
 }
 
 type claims struct {
@@ -114,6 +118,11 @@ func (l LiveKit) SetCanPublish(ctx context.Context, room, identity string, canPu
 }
 
 func (l LiveKit) call(ctx context.Context, method string, grant videoGrant, body any) error {
+	return l.twirp(ctx, "livekit.RoomService", method, grant, body, nil)
+}
+
+// twirp calls service/method with body and decodes the answer into out (nil: discarded).
+func (l LiveKit) twirp(ctx context.Context, service, method string, grant videoGrant, body, out any) error {
 	token, err := l.sign(claims{Video: grant}, time.Now(), time.Minute)
 	if err != nil {
 		return err
@@ -123,7 +132,7 @@ func (l LiveKit) call(ctx context.Context, method string, grant videoGrant, body
 		return err
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost,
-		strings.TrimRight(l.APIURL, "/")+"/twirp/livekit.RoomService/"+method, bytes.NewReader(payload))
+		strings.TrimRight(l.APIURL, "/")+"/twirp/"+service+"/"+method, bytes.NewReader(payload))
 	if err != nil {
 		return err
 	}
@@ -140,9 +149,17 @@ func (l LiveKit) call(ctx context.Context, method string, grant videoGrant, body
 	defer resp.Body.Close()
 	switch resp.StatusCode {
 	case http.StatusOK:
+		if out == nil {
+			return nil
+		}
+		if err := json.NewDecoder(resp.Body).Decode(out); err != nil {
+			return fmt.Errorf("livekit %s: decode: %w", method, err)
+		}
 		return nil
 	case http.StatusNotFound:
 		return errNotFound
+	case http.StatusPreconditionFailed:
+		return errPrecondition
 	}
 	return fmt.Errorf("livekit %s: status %d", method, resp.StatusCode)
 }

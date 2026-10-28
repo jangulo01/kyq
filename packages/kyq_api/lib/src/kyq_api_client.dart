@@ -4,6 +4,7 @@ import 'package:dio/dio.dart';
 
 import 'models.dart';
 import 'onboarding_models.dart';
+import 'safety_models.dart';
 import 'token_store.dart';
 
 /// Error de la API con el cuerpo `Error{code,message}` del contrato.
@@ -18,8 +19,31 @@ class ApiException implements Exception {
   String toString() => 'ApiException($statusCode, $code): $message';
 }
 
+/// Rutas de seguridad de las apps (003), detrás de una interfaz para probar sin red.
+abstract interface class SafetyApi {
+  Future<SosRaise> raiseSos(String tripId, {SosPoint? location});
+
+  Future<SosAlertSelf?> activeSos();
+
+  Future<SosAlertSelf> sendSosLocations(String alertId, List<SosPoint> points);
+
+  Future<void> cancelSos(String alertId, String pin);
+
+  Future<SosVoice> sosToken(String alertId);
+
+  Future<ShareLink> shareTrip(String tripId);
+
+  Future<List<EmergencyContact>> emergencyContacts();
+
+  Future<List<EmergencyContact>> setEmergencyContacts(List<EmergencyContact> contacts);
+
+  Future<bool> hasSafetyPin();
+
+  Future<void> setSafetyPin(String pin, {String? currentPin});
+}
+
 /// Cliente de la API Kyq. Añade el token de acceso y lo renueva una vez ante un 401.
-class KyqApiClient {
+class KyqApiClient implements SafetyApi {
   KyqApiClient({
     required String baseUrl,
     required TokenStore tokenStore,
@@ -342,6 +366,99 @@ class KyqApiClient {
 
   Future<void> releaseFloor(String tripId) => _send(() => _dio.delete<void>('/v1/trips/$tripId/ptt/floor'));
 
+  // Seguridad (003): SOS, viaje compartido, contactos y PIN
+
+  /// Activa el SOS en el viaje (o devuelve la alerta ya abierta). 409 `sos_unavailable` fuera
+  /// de la ventana del viaje: la app ofrece llamar al 123.
+  @override
+  Future<SosRaise> raiseSos(String tripId, {SosPoint? location}) async {
+    final res = await _send(
+      () => _dio.post<Map<String, dynamic>>(
+        '/v1/trips/$tripId/sos',
+        data: {if (location != null) 'location': _point(location)},
+      ),
+    );
+    return SosRaise.fromJson(res.data!);
+  }
+
+  /// Alerta abierta del usuario, o null.
+  @override
+  Future<SosAlertSelf?> activeSos() async {
+    final res = await _send(() => _dio.get<dynamic>('/v1/sos/active'));
+    final data = res.data;
+    return data is Map<String, dynamic> ? SosAlertSelf.fromJson(data) : null;
+  }
+
+  /// Envía un lote de 1 a 5 puntos. 410 `sos_closed` cuando el operador cerró el caso.
+  @override
+  Future<SosAlertSelf> sendSosLocations(String alertId, List<SosPoint> points) async {
+    final res = await _send(
+      () => _dio.post<Map<String, dynamic>>(
+        '/v1/sos/$alertId/locations',
+        data: {
+          'points': [for (final p in points) _point(p)],
+        },
+      ),
+    );
+    return SosAlertSelf.fromJson(res.data!);
+  }
+
+  /// "Estoy bien": 403 `invalid_pin`/`no_pin` o 423 `pin_locked` dejan la alerta abierta.
+  @override
+  Future<void> cancelSos(String alertId, String pin) =>
+      _send(() => _dio.post<void>('/v1/sos/$alertId/cancel', data: {'pin': pin}));
+
+  @override
+  Future<SosVoice> sosToken(String alertId) async {
+    final res = await _send(() => _dio.get<Map<String, dynamic>>('/v1/sos/$alertId/token'));
+    return SosVoice.fromJson(res.data!);
+  }
+
+  /// Enlace del viaje en vivo para compartir con un contacto de confianza.
+  @override
+  Future<ShareLink> shareTrip(String tripId) async {
+    final res = await _send(() => _dio.post<Map<String, dynamic>>('/v1/trips/$tripId/share'));
+    return ShareLink.fromJson(res.data!);
+  }
+
+  @override
+  Future<List<EmergencyContact>> emergencyContacts() async {
+    final res = await _send(() => _dio.get<dynamic>('/v1/me/emergency-contacts'));
+    return _list(res.data, 'contacts').map(EmergencyContact.fromJson).toList();
+  }
+
+  /// Reemplaza los contactos (máximo 3). 400 `invalid_contact` o `too_many_contacts`.
+  @override
+  Future<List<EmergencyContact>> setEmergencyContacts(List<EmergencyContact> contacts) async {
+    final res = await _send(
+      () => _dio.put<dynamic>(
+        '/v1/me/emergency-contacts',
+        data: {
+          'contacts': [for (final c in contacts) c.toJson()],
+        },
+      ),
+    );
+    return _list(res.data, 'contacts').map(EmergencyContact.fromJson).toList();
+  }
+
+  @override
+  Future<bool> hasSafetyPin() async {
+    final res = await _send(() => _dio.get<Map<String, dynamic>>('/v1/me/safety-pin'));
+    return res.data!['has_pin'] == true;
+  }
+
+  /// Fija el PIN de 4 dígitos; cambiarlo exige [currentPin] (403 `wrong_current_pin`).
+  @override
+  Future<void> setSafetyPin(String pin, {String? currentPin}) =>
+      _send(() => _dio.put<void>('/v1/me/safety-pin', data: {'pin': pin, 'current_pin': ?currentPin}));
+
+  Map<String, dynamic> _point(SosPoint p) => {
+    'lat': p.lat,
+    'lng': p.lng,
+    'accuracy_m': ?p.accuracyM,
+    'recorded_at': p.recordedAt.toUtc().toIso8601String(),
+  };
+
   Future<Trip> _trip(Future<Response<dynamic>> Function() request) async {
     final res = await _send(request);
     return Trip.fromJson(res.data as Map<String, dynamic>);
@@ -491,6 +608,67 @@ class KyqApiClient {
       () => _dio.get<dynamic>('/v1/admin/costs', queryParameters: {'month': formatApiMonth(month)}),
     );
     return _list(res.data, 'drivers').map(CostBreakdown.fromJson).toList();
+  }
+
+  // Consola de emergencias (003): administradores con permiso de operador
+
+  /// Cola de alertas abiertas, de la más antigua a la más reciente.
+  Future<List<SosAlertSummary>> opsOpenAlerts() async {
+    final res = await _send(() => _dio.get<dynamic>('/v1/ops/sos'));
+    return _list(res.data, 'alerts').map(SosAlertSummary.fromJson).toList();
+  }
+
+  /// Historial de alertas cerradas filtrado por fechas y desenlace.
+  Future<List<SosAlertSummary>> opsAlertHistory({DateTime? from, DateTime? to, SosOutcome? outcome}) async {
+    final res = await _send(
+      () => _dio.get<dynamic>(
+        '/v1/ops/sos',
+        queryParameters: {
+          'view': 'history',
+          if (from != null) 'from': formatApiDate(from),
+          if (to != null) 'to': formatApiDate(to),
+          if (outcome != null) 'outcome': sosOutcomeToApi(outcome),
+        },
+      ),
+    );
+    return _list(res.data, 'alerts').map(SosAlertSummary.fromJson).toList();
+  }
+
+  Future<SosAlertDetail> opsAlert(String alertId) async {
+    final res = await _send(() => _dio.get<Map<String, dynamic>>('/v1/ops/sos/$alertId'));
+    return SosAlertDetail.fromJson(res.data!);
+  }
+
+  /// Toma la alerta y concede la voz. 409 `sos_claimed` si la tiene otro operador.
+  Future<SosAlertSummary> opsClaim(String alertId) async {
+    final res = await _send(() => _dio.post<Map<String, dynamic>>('/v1/ops/sos/$alertId/claim'));
+    return SosAlertSummary.fromJson(res.data!);
+  }
+
+  Future<void> opsRelease(String alertId) => _send(() => _dio.post<void>('/v1/ops/sos/$alertId/release'));
+
+  Future<SosNote> opsAddNote(String alertId, String body) async {
+    final res = await _send(() => _dio.post<Map<String, dynamic>>('/v1/ops/sos/$alertId/notes', data: {'body': body}));
+    return SosNote.fromJson(res.data!);
+  }
+
+  Future<void> opsClose(String alertId, SosOutcome outcome) =>
+      _send(() => _dio.post<void>('/v1/ops/sos/$alertId/close', data: {'outcome': sosOutcomeToApi(outcome)}));
+
+  /// Credenciales para escuchar la sala; hablar exige [opsClaim].
+  Future<SosVoice> opsVoiceToken(String alertId) async {
+    final res = await _send(() => _dio.post<Map<String, dynamic>>('/v1/ops/sos/$alertId/token'));
+    return SosVoice.fromJson(res.data!);
+  }
+
+  Future<bool> opsOnDuty() async {
+    final res = await _send(() => _dio.get<Map<String, dynamic>>('/v1/ops/duty'));
+    return res.data!['on_duty'] == true;
+  }
+
+  Future<bool> opsSetOnDuty(bool onDuty) async {
+    final res = await _send(() => _dio.put<Map<String, dynamic>>('/v1/ops/duty', data: {'on_duty': onDuty}));
+    return res.data!['on_duty'] == true;
   }
 
   Future<Response<T>> _send<T>(Future<Response<T>> Function() request) async {

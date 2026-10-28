@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<title>Kyq · Viaje en vivo</title>
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" integrity="sha384-MinO0mNliZ3vwppuPOUnGa+iq619pfMhLVUXfC4LHwSCvF9H+6P/KO4Q7qBOYV5V" crossorigin="anonymous">
+<style>
+  :root { --bg: #ffffff; --fg: #1b1b1f; --muted: #5e5e66; --card: #ffffff; --accent: #2e6b3f; --line: #e2e2e8; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #121214; --fg: #ececf1; --muted: #a3a3ad; --card: #1c1c20; --accent: #7fd18f; --line: #2c2c33; }
+  }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--fg);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  #map { position: absolute; inset: 0; }
+  #card { position: absolute; left: 16px; right: 16px; bottom: 16px; max-width: 480px; margin: 0 auto;
+    background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px;
+    box-shadow: 0 4px 18px rgba(0,0,0,.18); }
+  #status { font-weight: 600; font-size: 1.05rem; margin: 0 0 4px; }
+  #driver { margin: 0; color: var(--muted); }
+  #plate { display: inline-block; margin-top: 8px; padding: 2px 10px; border-radius: 6px;
+    background: #f5c518; color: #111; font-weight: 700; letter-spacing: .08em; }
+  #updated { margin: 8px 0 0; font-size: .85rem; color: var(--muted); }
+  .hidden { display: none !important; }
+  #ended { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    text-align: center; padding: 16px; background: var(--bg); font-size: 1.2rem; }
+</style>
+</head>
+<body>
+<div id="map" data-tiles="{{.StyleURL}}"></div>
+<div id="card">
+  <p id="status">Cargando el viaje…</p>
+  <p id="driver"></p>
+  <span id="plate" class="hidden"></span>
+  <p id="updated"></p>
+</div>
+<div id="ended" class="hidden"><p id="ended-text">Viaje finalizado</p></div>
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js" integrity="sha384-SYKAG6cglRMN0RVvhNeBY0r3FYKNOJtznwA0v7B5Vp9tr31xAHsZC0DqkQ/pZDmj" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/pmtiles@3.2.1/dist/pmtiles.js" integrity="sha384-QfbOCebHNw8pQiPAOd2IFee2v2A5VYZxBk0+JGZ5H+3mfzVIp6zsQNkTsfGJot93" crossorigin="anonymous"></script>
+<script>
+(function () {
+  "use strict";
+  // El token va en la ruta /s/{token}; la página solo consulta la API pública del mismo origen.
+  var token = location.pathname.split("/").pop();
+  var labels = {
+    ACCEPTED: "El conductor va a recoger al pasajero",
+    ARRIVED: "El conductor llegó al punto de recogida",
+    IN_PROGRESS: "Viaje en curso",
+    FINISHED: "Viaje finalizado"
+  };
+  var mapEl = document.getElementById("map");
+  var style = mapEl.dataset.tiles || (location.protocol + "//" + location.hostname + ":8081/style.json");
+  var map = null, marker = null, centered = false, timer = null;
+  try {
+    // El estilo del servicio tiles lee city.pmtiles con peticiones Range (pmtiles://).
+    if (window.pmtiles) maplibregl.addProtocol("pmtiles", new pmtiles.Protocol().tile);
+    map = new maplibregl.Map({ container: "map", style: style, center: [-74.08, 4.65], zoom: 12, attributionControl: true });
+  } catch (e) {
+    map = null; // sin WebGL: se muestra solo la tarjeta
+  }
+
+  function text(id, value) { document.getElementById(id).textContent = value; }
+
+  function finish(message) {
+    if (timer) clearInterval(timer);
+    text("ended-text", message);
+    document.getElementById("ended").classList.remove("hidden");
+    document.getElementById("card").classList.add("hidden");
+  }
+
+  function render(trip) {
+    text("status", labels[trip.status] || "Viaje en curso");
+    text("driver", "Conductor: " + trip.driver_name + " · " + trip.vehicle_description);
+    var plate = document.getElementById("plate");
+    plate.textContent = trip.vehicle_plate;
+    plate.classList.remove("hidden");
+    if (trip.finished) {
+      finish("Viaje finalizado");
+      return;
+    }
+    if (!trip.location) {
+      text("updated", "Esperando la ubicación del vehículo…");
+      return;
+    }
+    var at = trip.location.at ? new Date(trip.location.at) : new Date();
+    text("updated", "Ubicación actualizada a las " + at.toLocaleTimeString("es-CO"));
+    if (!map) return;
+    var lngLat = [trip.location.lng, trip.location.lat];
+    if (!marker) {
+      marker = new maplibregl.Marker({ color: "#2e6b3f" }).setLngLat(lngLat).addTo(map);
+    } else {
+      marker.setLngLat(lngLat);
+    }
+    if (!centered) {
+      map.jumpTo({ center: lngLat, zoom: 15 });
+      centered = true;
+    } else if (!map.getBounds().contains(lngLat)) {
+      map.easeTo({ center: lngLat });
+    }
+  }
+
+  function poll() {
+    fetch("/v1/share/" + encodeURIComponent(token), { cache: "no-store", credentials: "omit" })
+      .then(function (r) {
+        if (r.status === 410) { finish("Viaje finalizado"); return null; }
+        if (r.status === 404) { finish("Este enlace no es válido"); return null; }
+        if (!r.ok) throw new Error("estado " + r.status);
+        return r.json();
+      })
+      .then(function (trip) { if (trip) render(trip); })
+      .catch(function () { text("updated", "Sin conexión; reintentando…"); });
+  }
+
+  poll();
+  timer = setInterval(poll, 3000);
+})();
+</script>
+</body>
+</html>

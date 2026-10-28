@@ -109,4 +109,55 @@ void main() {
   test('tipos nuevos no rompen la app', () {
     expect(RealtimeEvent.fromEnvelope(envelope('futuro.evento', {'x': 1})), isA<UnknownEvent>());
   });
+
+  group('sos (003)', () {
+    test('canales de la consola', () {
+      expect(Channels.opsSos, 'ops:sos');
+      expect(Channels.sos('a1'), 'sos:a1');
+    });
+
+    test('sos.created y sos.claimed', () {
+      final created = RealtimeEvent.fromEnvelope(
+        envelope('sos.created', {
+          'alert_id': 'a1',
+          'trip_id': 't1',
+          'raised_role': 'driver',
+          'raised_by_name': 'Carlos',
+          'created_at': '2026-10-27T12:00:00Z',
+          'location': null,
+        }),
+      );
+      expect(created, isA<SosCreated>().having((e) => e.raisedRole, 'role', 'driver'));
+      final claimed = RealtimeEvent.fromEnvelope(
+        envelope('sos.claimed', {'alert_id': 'a1', 'operator_id': 'op', 'operator_name': 'Lucía'}),
+      );
+      expect(claimed, isA<SosClaimed>().having((e) => e.operatorName, 'name', 'Lucía'));
+    });
+
+    test('sos.location, sos.cancel_attempt y sos.closed', () {
+      final loc = RealtimeEvent.fromEnvelope(
+        envelope('sos.location', {
+          'alert_id': 'a1',
+          'lat': 4.6,
+          'lng': -74.1,
+          'accuracy_m': null,
+          'at': '2026-10-27T12:00:01Z',
+        }),
+      );
+      expect(loc, isA<SosLocationUpdate>().having((e) => e.at, 'at', DateTime.utc(2026, 10, 27, 12, 0, 1)));
+      final attempt = RealtimeEvent.fromEnvelope(
+        envelope('sos.cancel_attempt', {
+          'alert_id': 'a1',
+          'cancel_without_pin': true,
+          'failed_attempts': 5,
+          'locked': true,
+        }),
+      );
+      expect(attempt, isA<SosCancelAttempt>().having((e) => e.locked, 'locked', isTrue));
+      final closed = RealtimeEvent.fromEnvelope(envelope('sos.closed', {'alert_id': 'a1'}));
+      expect(closed, isA<SosClosed>().having((e) => e.status, 'status', isNull));
+      expect(RealtimeEvent.fromEnvelope(envelope('sos.escalated', {'alert_id': 'a1'})), isA<SosEscalated>());
+      expect(RealtimeEvent.fromEnvelope(envelope('sos.released', {'alert_id': 'a1'})), isA<SosReleased>());
+    });
+  });
 }

@@ -88,6 +88,14 @@ func TestIntegrationVoiceMinutesFromLiveKitWebhook(t *testing.T) {
 	// Las dos partes salen de la sala: LiveKit factura minutos de participante, ambos van al conductor.
 	assert.Equal(t, http.StatusOK, send(signed(t, "secret", participantLeft(room, 1000, 1090))))
 	assert.Equal(t, http.StatusOK, send(signed(t, "secret", participantLeft(room, 1000, 1030))))
+	// 003: la voz de una sala SOS también cuenta en el conductor del viaje.
+	alertID := uuid.New()
+	_, err := st.InsertSOSAlert(ctx, store.InsertSOSAlertParams{
+		ID: alertID, TripID: tripID, RaisedBy: passenger, RaisedRole: store.SosRolePassenger,
+		RoomName: "sos-" + alertID.String(), CreatedAt: time.Now(),
+	})
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusOK, send(signed(t, "secret", participantLeft("sos-"+alertID.String(), 1000, 1060))))
 	rec.Add(driver, telemetry.Events, 5)
 	rec.Add(uuid.Nil, telemetry.Routes, 2)
 	require.NoError(t, rec.Flush(ctx))
@@ -114,7 +122,7 @@ func TestIntegrationVoiceMinutesFromLiveKitWebhook(t *testing.T) {
 	require.Len(t, rows, 2)
 	assert.Equal(t, driver, *rows[0].DriverID)
 	assert.Equal(t, "Carlos", rows[0].DisplayName)
-	assert.InDelta(t, 2.0, rows[0].VoiceMinutes, 0.001, "90 s + 30 s")
+	assert.InDelta(t, 3.0, rows[0].VoiceMinutes, 0.001, "90 s + 30 s del PTT + 60 s del SOS")
 	assert.Equal(t, int64(6), rows[0].RealtimeEvents)
 	assert.Nil(t, rows[1].DriverID, "cotizaciones sin conductor")
 	assert.Equal(t, int64(2), rows[1].RouteRequests)

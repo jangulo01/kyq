@@ -12,6 +12,7 @@ String _date(DateTime d) => '${d.year}-${d.month.toString().padLeft(2, '0')}-${d
 
 /// Secciones del panel (T023, T037, T040), en la barra superior de la lista de conductores.
 const adminSections = [
+  (path: '/emergencies', label: 'Emergencias', icon: Icons.sos),
   (path: '/kyc', label: 'Validación', icon: Icons.fact_check_outlined),
   (path: '/billing', label: 'Suscripciones', icon: Icons.receipt_long_outlined),
   (path: '/costs', label: 'Costos', icon: Icons.query_stats),

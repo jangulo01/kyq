@@ -449,6 +449,136 @@ func (ns NullPaymentStatus) Value() (driver.Value, error) {
 	return string(ns.PaymentStatus), nil
 }
 
+type SosOutcome string
+
+const (
+	SosOutcomeFalseAlarm           SosOutcome = "false_alarm"
+	SosOutcomeResolved             SosOutcome = "resolved"
+	SosOutcomeEscalatedAuthorities SosOutcome = "escalated_authorities"
+	SosOutcomeNoResponse           SosOutcome = "no_response"
+)
+
+func (e *SosOutcome) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = SosOutcome(s)
+	case string:
+		*e = SosOutcome(s)
+	default:
+		return fmt.Errorf("unsupported scan type for SosOutcome: %T", src)
+	}
+	return nil
+}
+
+type NullSosOutcome struct {
+	SosOutcome SosOutcome
+	Valid      bool // Valid is true if SosOutcome is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullSosOutcome) Scan(value interface{}) error {
+	if value == nil {
+		ns.SosOutcome, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.SosOutcome.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullSosOutcome) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.SosOutcome), nil
+}
+
+type SosRole string
+
+const (
+	SosRolePassenger SosRole = "passenger"
+	SosRoleDriver    SosRole = "driver"
+)
+
+func (e *SosRole) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = SosRole(s)
+	case string:
+		*e = SosRole(s)
+	default:
+		return fmt.Errorf("unsupported scan type for SosRole: %T", src)
+	}
+	return nil
+}
+
+type NullSosRole struct {
+	SosRole SosRole
+	Valid   bool // Valid is true if SosRole is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullSosRole) Scan(value interface{}) error {
+	if value == nil {
+		ns.SosRole, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.SosRole.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullSosRole) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.SosRole), nil
+}
+
+type SosStatus string
+
+const (
+	SosStatusOpen            SosStatus = "open"
+	SosStatusClaimed         SosStatus = "claimed"
+	SosStatusClosed          SosStatus = "closed"
+	SosStatusCancelledByUser SosStatus = "cancelled_by_user"
+)
+
+func (e *SosStatus) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = SosStatus(s)
+	case string:
+		*e = SosStatus(s)
+	default:
+		return fmt.Errorf("unsupported scan type for SosStatus: %T", src)
+	}
+	return nil
+}
+
+type NullSosStatus struct {
+	SosStatus SosStatus
+	Valid     bool // Valid is true if SosStatus is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullSosStatus) Scan(value interface{}) error {
+	if value == nil {
+		ns.SosStatus, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.SosStatus.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullSosStatus) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.SosStatus), nil
+}
+
 type TripCancelReason string
 
 const (
@@ -653,6 +783,20 @@ type DriverUsageDaily struct {
 	RouteRequests           int64
 }
 
+type EmergencyContact struct {
+	UserID    uuid.UUID
+	Position  int16
+	Name      string
+	PhoneE164 string
+	CreatedAt time.Time
+}
+
+type EmergencyOperator struct {
+	UserID    uuid.UUID
+	OnDuty    bool
+	GrantedAt time.Time
+}
+
 type FareProposal struct {
 	ID          uuid.UUID
 	TripID      uuid.UUID
@@ -728,6 +872,64 @@ type RefreshToken struct {
 	ExpiresAt time.Time
 	RotatedAt pgtype.Timestamptz
 	CreatedAt time.Time
+}
+
+type SafetyPin struct {
+	UserID         uuid.UUID
+	PinHash        string
+	FailedAttempts int16
+	UpdatedAt      time.Time
+}
+
+type ShareLink struct {
+	Token     string
+	TripID    uuid.UUID
+	CreatedBy uuid.UUID
+	CreatedAt time.Time
+}
+
+type SosAlert struct {
+	ID               uuid.UUID
+	TripID           uuid.UUID
+	RaisedBy         uuid.UUID
+	RaisedRole       SosRole
+	Status           SosStatus
+	CancelWithoutPin bool
+	ClaimedBy        uuid.NullUUID
+	VoiceHolderID    uuid.NullUUID
+	Outcome          NullSosOutcome
+	RoomName         string
+	EgressID         pgtype.Text
+	RecordingKey     pgtype.Text
+	EscalatedAt      pgtype.Timestamptz
+	CreatedAt        time.Time
+	ClaimedAt        pgtype.Timestamptz
+	ClosedAt         pgtype.Timestamptz
+	VoiceClosedAt    pgtype.Timestamptz
+}
+
+type SosAudit struct {
+	ID         int64
+	OperatorID uuid.UUID
+	AlertID    uuid.NullUUID
+	Action     string
+	CreatedAt  time.Time
+}
+
+type SosLocation struct {
+	AlertID   uuid.UUID
+	At        time.Time
+	Lat       float64
+	Lng       float64
+	AccuracyM pgtype.Float4
+}
+
+type SosNote struct {
+	ID         uuid.UUID
+	AlertID    uuid.UUID
+	OperatorID uuid.UUID
+	Body       string
+	CreatedAt  time.Time
 }
 
 type Subscription struct {

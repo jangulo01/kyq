@@ -93,8 +93,18 @@ func (h *LiveKitWebhook) serve(w http.ResponseWriter, r *http.Request) {
 
 func (h *LiveKitWebhook) countVoice(r *http.Request, ev webhookEvent) {
 	seconds := int64(ev.CreatedAt - ev.Participant.JoinedAt)
-	tripID, err := uuid.Parse(strings.TrimPrefix(ev.Room.Name, "trip-"))
-	if err != nil || seconds <= 0 || ev.Participant.JoinedAt == 0 {
+	if seconds <= 0 || ev.Participant.JoinedAt == 0 {
+		return
+	}
+	var tripID uuid.UUID
+	var err error
+	if strings.HasPrefix(ev.Room.Name, "sos-") {
+		// Sala SOS (003): la voz de la alerta cuenta en el conductor del viaje.
+		tripID, err = h.Store.GetSOSAlertTrip(r.Context(), ev.Room.Name)
+	} else {
+		tripID, err = uuid.Parse(strings.TrimPrefix(ev.Room.Name, "trip-"))
+	}
+	if err != nil {
 		return
 	}
 	parties, err := h.Store.GetTripParties(r.Context(), tripID)

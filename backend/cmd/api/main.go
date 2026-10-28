@@ -24,6 +24,7 @@ import (
 	"github.com/kyq/backend/internal/observability"
 	"github.com/kyq/backend/internal/ptt"
 	"github.com/kyq/backend/internal/realtime"
+	"github.com/kyq/backend/internal/safety"
 	"github.com/kyq/backend/internal/storage"
 	"github.com/kyq/backend/internal/store"
 	"github.com/kyq/backend/internal/telemetry"
@@ -125,13 +126,40 @@ func run(logger *slog.Logger) error {
 		logger.Warn("KYQ_BOLD_ENV vacío: pagos con Bold desactivados")
 	}
 	go billingService.RunSweeper(ctx, 10*time.Second, time.Minute)
+
+	// 003: grabaciones SOS en su propio bucket privado (expira a los 90 días, research R4).
+	recordings, err := storage.NewS3(storage.S3Options{
+		Endpoint: cfg.S3Endpoint, PublicEndpoint: cfg.S3PublicEndpoint, AccessKey: cfg.S3AccessKey,
+		SecretKey: cfg.S3SecretKey, Bucket: cfg.S3SOSBucket, Region: cfg.S3Region,
+	})
+	if err != nil {
+		return err
+	}
+	// El job minio-init crea el bucket; la expiración de 90 días la fija la API (idempotente).
+	sosCtx, cancelSOS := context.WithTimeout(ctx, 10*time.Second)
+	if err := recordings.EnsureBucket(sosCtx); err != nil {
+		logger.Warn("bucket de grabaciones SOS no disponible al arrancar", "err", err)
+	} else if err := recordings.EnsureExpiry(sosCtx, 90); err != nil {
+		logger.Warn("no se pudo fijar la expiración de 90 días de las grabaciones SOS", "err", err)
+	}
+	cancelSOS()
+	if !cfg.SOSRecording {
+		logger.Warn("KYQ_SOS_RECORDING=false: las alertas SOS no se graban")
+	}
+	safetyService := &safety.Service{
+		Store: st, LiveKit: livekit, Voice: livekit, VoiceURL: cfg.LiveKitURL, Publisher: publisher, SMS: sms,
+		Recordings: recordings, Record: cfg.SOSRecording, PublicBaseURL: cfg.PublicBaseURL, Usage: usage, Logger: logger,
+	}
+	go safetyService.RunSweeper(ctx, 10*time.Second)
 	handler := httpapi.NewRouter(httpapi.Deps{
 		Logger: logger,
 		Tokens: tokens,
 		Auth:   auth.NewHandlers(auth.NewService(auth.NewPgRepo(st), otp, tokens, nil)),
 		Realtime: &realtime.Handlers{
-			Tokens:     realtime.Tokens{Secret: cfg.CentrifugoTokenSecret},
-			Authorizer: realtime.Authorizer{Affiliations: affils, Trips: trips.ParticipantChecker{Q: st.Queries}},
+			Tokens: realtime.Tokens{Secret: cfg.CentrifugoTokenSecret},
+			Authorizer: realtime.Authorizer{
+				Affiliations: affils, Trips: trips.ParticipantChecker{Q: st.Queries}, Operators: st.Queries,
+			},
 		},
 		Admin:    &admin.Handlers{Store: st},
 		Affils:   &affiliations.Handlers{Service: affils},
@@ -144,6 +172,7 @@ func run(logger *slog.Logger) error {
 		Billing:  &billing.Handlers{Service: billingService, WebhookEnabled: cfg.BoldEnabled()},
 		Notices:  &notify.Handlers{Service: notices},
 		Costs:    &telemetry.CostHandlers{Store: st, CityCode: cfg.CityCode},
+		Safety:   &safety.Handlers{Service: safetyService, MapStyleURL: cfg.MapStyleURL},
 		LiveKitWebhook: &telemetry.LiveKitWebhook{
 			APIKey: cfg.LiveKitAPIKey, APISecret: cfg.LiveKitAPISecret, Store: st, Usage: usage,
 		},

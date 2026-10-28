@@ -12,6 +12,8 @@ recuperar eventos tras reconectar.
 | `user:{userId}` | Solo ese usuario | Ofertas y cambios de sus viajes |
 | `driver_presence:{driverId}` | Pasajeros afiliados a ese conductor | `driver.presence` |
 | `trip:{tripId}` | Pasajero y conductor del viaje | `trip.location` |
+| `ops:sos` | Administradores con permiso de operador de emergencias (003) | `sos.*` de la cola |
+| `sos:{alertId}` | Administradores con permiso de operador de emergencias (003) | `sos.location` |
 
 ## Eventos
 
@@ -25,6 +27,15 @@ recuperar eventos tras reconectar.
 | `trip.location` | `trip:{tripId}` | `lat`, `lng`, `heading`, `speed_mps` | FR-014 |
 | `driver.presence` | `driver_presence:{driverId}` | `driver_id`, `presence`, `busy_until_estimate?` | FR-008 |
 | `ptt.closed` | `user:{passengerId}` y `user:{driverId}` | `trip_id` | FR-020 |
+| `sos.created` | `ops:sos` | `alert_id`, `trip_id`, `raised_role`, `raised_by_name`, `created_at`, `location?` | 003 FR-007 |
+| `sos.claimed` | `ops:sos` | `alert_id`, `operator_id`, `operator_name` | 003 FR-008 |
+| `sos.released` | `ops:sos` | `alert_id` | 003 FR-008 |
+| `sos.cancel_attempt` | `ops:sos` | `alert_id`, `cancel_without_pin`, `failed_attempts`, `locked` | 003 FR-005 |
+| `sos.escalated` | `ops:sos` | `alert_id` | 003 FR-011 |
+| `sos.closed` | `ops:sos` (y `user:{raisedBy}` al cerrarla el operador) | `alert_id`, `status`, `outcome?` | 003 FR-010 |
+| `sos.location` | `sos:{alertId}` | `alert_id`, `lat`, `lng`, `accuracy_m`, `at` | 003 FR-003 |
+
+Los eventos SOS nunca van a `trip:{tripId}` ni al canal de la otra parte del viaje (003 FR-006).
 
 Los eventos de turno PTT (quién habla) viajan como mensajes de datos de LiveKit dentro de la sala
 del viaje: `{"type":"floor.taken","user_id":...}` y `{"type":"floor.released"}`.
