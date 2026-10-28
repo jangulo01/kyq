@@ -98,3 +98,24 @@ String formatSignedMoney(num minorUnits, String currency) {
   final amount = currency == 'COP' || currency == 'PEN' ? '\$ $text' : '$text $currency';
   return units < 0 ? '-$amount' : amount;
 }
+
+/// Estado del pago de un viaje como lo leen pasajero, conductor y administrador (004).
+String tripPaymentStatusLabel(TripPayment p) => switch (p.status) {
+  TripPaymentStatus.pending => 'Pendiente de pago',
+  TripPaymentStatus.boldInProgress => 'Pago con Bold en proceso',
+  TripPaymentStatus.cashReported => 'Efectivo reportado: falta la confirmación del conductor',
+  TripPaymentStatus.paid when p.method == TripPaymentMethod.bold => 'Pagado con Bold',
+  TripPaymentStatus.paid => 'Pagado en efectivo',
+  TripPaymentStatus.unpaid => 'No pagado',
+  TripPaymentStatus.disputed => 'En disputa: el conductor no recibió el efectivo',
+  TripPaymentStatus.needsReview => 'En revisión por Kyq',
+  TripPaymentStatus.voided => 'Anulado',
+};
+
+/// Movimiento del libro del conductor (004).
+String ledgerKindLabel(String kind) => switch (kind) {
+  LedgerKinds.tripCredit => 'Pago con Bold',
+  LedgerKinds.voidDebit => 'Anulación',
+  LedgerKinds.payout => 'Giro de Kyq',
+  _ => kind,
+};

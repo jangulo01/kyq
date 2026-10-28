@@ -8,20 +8,30 @@ import '../map/trip_map.dart';
 import '../request/awaiting_driver_view.dart';
 import 'trip_cancelled_view.dart';
 import 'trip_cubit.dart';
+import 'trip_payment_section.dart';
 import 'trip_summary_view.dart';
 import 'trip_tracking_view.dart';
 
 /// Pantalla única del viaje: muestra la vista que corresponde al estado actual.
 ///
 /// Con [ptt], el walkie-talkie queda abajo desde ACCEPTED hasta que cierra el canal (T075). Con
-/// [safety], el botón SOS y "Compartir viaje" (003).
+/// [safety], el botón SOS y "Compartir viaje" (003). Con [payments] (004), el resumen muestra el
+/// pago del viaje; necesita un `TripPaymentCubit` arriba.
 class TripPage extends StatelessWidget {
-  const TripPage({super.key, required this.driverName, this.map = maplibreTripMap, this.ptt, this.safety});
+  const TripPage({
+    super.key,
+    required this.driverName,
+    this.map = maplibreTripMap,
+    this.ptt,
+    this.safety,
+    this.payments = false,
+  });
 
   final String driverName;
   final TripMapBuilder map;
   final PttController? ptt;
   final TripSafety? safety;
+  final bool payments;
 
   @override
   Widget build(BuildContext context) {
@@ -49,7 +59,11 @@ class TripPage extends StatelessWidget {
               child: const Text('No pudimos cargar el viaje. Reintentar'),
             ),
           ),
-          Trip(status: TripStatus.completed) => TripSummaryView(trip: trip, driverName: driverName),
+          Trip(status: TripStatus.completed) => TripSummaryView(
+            trip: trip,
+            driverName: driverName,
+            payment: payments ? TripPaymentSection(driverName: driverName) : null,
+          ),
           Trip(status: TripStatus.cancelled) => TripCancelledView(trip: trip, driverName: driverName),
           Trip(:final status) when trackingStatuses.contains(status) => TripTrackingView(
             trip: trip,

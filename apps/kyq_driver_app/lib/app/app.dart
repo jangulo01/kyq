@@ -34,6 +34,9 @@ import '../subscription/subscription_cubit.dart';
 import '../subscription/subscription_page.dart';
 import '../trip/trip_cubit.dart';
 import '../trip/trip_page.dart';
+import '../trip_payments/trip_payment_cubit.dart';
+import '../trip_payments/trip_payments_cubit.dart';
+import '../trip_payments/trip_payments_page.dart';
 import 'driver_services.dart';
 import 'home_page.dart';
 
@@ -200,6 +203,11 @@ class _KyqDriverAppState extends State<KyqDriverApp> {
                 BlocProvider(create: (_) => SafetyCubit(widget.api)..load(), child: const SafetyPage()),
           ),
           GoRoute(
+            path: 'trip-payments',
+            builder: (context, state) =>
+                BlocProvider(create: (_) => TripPaymentsCubit(widget.api)..load(), child: const TripPaymentsPage()),
+          ),
+          GoRoute(
             path: 'subscription',
             builder: (context, state) => BlocProvider(
               create: (_) => SubscriptionCubit(
@@ -234,20 +242,28 @@ class _KyqDriverAppState extends State<KyqDriverApp> {
                   ),
                   // SOS del conductor (003): el pasajero no ve nada de la alerta (FR-006).
                   BlocProvider(create: (_) => widget.services.safety.sosFor(widget.api, tripId)),
+                  // Pago del viaje (004): existe desde que el viaje se completa.
+                  BlocProvider(create: (_) => TripPaymentCubit(widget.api, _events.stream, tripId)..load()),
                 ],
-                // El botón físico y la burbuja hablan por el canal del viaje (RN-KYQ-012).
                 child: Builder(
-                  builder: (context) => HandsFreeAttachment(
-                    handsFree: _handsFree,
-                    controller: context.read<PttController>(),
-                    child: TripPage(
-                      ptt: context.read<PttController>(),
-                      safety: TripSafety(
-                        api: widget.api,
-                        tripId: tripId,
-                        sos: context.read<SosCubit>(),
-                        platform: widget.services.safety,
-                        onSetupPin: () => context.push('/safety'),
+                  builder: (context) => BlocListener<TripCubit, TripState>(
+                    listenWhen: (a, b) =>
+                        a.trip?.status != TripStatus.completed && b.trip?.status == TripStatus.completed,
+                    listener: (context, _) => context.read<TripPaymentCubit>().load(),
+                    // El botón físico y la burbuja hablan por el canal del viaje (RN-KYQ-012).
+                    child: HandsFreeAttachment(
+                      handsFree: _handsFree,
+                      controller: context.read<PttController>(),
+                      child: TripPage(
+                        ptt: context.read<PttController>(),
+                        payments: true,
+                        safety: TripSafety(
+                          api: widget.api,
+                          tripId: tripId,
+                          sos: context.read<SosCubit>(),
+                          platform: widget.services.safety,
+                          onSetupPin: () => context.push('/safety'),
+                        ),
                       ),
                     ),
                   ),

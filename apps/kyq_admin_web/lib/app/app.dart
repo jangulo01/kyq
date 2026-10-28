@@ -32,6 +32,10 @@ import '../kyc/kyc_driver_page.dart';
 import '../kyc/kyc_queue_page.dart';
 import '../tower/tower_cubit.dart';
 import '../tower/tower_page.dart';
+import '../trip_payments/driver_ledger_page.dart';
+import '../trip_payments/settlements_page.dart';
+import '../trip_payments/trip_payments_cubits.dart';
+import '../trip_payments/trip_payments_page.dart';
 import '../users/users_page.dart';
 
 const apiBaseUrl = String.fromEnvironment('KYQ_API_URL', defaultValue: 'http://localhost:8080');
@@ -213,6 +217,28 @@ class _KyqAdminAppState extends State<KyqAdminApp> {
                   create: (_) => DriverPaymentsCubit(widget.api, state.pathParameters['id']!)..load(),
                   child: DriverPaymentsPage(driverName: state.extra is String ? state.extra! as String : null),
                 ),
+              ),
+            ],
+          ),
+          // 004: pagos de viajes, incidencias y liquidaciones a conductores.
+          GoRoute(
+            path: 'trip-payments',
+            builder: (context, state) =>
+                BlocProvider(create: (_) => TripPaymentsCubit(widget.api)..load(), child: const TripPaymentsPage()),
+            routes: [
+              GoRoute(
+                path: 'settlements',
+                builder: (context, state) =>
+                    BlocProvider(create: (_) => SettlementsCubit(widget.api)..load(), child: const SettlementsPage()),
+                routes: [
+                  GoRoute(
+                    path: 'drivers/:id',
+                    builder: (context, state) => BlocProvider(
+                      create: (_) => DriverLedgerCubit(widget.api, state.pathParameters['id']!)..load(),
+                      child: DriverLedgerPage(driverName: state.extra is String ? state.extra! as String : null),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),

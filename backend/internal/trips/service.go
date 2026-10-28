@@ -32,9 +32,27 @@ type Service struct {
 	Routes    fares.RouteEstimator
 	Publisher realtime.Publisher
 	Usage     telemetry.Usage
-	CityCode  string
-	Now       func() time.Time
-	Logger    *slog.Logger
+	// Payments opens the trip payment on COMPLETED (004); nil keeps 001's behaviour (paid
+	// outside the app).
+	Payments PaymentOpener
+	CityCode string
+	Now      func() time.Time
+	Logger   *slog.Logger
+}
+
+// CompletedTrip is what the payment of a trip needs from it.
+type CompletedTrip struct {
+	ID          uuid.UUID
+	PassengerID uuid.UUID
+	DriverID    uuid.UUID
+	FareMinor   int64
+	Currency    string
+}
+
+// PaymentOpener opens the payment of a completed trip inside the transaction that completes it,
+// so there is never a completed trip without its payment (004, research R5).
+type PaymentOpener interface {
+	OpenForTrip(ctx context.Context, q *store.Queries, trip CompletedTrip, now time.Time) error
 }
 
 func (s *Service) now() time.Time {
@@ -291,6 +309,13 @@ func (s *Service) persist(ctx context.Context, q *store.Queries, t *Trip, before
 	}
 	if err := syncPTTChannel(ctx, q, t, before, now); err != nil {
 		return nil, err
+	}
+	if s.Payments != nil && before != StatusCompleted && t.Status == StatusCompleted {
+		if err := s.Payments.OpenForTrip(ctx, q, CompletedTrip{
+			ID: t.ID, PassengerID: t.PassengerID, DriverID: t.DriverID, FareMinor: *t.DriverPayout, Currency: t.Currency,
+		}, now); err != nil {
+			return nil, err
+		}
 	}
 	var msgs []Message
 	switch {

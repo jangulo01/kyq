@@ -172,3 +172,24 @@ func TestBoldClientAgainstFake(t *testing.T) {
 	assert.Equal(t, LinkProcessing, st.Status)
 	assert.Equal(t, int64(100_000), st.TotalMinor)
 }
+
+// 004 R1: la misma clasificación del enlace sirve a la suscripción y al pago del viaje.
+func TestClassifyLink(t *testing.T) {
+	created := time.Date(2026, 10, 27, 12, 0, 0, 0, time.UTC)
+	soon, late := created.Add(5*time.Minute), created.Add(LinkTTL+linkExpiryMargin)
+	for _, tc := range []struct {
+		status string
+		now    time.Time
+		want   Outcome
+	}{
+		{LinkPaid, soon, OutcomeApproved},
+		{LinkProcessing, soon, OutcomeProcessing},
+		{LinkRejected, soon, OutcomeRejected},
+		{LinkCancelled, soon, OutcomeRejected},
+		{LinkExpired, soon, OutcomeExpired},
+		{LinkActive, soon, OutcomeNone},
+		{LinkActive, late, OutcomeExpired},
+	} {
+		assert.Equal(t, tc.want, ClassifyLink(tc.status, created, tc.now), "%s a las %s", tc.status, tc.now.Format("15:04"))
+	}
+}

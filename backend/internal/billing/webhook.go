@@ -35,8 +35,24 @@ type WebhookEvent struct {
 	} `json:"data"`
 }
 
+// Confirmation is a result Bold confirmed for a reference that is not a subscription payment.
+type Confirmation struct {
+	Outcome       Outcome
+	TotalMinor    int64
+	Currency      string
+	Detail        string // CREDIT_CARD, PSE, NEQUI…
+	BoldPaymentID string
+}
+
+// ReferenceHandler applies a signed Bold webhook for a reference it owns. It returns false when
+// the reference is not its own.
+type ReferenceHandler interface {
+	HandleBoldConfirmation(ctx context.Context, reference uuid.UUID, c Confirmation) (bool, error)
+}
+
 // HandleWebhook verifies and applies a Bold notification. Unknown references and event types are
 // accepted and ignored so Bold does not retry them; repeated notifications are idempotent.
+// References that are not subscription payments go to s.References (trip payments, 004).
 func (s *Service) HandleWebhook(ctx context.Context, body []byte, signature string) error {
 	if !VerifySignature(s.WebhookSecret, body, signature) {
 		return ErrInvalidSignature
@@ -50,15 +66,14 @@ func (s *Service) HandleWebhook(ctx context.Context, body []byte, signature stri
 		s.logger().WarnContext(ctx, "bold webhook without kyq reference", "type", ev.Type)
 		return nil
 	}
-	if _, err := s.Store.GetPayment(ctx, paymentID); store.IsNotFound(err) {
-		s.logger().WarnContext(ctx, "bold webhook for unknown payment", "type", ev.Type, "payment_id", paymentID)
-		return nil
-	} else if err != nil {
-		return err
-	}
 	total, err := MinorAmount(ev.Data.Amount.Total)
 	if err != nil {
 		return fmt.Errorf("bold webhook total: %w", err)
+	}
+	if _, err := s.Store.GetPayment(ctx, paymentID); store.IsNotFound(err) {
+		return s.delegate(ctx, paymentID, ev, total)
+	} else if err != nil {
+		return err
 	}
 	o := outcome{totalMinor: total, currency: ev.Data.Amount.Currency, detail: ev.Data.PaymentMethod, boldPaymentID: ev.Data.PaymentID}
 	switch ev.Type {
@@ -73,4 +88,28 @@ func (s *Service) HandleWebhook(ctx context.Context, body []byte, signature stri
 		return nil
 	}
 	return s.apply(ctx, paymentID, o)
+}
+
+// delegate offers a webhook with an unknown reference to s.References.
+func (s *Service) delegate(ctx context.Context, reference uuid.UUID, ev WebhookEvent, total int64) error {
+	c := Confirmation{TotalMinor: total, Currency: ev.Data.Amount.Currency, Detail: ev.Data.PaymentMethod, BoldPaymentID: ev.Data.PaymentID}
+	switch ev.Type {
+	case EventSaleApproved:
+		c.Outcome = OutcomeApproved
+	case EventSaleRejected:
+		c.Outcome = OutcomeRejected
+	case EventVoidApproved:
+		c.Outcome = OutcomeVoided
+	default:
+		s.logger().InfoContext(ctx, "bold webhook ignored", "type", ev.Type, "reference", reference)
+		return nil
+	}
+	for _, h := range s.References {
+		handled, err := h.HandleBoldConfirmation(ctx, reference, c)
+		if err != nil || handled {
+			return err
+		}
+	}
+	s.logger().WarnContext(ctx, "bold webhook for unknown payment", "type", ev.Type, "payment_id", reference)
+	return nil
 }

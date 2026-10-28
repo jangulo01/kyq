@@ -32,6 +32,7 @@ import (
 	"github.com/kyq/backend/internal/storage"
 	"github.com/kyq/backend/internal/store"
 	"github.com/kyq/backend/internal/telemetry"
+	"github.com/kyq/backend/internal/trippay"
 	"github.com/kyq/backend/internal/trips"
 )
 
@@ -83,7 +84,6 @@ func run(logger *slog.Logger) error {
 	usage := &telemetry.Recorder{Store: st, Logger: logger}
 	go usage.Run(ctx, 30*time.Second)
 	tripService := &trips.Service{Store: st, Routes: routes, Publisher: publisher, Usage: usage, CityCode: cfg.CityCode, Logger: logger}
-	go tripService.RunSweeper(ctx, time.Second)
 	apiURL := cfg.LiveKitAPIURL
 	if apiURL == "" {
 		apiURL = ptt.APIURLFrom(cfg.LiveKitURL)
@@ -169,6 +169,14 @@ func run(logger *slog.Logger) error {
 		Recordings: recordings, Record: cfg.SOSRecording, PublicBaseURL: cfg.PublicBaseURL, Usage: usage, Logger: logger,
 	}
 	go safetyService.RunSweeper(ctx, 10*time.Second)
+
+	// 004: el pago del viaje usa el mismo cliente de Bold; el webhook de 002 le delega sus
+	// referencias y el viaje abre el pago al completarse.
+	tripPayService := &trippay.Service{Store: st, Bold: billingService.Bold, Notify: notices, Publisher: publisher, Logger: logger}
+	billingService.References = append(billingService.References, tripPayService)
+	tripService.Payments = tripPayService
+	go tripService.RunSweeper(ctx, time.Second)
+	go tripPayService.RunSweeper(ctx, 10*time.Second, time.Minute)
 	handler := httpapi.NewRouter(httpapi.Deps{
 		Logger: logger,
 		Tokens: tokens,
@@ -196,6 +204,7 @@ func run(logger *slog.Logger) error {
 		Cooperatives: &cooperatives.Handlers{Service: coopService},
 		GroupPTT:     &ptt.GroupHandlers{Service: pttService},
 		Safety:   &safety.Handlers{Service: safetyService, MapStyleURL: cfg.MapStyleURL},
+		TripPay:  &trippay.Handlers{Service: tripPayService},
 		LiveKitWebhook: &telemetry.LiveKitWebhook{
 			APIKey: cfg.LiveKitAPIKey, APISecret: cfg.LiveKitAPISecret, Store: st, Usage: usage,
 		},

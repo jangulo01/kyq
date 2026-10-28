@@ -24,6 +24,12 @@ class MockApi extends Mock implements KyqApiClient {
   // Pantalla del viaje: por defecto no hay alerta SOS abierta (003).
   @override
   Future<SosAlertSelf?> activeSos() async => null;
+
+  /// Pago del viaje que devuelve [tripPayment] (004); null: el viaje no tiene pago.
+  TripPayment? payment;
+
+  @override
+  Future<TripPayment?> tripPayment(String tripId) async => payment;
 }
 
 /// Conductor con el alta terminada: el router no lo desvía a vehículo ni documentos.

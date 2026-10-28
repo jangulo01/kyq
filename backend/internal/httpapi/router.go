@@ -20,6 +20,7 @@ import (
 	"github.com/kyq/backend/internal/realtime"
 	"github.com/kyq/backend/internal/safety"
 	"github.com/kyq/backend/internal/telemetry"
+	"github.com/kyq/backend/internal/trippay"
 	"github.com/kyq/backend/internal/trips"
 )
 
@@ -50,6 +51,8 @@ type Deps struct {
 	GroupPTT     *ptt.GroupHandlers
 	// 003: SOS, consola de emergencias, viaje compartido (incluye rutas públicas) y seguridad.
 	Safety *safety.Handlers
+	// 004: pago del viaje con Bold o en efectivo, libro de liquidación y giros.
+	TripPay *trippay.Handlers
 	// LiveKitWebhook is public: LiveKit authenticates it with its own signature.
 	LiveKitWebhook *telemetry.LiveKitWebhook
 }
@@ -127,6 +130,9 @@ func NewRouter(d Deps) http.Handler {
 		}
 		if d.Safety != nil {
 			d.Safety.Register(mux, requireAuth)
+		}
+		if d.TripPay != nil {
+			d.TripPay.Register(mux, requireAuth)
 		}
 	}
 

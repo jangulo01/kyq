@@ -154,6 +154,16 @@ class HomePage extends StatelessWidget {
                 onTap: () => context.push('/cooperative'),
               ),
             ),
+            Card(
+              child: ListTile(
+                key: const Key('home.tripPayments'),
+                leading: const Icon(Icons.account_balance_wallet_outlined),
+                title: const Text('Pagos de viajes'),
+                subtitle: const Text('Efectivo y Bold: confirmar pagos y lo que Kyq te gira'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => context.push('/trip-payments'),
+              ),
+            ),
           ],
         ),
       ),

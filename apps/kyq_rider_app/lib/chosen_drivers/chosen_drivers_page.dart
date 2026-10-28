@@ -4,6 +4,8 @@ import 'package:go_router/go_router.dart';
 import 'package:kyq_api/kyq_api.dart';
 import 'package:kyq_ui/kyq_ui.dart';
 
+import '../payments/pending_payments_banner.dart';
+import '../payments/pending_payments_cubit.dart';
 import '../preconsult/preconsult_page.dart';
 import '../request/request_page.dart';
 import '../trip/trip_route.dart';
@@ -44,6 +46,12 @@ class ChosenDriversPage extends StatelessWidget {
       ),
       body: Column(
         children: [
+          BlocListener<ChosenDriversCubit, ChosenDriversState>(
+            // Un conductor que vuelve a estar libre suele significar un viaje recién terminado.
+            listenWhen: (a, b) => _presenceKey(a) != _presenceKey(b),
+            listener: (context, _) => context.read<PendingPaymentsCubit>().load(),
+            child: const Padding(padding: EdgeInsets.symmetric(horizontal: 8), child: PendingPaymentsBanner()),
+          ),
           BlocBuilder<ChosenDriversCubit, ChosenDriversState>(
             builder: (context, state) => Padding(
               padding: const EdgeInsets.symmetric(horizontal: 8),
@@ -51,7 +59,7 @@ class ChosenDriversPage extends StatelessWidget {
                 load: context.read<KyqApiClient>().activeTrip,
                 onOpen: (trip) => context.push(tripLocation(trip.id, _driverName(state, trip.driverId))),
                 // El conductor pasa a ocupado al pedirle y a libre al terminar: ahí cambia el aviso.
-                refreshKey: state.drivers.map((d) => '${d.driverId}:${d.presence.name}').join(','),
+                refreshKey: _presenceKey(state),
               ),
             ),
           ),
@@ -60,6 +68,9 @@ class ChosenDriversPage extends StatelessWidget {
       ),
     );
   }
+
+  static String _presenceKey(ChosenDriversState state) =>
+      state.drivers.map((d) => '${d.driverId}:${d.presence.name}').join(',');
 
   static String _driverName(ChosenDriversState state, String driverId) =>
       state.drivers.where((d) => d.driverId == driverId).firstOrNull?.displayName ?? '';

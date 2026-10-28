@@ -41,6 +41,8 @@ recuperar eventos tras reconectar.
 | `sos.escalated` | `ops:sos` | `alert_id` | 003 FR-011 |
 | `sos.closed` | `ops:sos` (y `user:{raisedBy}` al cerrarla el operador) | `alert_id`, `status`, `outcome?` | 003 FR-010 |
 | `sos.location` | `sos:{alertId}` | `alert_id`, `lat`, `lng`, `accuracy_m`, `at` | 003 FR-003 |
+| `trip_payment.updated` | `user:{passengerId}` y `user:{driverId}` | `trip_id`, `payment_id`, `status`, `method?` | 004 FR-007 |
+| `trip_payment.reminder` | `user:{passengerId}` | `trip_id`, `payment_id`, `amount_minor`, `currency` | 004 FR-015 |
 
 006 añade a `trip.offer`: `delegated` (bool), `can_delegate` (bool), `cooperative_name`
 (string|null) y `requested_driver_name` (string|null, el Conductor Elegido cuando la oferta llega

@@ -38,6 +38,39 @@ const (
 	LinkExpired    = "EXPIRED"
 )
 
+// Outcome is what a Bold link status or webhook means for whoever owns the reference: the
+// subscription payments of 002 or the trip payments of 004 (research 004 R1–R2).
+type Outcome string
+
+const (
+	OutcomeNone       Outcome = "" // ACTIVE: aún sin pagar
+	OutcomeProcessing Outcome = "processing"
+	OutcomeApproved   Outcome = "approved"
+	OutcomeRejected   Outcome = "rejected"
+	OutcomeExpired    Outcome = "expired"
+	OutcomeVoided     Outcome = "voided"
+)
+
+// ClassifyLink maps the status of a link created at createdAt to an outcome. In the sandbox Bold
+// keeps answering ACTIVE after the link expires (its checkout already says "expiró"): past the
+// TTL plus a margin, it counts as expired.
+func ClassifyLink(status string, createdAt, now time.Time) Outcome {
+	switch status {
+	case LinkPaid:
+		return OutcomeApproved
+	case LinkProcessing:
+		return OutcomeProcessing
+	case LinkRejected, LinkCancelled:
+		return OutcomeRejected
+	case LinkExpired:
+		return OutcomeExpired
+	}
+	if now.Sub(createdAt) < LinkTTL+linkExpiryMargin {
+		return OutcomeNone
+	}
+	return OutcomeExpired
+}
+
 // LinkRequest creates a payment link with a closed amount.
 type LinkRequest struct {
 	Reference   string // id del pago en Kyq
