@@ -160,6 +160,20 @@ func TestIntegration011RadioRoutesMatchContract(t *testing.T) {
 	c.call(http.MethodPut, "/v1/radio/clients/"+s.ana.String(), s.carlosTk, map[string]any{"muted": true}, http.StatusNoContent)
 	c.call(http.MethodPut, "/v1/radio/clients/"+s.jonathan.String(), s.carlosTk, map[string]any{"blocked": true}, http.StatusNotFound)
 
+	// Panel: configuración y carga masiva (FR-040, FR-033).
+	c.call(http.MethodGet, "/v1/admin/radio/settings", s.adminTk, nil, http.StatusOK)
+	c.call(http.MethodGet, "/v1/admin/radio/settings", s.carlosTk, nil, http.StatusForbidden)
+	set := c.call(http.MethodPut, "/v1/admin/radio/settings", s.adminTk, map[string]any{"retention_days": 90}, http.StatusOK)
+	assert.EqualValues(t, 90, set["retention_days"])
+	csv := []byte("nombre,telefono,tipo,canal,rol\nCarlos,3100000001,conductor,Taxistas Norte,dueño\nLuis,3005550202,conductor,Taxistas Norte,miembro\nX,12,conductor,Taxistas Norte,jefe\n")
+	bulk := c.callRaw(http.MethodPost, "/v1/admin/radio/bulk-uploads?file_name=flota.csv",
+		map[string]string{"Authorization": "Bearer " + s.adminTk, "Content-Type": "text/csv"}, csv, http.StatusCreated)
+	bulkID := bulk["id"].(string)
+	c.callList(http.MethodGet, "/v1/admin/radio/bulk-uploads", s.adminTk)
+	c.call(http.MethodGet, "/v1/admin/radio/bulk-uploads/"+bulkID, s.adminTk, nil, http.StatusOK)
+	c.call(http.MethodPost, "/v1/admin/radio/bulk-uploads/"+bulkID+"/send", s.adminTk, map[string]any{}, http.StatusAccepted)
+	c.call(http.MethodPost, "/v1/admin/radio/bulk-uploads/"+bulkID+"/send", s.adminTk, map[string]any{}, http.StatusConflict)
+
 	// Borrar el contacto (FR-002).
 	c.call(http.MethodDelete, "/v1/radio/conversations/"+convID, s.carlosTk, nil, http.StatusNoContent)
 	c.call(http.MethodGet, "/v1/radio/conversations/"+convID, s.jonTk, nil, http.StatusNotFound)

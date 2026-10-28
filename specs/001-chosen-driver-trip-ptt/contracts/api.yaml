@@ -3449,6 +3449,15 @@ paths:
       - radio
     post:
       summary: Sube y valida un CSV sin enviar nada (FR-033); máx. 2 000 filas
+      description: |
+        Columnas `nombre,telefono,tipo,canal,rol` (coma o punto y coma, con o sin encabezado).
+        Un canal que no existe se crea al confirmar con la fila de rol `dueño`, que debe usar ya
+        Kyq Conductor. `413 bulk_too_large` con más de 2 000 filas.
+      parameters:
+      - name: file_name
+        in: query
+        schema:
+          type: string
       requestBody:
         content:
           text/csv:
@@ -3492,7 +3501,7 @@ paths:
       - radio
   /v1/admin/radio/bulk-uploads/{bulkId}/send:
     post:
-      summary: Confirma y envía los SMS; con `only_failed` reenvía las fallidas
+      summary: Confirma y envía los SMS; con `only_failed` reenvía las fallidas; `409 bulk_state` si ya se envía
       parameters:
       - name: bulkId
         in: path

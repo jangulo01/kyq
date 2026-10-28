@@ -211,3 +211,17 @@ func (f *fixture) voice(t *testing.T, user, conv uuid.UUID, length time.Duration
 	f.svc.EgressEnded(ctx, c.RoomName, egress, key, length.Milliseconds(), 3, false)
 	return fl.MessageID
 }
+
+// newDriver registers a driver with an active subscription, as after signing up by OTP.
+func (f *fixture) newDriver(t *testing.T, phone, name string) uuid.UUID {
+	t.Helper()
+	ctx := context.Background()
+	id := uuid.New()
+	_, err := f.st.CreateUser(ctx, store.CreateUserParams{ID: id, PhoneE164: phone, Role: store.UserRoleDriver, DisplayName: name})
+	require.NoError(t, err)
+	require.NoError(t, f.st.CreateDriver(ctx, store.CreateDriverParams{
+		UserID: id, QrToken: "qr-" + id.String()[:12], VehiclePlate: "KYQ" + id.String()[:3], VehicleDescription: "Kia",
+	}))
+	require.NoError(t, f.st.UpsertSubscription(ctx, store.UpsertSubscriptionParams{DriverID: id, PaidUntil: f.clock.Add(30 * 24 * time.Hour), UpdatedBy: nullID(f.admin)}))
+	return id
+}

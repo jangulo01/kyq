@@ -2,6 +2,7 @@ package radio
 
 import (
 	"errors"
+	"io"
 	"net/http"
 	"strconv"
 
@@ -21,6 +22,7 @@ func (h *Handlers) Register(mux *http.ServeMux, authMW func(http.Handler) http.H
 		return authMW(auth.RequireRole(auth.RoleDriver, auth.RolePassenger)(f))
 	}
 	driver := func(f http.HandlerFunc) http.Handler { return authMW(auth.RequireRole(auth.RoleDriver)(f)) }
+	admin := func(f http.HandlerFunc) http.Handler { return authMW(auth.RequireRole(auth.RoleAdmin)(f)) }
 	mux.Handle("GET /v1/radio/me", user(h.me))
 	mux.Handle("PUT /v1/radio/me", user(h.updateMe))
 	mux.Handle("POST /v1/radio/me/consent", user(h.consent))
@@ -45,6 +47,12 @@ func (h *Handlers) Register(mux *http.ServeMux, authMW func(http.Handler) http.H
 	mux.Handle("PUT /v1/radio/channels/{conversationId}/members/{userId}", driver(h.moderate))
 	mux.Handle("POST /v1/radio/channels/{conversationId}/leave", user(h.leave))
 	mux.Handle("POST /v1/radio/invites/{code}/accept", user(h.accept))
+	mux.Handle("GET /v1/admin/radio/settings", admin(h.adminSettings))
+	mux.Handle("PUT /v1/admin/radio/settings", admin(h.updateSettings))
+	mux.Handle("GET /v1/admin/radio/bulk-uploads", admin(h.bulkUploads))
+	mux.Handle("POST /v1/admin/radio/bulk-uploads", admin(h.uploadBulk))
+	mux.Handle("GET /v1/admin/radio/bulk-uploads/{bulkId}", admin(h.bulkDetail))
+	mux.Handle("POST /v1/admin/radio/bulk-uploads/{bulkId}/send", admin(h.sendBulk))
 	mux.Handle("PUT /v1/radio/clients", driver(h.setClients))
 	mux.Handle("PUT /v1/radio/clients/{passengerId}", driver(h.setClient))
 	// Públicas: vista de la invitación, página del enlace y baja de SMS (sin datos personales).
@@ -315,6 +323,61 @@ func (h *Handlers) leave(w http.ResponseWriter, r *http.Request) {
 	respond(w, r, http.StatusNoContent, nil, h.Service.Leave(r.Context(), principal(r), id))
 }
 
+func (h *Handlers) adminSettings(w http.ResponseWriter, r *http.Request) {
+	out, err := h.Service.AdminSettings(r.Context())
+	respond(w, r, http.StatusOK, out, err)
+}
+
+func (h *Handlers) updateSettings(w http.ResponseWriter, r *http.Request) {
+	var in SettingsInput
+	if !httpx.DecodeJSON(w, r, &in) {
+		return
+	}
+	out, err := h.Service.UpdateSettings(r.Context(), principal(r), in)
+	respond(w, r, http.StatusOK, out, err)
+}
+
+func (h *Handlers) bulkUploads(w http.ResponseWriter, r *http.Request) {
+	out, err := h.Service.BulkUploads(r.Context())
+	respond(w, r, http.StatusOK, out, err)
+}
+
+// maxBulkBytes caps the CSV body: 2 000 filas caben con holgura.
+const maxBulkBytes = 1 << 20
+
+func (h *Handlers) uploadBulk(w http.ResponseWriter, r *http.Request) {
+	data, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maxBulkBytes))
+	if err != nil {
+		writeError(w, r, ErrBulkTooLarge)
+		return
+	}
+	out, err := h.Service.UploadBulk(r.Context(), principal(r), r.URL.Query().Get("file_name"), data)
+	respond(w, r, http.StatusCreated, out, err)
+}
+
+func (h *Handlers) bulkDetail(w http.ResponseWriter, r *http.Request) {
+	id, ok := pathID(w, r, "bulkId")
+	if !ok {
+		return
+	}
+	out, err := h.Service.BulkDetail(r.Context(), id)
+	respond(w, r, http.StatusOK, out, err)
+}
+
+func (h *Handlers) sendBulk(w http.ResponseWriter, r *http.Request) {
+	id, ok := pathID(w, r, "bulkId")
+	if !ok {
+		return
+	}
+	var in struct {
+		OnlyFailed bool `json:"only_failed"`
+	}
+	if r.ContentLength != 0 && !httpx.DecodeJSON(w, r, &in) {
+		return
+	}
+	respond(w, r, http.StatusAccepted, nil, h.Service.SendBulk(r.Context(), id, in.OnlyFailed))
+}
+
 func (h *Handlers) setClients(w http.ResponseWriter, r *http.Request) {
 	var in struct {
 		Enabled *bool `json:"enabled"`
@@ -401,6 +464,8 @@ func writeError(w http.ResponseWriter, r *http.Request, err error) {
 		{ErrInviteWrongApp, http.StatusConflict, "invite_wrong_app", "esta invitación es para la otra app de Kyq"},
 		{ErrPassengersClosed, http.StatusForbidden, "passengers_not_allowed", "este canal no admite pasajeros"},
 		{ErrNoMedia, http.StatusNotFound, "no_media", "este mensaje no tiene audio ni foto"},
+		{ErrBulkTooLarge, http.StatusRequestEntityTooLarge, "bulk_too_large", "el archivo tiene más de 2 000 filas"},
+		{ErrBulkState, http.StatusConflict, "bulk_state", "esa carga ya se está enviando o no tiene filas por enviar"},
 		{ErrUnavailable, http.StatusServiceUnavailable, "voice_unavailable", "el servidor de voz no responde; inténtalo de nuevo"},
 	}
 	for _, k := range known {

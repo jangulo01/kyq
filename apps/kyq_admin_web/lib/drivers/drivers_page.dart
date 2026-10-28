@@ -22,6 +22,7 @@ const adminSections = [
   (path: '/support', label: 'Soporte', icon: Icons.support_agent),
   (path: '/kyc', label: 'Validación', icon: Icons.fact_check_outlined),
   (path: '/cooperatives', label: 'Cooperativas', icon: Icons.groups),
+  (path: '/radio', label: 'Radio', icon: Icons.settings_input_antenna),
   (path: '/billing', label: 'Suscripciones', icon: Icons.receipt_long_outlined),
   (path: '/trip-payments', label: 'Pagos de viajes', icon: Icons.account_balance_wallet_outlined),
   (path: '/costs', label: 'Costos', icon: Icons.query_stats),

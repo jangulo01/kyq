@@ -130,6 +130,8 @@ type Service struct {
 	Logger        *slog.Logger
 	// Go runs background work (SMS) after answering; nil: a goroutine. Tests run it inline.
 	Go func(func())
+	// BulkSMSInterval paces the SMS of a bulk upload (20 por segundo, R9); 0 uses that.
+	BulkSMSInterval time.Duration
 
 	cache        settingsCache
 	lastRetained time.Time // último barrido de retención (una vez al día)

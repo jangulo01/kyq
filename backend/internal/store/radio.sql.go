@@ -110,6 +110,46 @@ func (q *Queries) CountRadioActiveMembers(ctx context.Context, conversationID uu
 	return column_1, err
 }
 
+const countRadioBulkRows = `-- name: CountRadioBulkRows :many
+SELECT CASE WHEN status IN ('pending', 'sent') AND expires_at <= $1::timestamptz THEN 'expired'
+            ELSE status::text END::text AS status,
+       count(*)::int AS n
+FROM radio_invites
+WHERE bulk_id = $2
+GROUP BY 1
+`
+
+type CountRadioBulkRowsParams struct {
+	Now    time.Time
+	BulkID uuid.NullUUID
+}
+
+type CountRadioBulkRowsRow struct {
+	Status string
+	N      int32
+}
+
+// Totales por estado; las pendientes o enviadas vencidas cuentan como vencidas.
+func (q *Queries) CountRadioBulkRows(ctx context.Context, arg CountRadioBulkRowsParams) ([]CountRadioBulkRowsRow, error) {
+	rows, err := q.db.Query(ctx, countRadioBulkRows, arg.Now, arg.BulkID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []CountRadioBulkRowsRow{}
+	for rows.Next() {
+		var i CountRadioBulkRowsRow
+		if err := rows.Scan(&i.Status, &i.N); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const countRadioListening = `-- name: CountRadioListening :one
 SELECT count(*)::int FROM radio_members m
 JOIN radio_conversations c ON c.id = m.conversation_id
@@ -329,6 +369,94 @@ func (q *Queries) ExtendRadioExpiry(ctx context.Context, arg ExtendRadioExpiryPa
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const getCostRateAt = `-- name: GetCostRateAt :one
+SELECT unit_cost_micro FROM cost_rates
+WHERE concept = $1::cost_concept AND currency = $2 AND effective_from <= $3::date
+ORDER BY effective_from DESC
+LIMIT 1
+`
+
+type GetCostRateAtParams struct {
+	Concept  CostConcept
+	Currency string
+	Day      time.Time
+}
+
+func (q *Queries) GetCostRateAt(ctx context.Context, arg GetCostRateAtParams) (int64, error) {
+	row := q.db.QueryRow(ctx, getCostRateAt, arg.Concept, arg.Currency, arg.Day)
+	var unit_cost_micro int64
+	err := row.Scan(&unit_cost_micro)
+	return unit_cost_micro, err
+}
+
+const getRadioActiveChannelByName = `-- name: GetRadioActiveChannelByName :one
+SELECT id, kind, name, description, photo_key, join_mode, passenger_role_max, cooperative_id, pair_a, pair_b, room_name, status, created_by, created_at, suspended_at, deleted_at FROM radio_conversations
+WHERE kind = 'channel' AND status <> 'deleted' AND lower(name) = lower($1::text)
+`
+
+func (q *Queries) GetRadioActiveChannelByName(ctx context.Context, name string) (RadioConversation, error) {
+	row := q.db.QueryRow(ctx, getRadioActiveChannelByName, name)
+	var i RadioConversation
+	err := row.Scan(
+		&i.ID,
+		&i.Kind,
+		&i.Name,
+		&i.Description,
+		&i.PhotoKey,
+		&i.JoinMode,
+		&i.PassengerRoleMax,
+		&i.CooperativeID,
+		&i.PairA,
+		&i.PairB,
+		&i.RoomName,
+		&i.Status,
+		&i.CreatedBy,
+		&i.CreatedAt,
+		&i.SuspendedAt,
+		&i.DeletedAt,
+	)
+	return i, err
+}
+
+const getRadioBulkUpload = `-- name: GetRadioBulkUpload :one
+SELECT id, admin_id, file_name, rows_total, rows_valid, rows_invalid, status, created_at, confirmed_at FROM radio_bulk_uploads WHERE id = $1
+`
+
+func (q *Queries) GetRadioBulkUpload(ctx context.Context, id uuid.UUID) (RadioBulkUpload, error) {
+	row := q.db.QueryRow(ctx, getRadioBulkUpload, id)
+	var i RadioBulkUpload
+	err := row.Scan(
+		&i.ID,
+		&i.AdminID,
+		&i.FileName,
+		&i.RowsTotal,
+		&i.RowsValid,
+		&i.RowsInvalid,
+		&i.Status,
+		&i.CreatedAt,
+		&i.ConfirmedAt,
+	)
+	return i, err
+}
+
+const getRadioChannelOwner = `-- name: GetRadioChannelOwner :one
+SELECT u.id, u.display_name
+FROM radio_members m JOIN users u ON u.id = m.user_id
+WHERE m.conversation_id = $1 AND m.role = 'owner' AND m.status = 'active'
+`
+
+type GetRadioChannelOwnerRow struct {
+	ID          uuid.UUID
+	DisplayName string
+}
+
+func (q *Queries) GetRadioChannelOwner(ctx context.Context, conversationID uuid.UUID) (GetRadioChannelOwnerRow, error) {
+	row := q.db.QueryRow(ctx, getRadioChannelOwner, conversationID)
+	var i GetRadioChannelOwnerRow
+	err := row.Scan(&i.ID, &i.DisplayName)
+	return i, err
 }
 
 const getRadioConsent = `-- name: GetRadioConsent :one
@@ -826,6 +954,66 @@ func (q *Queries) GetRadioSubject(ctx context.Context, id uuid.UUID) (GetRadioSu
 		&i.CreatedAt,
 		&i.HasSubscription,
 		&i.PaidUntil,
+	)
+	return i, err
+}
+
+const getRadioUserByPhone = `-- name: GetRadioUserByPhone :one
+SELECT id, role, display_name FROM users WHERE phone_e164 = $1
+`
+
+type GetRadioUserByPhoneRow struct {
+	ID          uuid.UUID
+	Role        UserRole
+	DisplayName string
+}
+
+func (q *Queries) GetRadioUserByPhone(ctx context.Context, phoneE164 string) (GetRadioUserByPhoneRow, error) {
+	row := q.db.QueryRow(ctx, getRadioUserByPhone, phoneE164)
+	var i GetRadioUserByPhoneRow
+	err := row.Scan(&i.ID, &i.Role, &i.DisplayName)
+	return i, err
+}
+
+const insertRadioBulkUpload = `-- name: InsertRadioBulkUpload :one
+
+INSERT INTO radio_bulk_uploads (id, admin_id, file_name, rows_total, rows_valid, rows_invalid, status, created_at)
+VALUES ($1, $2, $3, $4, $5, $6, 'validated', $7)
+RETURNING id, admin_id, file_name, rows_total, rows_valid, rows_invalid, status, created_at, confirmed_at
+`
+
+type InsertRadioBulkUploadParams struct {
+	ID          uuid.UUID
+	AdminID     uuid.UUID
+	FileName    string
+	RowsTotal   int32
+	RowsValid   int32
+	RowsInvalid int32
+	CreatedAt   time.Time
+}
+
+// Cargas masivas (FR-033, FR-034) --------------------------------------------------------------
+func (q *Queries) InsertRadioBulkUpload(ctx context.Context, arg InsertRadioBulkUploadParams) (RadioBulkUpload, error) {
+	row := q.db.QueryRow(ctx, insertRadioBulkUpload,
+		arg.ID,
+		arg.AdminID,
+		arg.FileName,
+		arg.RowsTotal,
+		arg.RowsValid,
+		arg.RowsInvalid,
+		arg.CreatedAt,
+	)
+	var i RadioBulkUpload
+	err := row.Scan(
+		&i.ID,
+		&i.AdminID,
+		&i.FileName,
+		&i.RowsTotal,
+		&i.RowsValid,
+		&i.RowsInvalid,
+		&i.Status,
+		&i.CreatedAt,
+		&i.ConfirmedAt,
 	)
 	return i, err
 }
@@ -1388,6 +1576,83 @@ func (q *Queries) ListRadioActiveAffiliations(ctx context.Context, passengerID u
 	return items, nil
 }
 
+const listRadioBulkRows = `-- name: ListRadioBulkRows :many
+SELECT id, code, inviter_id, conversation_id, contact_of, phone_e164, invitee_kind, role, bulk_id, line, invitee_name, channel_name, status, error, accepted_by, created_at, sent_at, expires_at FROM radio_invites WHERE bulk_id = $1 ORDER BY line
+`
+
+func (q *Queries) ListRadioBulkRows(ctx context.Context, bulkID uuid.NullUUID) ([]RadioInvite, error) {
+	rows, err := q.db.Query(ctx, listRadioBulkRows, bulkID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []RadioInvite{}
+	for rows.Next() {
+		var i RadioInvite
+		if err := rows.Scan(
+			&i.ID,
+			&i.Code,
+			&i.InviterID,
+			&i.ConversationID,
+			&i.ContactOf,
+			&i.PhoneE164,
+			&i.InviteeKind,
+			&i.Role,
+			&i.BulkID,
+			&i.Line,
+			&i.InviteeName,
+			&i.ChannelName,
+			&i.Status,
+			&i.Error,
+			&i.AcceptedBy,
+			&i.CreatedAt,
+			&i.SentAt,
+			&i.ExpiresAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listRadioBulkUploads = `-- name: ListRadioBulkUploads :many
+SELECT id, admin_id, file_name, rows_total, rows_valid, rows_invalid, status, created_at, confirmed_at FROM radio_bulk_uploads ORDER BY created_at DESC LIMIT 100
+`
+
+func (q *Queries) ListRadioBulkUploads(ctx context.Context) ([]RadioBulkUpload, error) {
+	rows, err := q.db.Query(ctx, listRadioBulkUploads)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []RadioBulkUpload{}
+	for rows.Next() {
+		var i RadioBulkUpload
+		if err := rows.Scan(
+			&i.ID,
+			&i.AdminID,
+			&i.FileName,
+			&i.RowsTotal,
+			&i.RowsValid,
+			&i.RowsInvalid,
+			&i.Status,
+			&i.CreatedAt,
+			&i.ConfirmedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listRadioConversationObjects = `-- name: ListRadioConversationObjects :many
 SELECT rm.object_key AS key, false::boolean AS saved FROM radio_messages rm
 WHERE rm.conversation_id = $1 AND rm.object_key IS NOT NULL
@@ -1868,6 +2133,31 @@ func (q *Queries) ListRadioSavedKeysOf(ctx context.Context, messageID uuid.UUID)
 	return items, nil
 }
 
+const listRadioUsers = `-- name: ListRadioUsers :many
+SELECT user_id FROM radio_presence
+`
+
+// Quienes usaron Radio: reciben `radio.settings` cuando el panel cambia la configuración.
+func (q *Queries) ListRadioUsers(ctx context.Context) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, listRadioUsers)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []uuid.UUID{}
+	for rows.Next() {
+		var user_id uuid.UUID
+		if err := rows.Scan(&user_id); err != nil {
+			return nil, err
+		}
+		items = append(items, user_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listStaleRadioPresence = `-- name: ListStaleRadioPresence :many
 UPDATE radio_presence SET radio_on = false, updated_at = $1::timestamptz
 WHERE radio_on AND (last_seen_at IS NULL OR last_seen_at < $2::timestamptz)
@@ -2036,6 +2326,48 @@ func (q *Queries) SaveRadioReceipt(ctx context.Context, arg SaveRadioReceiptPara
 	return err
 }
 
+const setRadioBulkInviteChannel = `-- name: SetRadioBulkInviteChannel :exec
+UPDATE radio_invites SET conversation_id = $2, inviter_id = $3 WHERE id = $1
+`
+
+type SetRadioBulkInviteChannelParams struct {
+	ID             uuid.UUID
+	ConversationID uuid.NullUUID
+	InviterID      uuid.NullUUID
+}
+
+func (q *Queries) SetRadioBulkInviteChannel(ctx context.Context, arg SetRadioBulkInviteChannelParams) error {
+	_, err := q.db.Exec(ctx, setRadioBulkInviteChannel, arg.ID, arg.ConversationID, arg.InviterID)
+	return err
+}
+
+const setRadioBulkUploadStatus = `-- name: SetRadioBulkUploadStatus :execrows
+UPDATE radio_bulk_uploads
+SET status = $1, confirmed_at = coalesce(confirmed_at, $2)
+WHERE id = $3 AND status = ANY($4::text[])
+`
+
+type SetRadioBulkUploadStatusParams struct {
+	Status       string
+	ConfirmedAt  pgtype.Timestamptz
+	ID           uuid.UUID
+	FromStatuses []string
+}
+
+// Solo desde los estados permitidos: no se confirma dos veces a la vez.
+func (q *Queries) SetRadioBulkUploadStatus(ctx context.Context, arg SetRadioBulkUploadStatusParams) (int64, error) {
+	result, err := q.db.Exec(ctx, setRadioBulkUploadStatus,
+		arg.Status,
+		arg.ConfirmedAt,
+		arg.ID,
+		arg.FromStatuses,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const setRadioClientsEnabled = `-- name: SetRadioClientsEnabled :exec
 UPDATE radio_presence SET clients_enabled = $2, updated_at = $3 WHERE user_id = $1
 `
@@ -2195,6 +2527,22 @@ func (q *Queries) SetRadioQuietStatus(ctx context.Context, arg SetRadioQuietStat
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const sumRadioStorageBytes = `-- name: SumRadioStorageBytes :one
+
+SELECT coalesce(sum(radio_storage_bytes), 0)::bigint AS bytes
+FROM driver_usage_daily
+WHERE day >= $1::date
+`
+
+// Costo de almacenamiento (FR-040) ---------------------------------------------------------------
+// Bytes de Radio guardados en los últimos días: base del costo estimado por retención.
+func (q *Queries) SumRadioStorageBytes(ctx context.Context, since time.Time) (int64, error) {
+	row := q.db.QueryRow(ctx, sumRadioStorageBytes, since)
+	var bytes int64
+	err := row.Scan(&bytes)
+	return bytes, err
 }
 
 const takeRadioFloor = `-- name: TakeRadioFloor :one

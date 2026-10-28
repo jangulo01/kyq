@@ -9,6 +9,8 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../domains/domains_page.dart';
 import '../emergencies/session_user.dart';
+import '../radio/bulk_uploads_page.dart';
+import '../radio/radio_settings_page.dart';
 import '../support/support_admin_cubits.dart';
 import '../support/support_admin_pages.dart';
 import '../billing/billing_cubits.dart';
@@ -99,7 +101,14 @@ Future<void> _openInNewTab(String url) async {
 }
 
 class KyqAdminApp extends StatefulWidget {
-  const KyqAdminApp({super.key, required this.api, required this.auth, this.towerEvents, this.ops});
+  const KyqAdminApp({
+    super.key,
+    required this.api,
+    required this.auth,
+    this.towerEvents,
+    this.ops,
+    this.pickCsv = pickCsvFile,
+  });
 
   final KyqApiClient api;
   final AuthCubit auth;
@@ -109,6 +118,9 @@ class KyqAdminApp extends StatefulWidget {
 
   /// Consola de emergencias; null usa Centrifugo, LiveKit y el aviso sonoro reales.
   final OpsServices? ops;
+
+  /// CSV de las cargas masivas de Radio (011); las pruebas pasan uno en memoria.
+  final CsvPicker pickCsv;
 
   @override
   State<KyqAdminApp> createState() => _KyqAdminAppState();
@@ -290,6 +302,30 @@ class _KyqAdminAppState extends State<KyqAdminApp> {
             path: 'domains',
             builder: (context, state) =>
                 BlocProvider(create: (_) => DomainsCubit(widget.api)..load(), child: const DomainsPage()),
+          ),
+          // 011: configuración de Radio y cargas masivas de invitaciones.
+          GoRoute(
+            path: 'radio',
+            builder: (context, state) =>
+                BlocProvider(create: (_) => RadioSettingsCubit(widget.api)..load(), child: const RadioSettingsPage()),
+            routes: [
+              GoRoute(
+                path: 'bulk',
+                builder: (context, state) => BlocProvider(
+                  create: (_) => BulkUploadsCubit(widget.api)..load(),
+                  child: BulkUploadsPage(pick: widget.pickCsv),
+                ),
+                routes: [
+                  GoRoute(
+                    path: ':id',
+                    builder: (context, state) => BlocProvider(
+                      create: (_) => BulkDetailCubit(widget.api, state.pathParameters['id']!)..load(),
+                      child: const BulkDetailPage(),
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ),
           GoRoute(
             path: 'costs',

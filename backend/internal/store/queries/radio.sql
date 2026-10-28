@@ -512,3 +512,67 @@ SELECT user_id FROM radio_members
 WHERE conversation_id = $1 AND user_id <> $2 AND status IN ('active', 'muted') AND role IN ('moderator', 'member')
 ORDER BY CASE role WHEN 'moderator' THEN 0 ELSE 1 END, joined_at
 LIMIT 1;
+
+-- Cargas masivas (FR-033, FR-034) --------------------------------------------------------------
+
+-- name: InsertRadioBulkUpload :one
+INSERT INTO radio_bulk_uploads (id, admin_id, file_name, rows_total, rows_valid, rows_invalid, status, created_at)
+VALUES ($1, $2, $3, $4, $5, $6, 'validated', $7)
+RETURNING *;
+
+-- name: GetRadioBulkUpload :one
+SELECT * FROM radio_bulk_uploads WHERE id = $1;
+
+-- name: ListRadioBulkUploads :many
+SELECT * FROM radio_bulk_uploads ORDER BY created_at DESC LIMIT 100;
+
+-- name: SetRadioBulkUploadStatus :execrows
+-- Solo desde los estados permitidos: no se confirma dos veces a la vez.
+UPDATE radio_bulk_uploads
+SET status = sqlc.arg(status), confirmed_at = coalesce(confirmed_at, sqlc.narg(confirmed_at))
+WHERE id = sqlc.arg(id) AND status = ANY(sqlc.arg(from_statuses)::text[]);
+
+-- name: ListRadioBulkRows :many
+SELECT * FROM radio_invites WHERE bulk_id = $1 ORDER BY line;
+
+-- name: CountRadioBulkRows :many
+-- Totales por estado; las pendientes o enviadas vencidas cuentan como vencidas.
+SELECT CASE WHEN status IN ('pending', 'sent') AND expires_at <= sqlc.arg(now)::timestamptz THEN 'expired'
+            ELSE status::text END::text AS status,
+       count(*)::int AS n
+FROM radio_invites
+WHERE bulk_id = sqlc.arg(bulk_id)
+GROUP BY 1;
+
+-- name: SetRadioBulkInviteChannel :exec
+UPDATE radio_invites SET conversation_id = $2, inviter_id = sqlc.narg(inviter_id) WHERE id = $1;
+
+-- name: GetRadioActiveChannelByName :one
+SELECT * FROM radio_conversations
+WHERE kind = 'channel' AND status <> 'deleted' AND lower(name) = lower(sqlc.arg(name)::text);
+
+-- name: GetRadioUserByPhone :one
+SELECT id, role, display_name FROM users WHERE phone_e164 = $1;
+
+-- name: GetRadioChannelOwner :one
+SELECT u.id, u.display_name
+FROM radio_members m JOIN users u ON u.id = m.user_id
+WHERE m.conversation_id = $1 AND m.role = 'owner' AND m.status = 'active';
+
+-- Costo de almacenamiento (FR-040) ---------------------------------------------------------------
+
+-- name: SumRadioStorageBytes :one
+-- Bytes de Radio guardados en los últimos días: base del costo estimado por retención.
+SELECT coalesce(sum(radio_storage_bytes), 0)::bigint AS bytes
+FROM driver_usage_daily
+WHERE day >= sqlc.arg(since)::date;
+
+-- name: GetCostRateAt :one
+SELECT unit_cost_micro FROM cost_rates
+WHERE concept = sqlc.arg(concept)::cost_concept AND currency = sqlc.arg(currency) AND effective_from <= sqlc.arg(day)::date
+ORDER BY effective_from DESC
+LIMIT 1;
+
+-- name: ListRadioUsers :many
+-- Quienes usaron Radio: reciben `radio.settings` cuando el panel cambia la configuración.
+SELECT user_id FROM radio_presence;
