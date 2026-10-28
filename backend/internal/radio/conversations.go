@@ -2,6 +2,7 @@ package radio
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/google/uuid"
@@ -123,6 +124,9 @@ func (s *Service) List(ctx context.Context, userID uuid.UUID) ([]Conversation, e
 		return nil, err
 	}
 	if err := s.syncClients(ctx, userID, sub.Role); err != nil {
+		return nil, err
+	}
+	if _, err := s.syncCooperative(ctx, userID, sub.Role); err != nil && !errors.Is(err, ErrNotFound) {
 		return nil, err
 	}
 	now := s.now()

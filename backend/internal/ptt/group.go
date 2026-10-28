@@ -24,6 +24,18 @@ const (
 // ErrNoCooperative means the driver is not an active member of an active cooperative (FR-022).
 var ErrNoCooperative = errors.New("no active cooperative")
 
+// ErrGroupDenied: Radio does not let the driver talk in the group (sin acceso, solo escucha,
+// silenciado o sin aceptar el aviso de registro, 011).
+var ErrGroupDenied = errors.New("group channel denied by radio")
+
+// GroupRadio is the cooperative's conversation in Radio Kyq (011). With it, the group channel of
+// 006 lives in the Radio room: same token rules, turn and recording (RN-KYQ-017).
+type GroupRadio interface {
+	GroupToken(ctx context.Context, driverID uuid.UUID) (Credentials, error)
+	TakeGroupFloor(ctx context.Context, driverID uuid.UUID) (time.Time, error)
+	ReleaseGroupFloor(ctx context.Context, driverID uuid.UUID) error
+}
+
 // GroupRooms adds what the cooperative group channel needs on top of Rooms: rooms for many
 // participants and taking a participant out (COOP_GROUP, 006).
 type GroupRooms interface {
@@ -52,6 +64,9 @@ func (s *Service) groupChannel(ctx context.Context, driverID uuid.UUID) (store.G
 // GroupToken issues credentials for the driver's cooperative room. Like the trip channel, the
 // token lets the member listen and send data; publishing audio comes with the floor (FR-023).
 func (s *Service) GroupToken(ctx context.Context, driverID uuid.UUID) (Credentials, error) {
+	if s.Radio != nil {
+		return s.Radio.GroupToken(ctx, driverID)
+	}
 	if s.Groups == nil {
 		return Credentials{}, ErrUnavailable
 	}
@@ -77,6 +92,9 @@ func (s *Service) GroupToken(ctx context.Context, driverID uuid.UUID) (Credentia
 
 // TakeGroupFloor grants the group's single turn for FloorTTL (FR-023), fail-closed as TakeFloor.
 func (s *Service) TakeGroupFloor(ctx context.Context, driverID uuid.UUID) (time.Time, error) {
+	if s.Radio != nil {
+		return s.Radio.TakeGroupFloor(ctx, driverID)
+	}
 	if s.Groups == nil {
 		return time.Time{}, ErrUnavailable
 	}
@@ -108,6 +126,9 @@ func (s *Service) TakeGroupFloor(ctx context.Context, driverID uuid.UUID) (time.
 
 // ReleaseGroupFloor revokes publishing and then frees the turn; without the turn nothing changes.
 func (s *Service) ReleaseGroupFloor(ctx context.Context, driverID uuid.UUID) error {
+	if s.Radio != nil {
+		return s.Radio.ReleaseGroupFloor(ctx, driverID)
+	}
 	if s.Groups == nil {
 		return ErrUnavailable
 	}

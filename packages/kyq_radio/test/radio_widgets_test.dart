@@ -1,65 +1,14 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:go_router/go_router.dart';
 import 'package:kyq_api/kyq_api.dart';
-import 'package:kyq_ptt/testing.dart';
 import 'package:kyq_radio/kyq_radio.dart';
 import 'package:kyq_radio/testing.dart';
-import 'package:kyq_realtime/kyq_realtime.dart';
 
-class _Harness {
-  _Harness(this.api);
-
-  final FakeRadioApi api;
-  final events = StreamController<RealtimeEvent>.broadcast();
-  final player = FakeMessagePlayer();
-  final tones = FakeTonePlayer();
-  late RadioCubit cubit;
-
-  Future<void> pump(WidgetTester tester, {String initial = '/radio'}) async {
-    cubit = RadioCubit(
-      api: api,
-      myUserId: 'me',
-      events: events.stream,
-      rooms: () => FakeListeningRoom(identity: 'me'),
-      tones: tones,
-      focus: FakeAudioFocus(),
-      player: FakeMessagePlayer(),
-    );
-    addTearDown(events.close);
-    addTearDown(cubit.close);
-    final router = GoRouter(
-      initialLocation: initial,
-      routes: [
-        GoRoute(path: '/', builder: (_, _) => const SizedBox(), routes: [radioRoute()]),
-      ],
-    );
-    addTearDown(router.dispose);
-    await tester.pumpWidget(
-      RepositoryProvider(
-        create: (_) => RadioDeps(api: api, myUserId: 'me', events: events.stream, newPlayer: () => player),
-        child: BlocProvider.value(
-          value: cubit..load(),
-          child: MaterialApp.router(routerConfig: router),
-        ),
-      ),
-    );
-    await tester.pumpAndSettle();
-  }
-
-  /// Cierra el cubit dentro de la prueba: sus temporizadores (latido) no deben quedar vivos.
-  Future<void> done(WidgetTester tester) async {
-    await tester.pumpWidget(const SizedBox());
-    cubit.cancelTimers();
-  }
-}
+import 'support/harness.dart';
 
 void main() {
   testWidgets('lista única con estado, nuevos y "Escuchar" (FR-001)', (tester) async {
-    final h = _Harness(FakeRadioApi(conversations: [fakeContact('c1', unread: 3), fakeChannel('c2')]));
+    final h = RadioHarness(FakeRadioApi(conversations: [fakeContact('c1', unread: 3), fakeChannel('c2')]));
     await h.pump(tester);
     expect(find.text('Jonathan'), findsOneWidget);
     expect(find.text('Disponible'), findsWidgets);
@@ -73,7 +22,7 @@ void main() {
   });
 
   testWidgets('aviso de registro antes del primer uso (FR-013)', (tester) async {
-    final h = _Harness(FakeRadioApi(me: fakeMe(consentRequired: true), conversations: [fakeContact('c1')]));
+    final h = RadioHarness(FakeRadioApi(me: fakeMe(consentRequired: true), conversations: [fakeContact('c1')]));
     await h.pump(tester);
     expect(find.textContaining('durante 30 días'), findsOneWidget);
     expect(find.textContaining('nunca se graban'), findsOneWidget);
@@ -84,7 +33,7 @@ void main() {
   });
 
   testWidgets('sin acceso explica qué falta; en prueba muestra los días (FR-005)', (tester) async {
-    final h = _Harness(
+    final h = RadioHarness(
       FakeRadioApi(
         me: fakeMe(access: RadioAccess.none).copyWith(accessReason: 'trial_ended'),
       ),
@@ -93,7 +42,7 @@ void main() {
     expect(find.textContaining('Terminó tu prueba'), findsOneWidget);
     expect(find.byKey(const Key('radio.add')), findsNothing);
 
-    final h2 = _Harness(FakeRadioApi(me: fakeMe().copyWith(trialDaysLeft: 9), conversations: [fakeContact('c1')]));
+    final h2 = RadioHarness(FakeRadioApi(me: fakeMe().copyWith(trialDaysLeft: 9), conversations: [fakeContact('c1')]));
     await h2.pump(tester);
     expect(find.text('Prueba de Radio: te quedan 9 días'), findsOneWidget);
     await h2.done(tester);
@@ -107,7 +56,7 @@ void main() {
       fakeVoice('m2', 'c1', minute: 2),
       fakeVoice('m1', 'c1', minute: 1, heard: true),
     ];
-    final h = _Harness(api);
+    final h = RadioHarness(api);
     await h.pump(tester, initial: '/radio/c/c1');
     expect(find.byKey(const Key('radio.conversation.title')), findsOneWidget);
     expect(find.text('Mantén pulsado para hablar'), findsOneWidget);
@@ -136,7 +85,7 @@ void main() {
   testWidgets('enviar texto y ver el turno ocupado (US1-4, US6-1)', (tester) async {
     final api = FakeRadioApi(conversations: [fakeContact('c1')])
       ..floorError = const ApiException(409, 'floor_busy', 'Jonathan está hablando');
-    final h = _Harness(api);
+    final h = RadioHarness(api);
     await h.pump(tester, initial: '/radio/c/c1');
     await tester.enterText(find.byKey(const Key('radio.text')), 'voy tarde 10 min');
     await tester.tap(find.byKey(const Key('radio.send')));
@@ -154,7 +103,7 @@ void main() {
   });
 
   testWidgets('solo escucha: el botón no transmite y no hay caja de texto (US4-4)', (tester) async {
-    final h = _Harness(FakeRadioApi(conversations: [fakeChannel('c2', role: RadioRole.listener)]));
+    final h = RadioHarness(FakeRadioApi(conversations: [fakeChannel('c2', role: RadioRole.listener)]));
     await h.pump(tester, initial: '/radio/c/c2');
     expect(find.text('Aquí solo puedes escuchar'), findsOneWidget);
     expect(find.byKey(const Key('radio.text')), findsNothing);
@@ -163,7 +112,7 @@ void main() {
 
   testWidgets('invitación por enlace: quién invita y aceptar (FR-032)', (tester) async {
     final api = FakeRadioApi(conversations: [fakeContact('c1', title: 'Carlos')]);
-    final h = _Harness(api);
+    final h = RadioHarness(api);
     await h.pump(tester, initial: '/radio/invite/ABCDEFGHIJ');
     expect(find.text('Carlos quiere agregarte a su Radio'), findsOneWidget);
     await tester.tap(find.byKey(const Key('radio.invite.accept')));

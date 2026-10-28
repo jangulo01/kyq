@@ -2004,6 +2004,7 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/PttCredentials' }
+        '403': { description: '`radio_denied` (011): sin acceso a Radio' }
         '404': { description: '`no_cooperative`: sin cooperativa activa' }
         '503': { description: '`ptt_unavailable`' }
   /v1/driver/cooperative/ptt/floor:
@@ -2018,6 +2019,7 @@ paths:
                 type: object
                 properties:
                   expires_at: { type: string, format: date-time }
+        '403': { description: '`radio_denied` (011): el canal de grupo vive en la conversación de Radio de la cooperativa; sin acceso, en solo escucha, silenciado o sin aceptar el aviso de registro' }
         '404': { description: '`no_cooperative`' }
         '409': { description: '`ptt_busy`: otro miembro habla' }
         '503': { description: '`ptt_unavailable`' }

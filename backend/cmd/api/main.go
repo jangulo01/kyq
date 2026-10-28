@@ -253,6 +253,10 @@ func run(logger *slog.Logger) error {
 		PlayRiderURL: cfg.PlayRiderURL, Usage: usage, Logger: logger,
 	}
 	go radioService.RunSweeper(ctx, time.Second)
+	// 011: la cooperativa de 006 habla en su conversación de Radio (FR-018): los endpoints del
+	// canal de grupo usan la sala y el turno de Radio, y las bajas y suspensiones llegan a los dos.
+	pttService.Radio = radioService
+	coopService.Group = cooperatives.Groups{pttService, radioService}
 
 	billingService.References = append(billingService.References, tripPayService)
 	tripService.Payments = tripPayService

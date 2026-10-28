@@ -50,7 +50,10 @@ type Service struct {
 	LiveKit LiveKit
 	Rooms   Rooms
 	// Groups serves the cooperative group channel (006); nil disables it.
-	Groups    GroupRooms
+	Groups GroupRooms
+	// Radio (011) serves the group channel on the cooperative's Radio room when set, so the 006
+	// endpoints and Radio share one room and one turn (FR-018).
+	Radio     GroupRadio
 	PublicURL string // LiveKit WebSocket URL handed to the apps
 	Publisher realtime.Publisher
 	Usage     telemetry.Usage

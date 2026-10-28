@@ -57,6 +57,8 @@ func writeGroupError(w http.ResponseWriter, r *http.Request, err error) {
 		httpx.WriteError(w, http.StatusNotFound, "no_cooperative", "no perteneces a una cooperativa activa")
 	case errors.Is(err, ErrBusy):
 		httpx.WriteError(w, http.StatusConflict, "ptt_busy", "otro compañero está hablando")
+	case errors.Is(err, ErrGroupDenied):
+		httpx.WriteError(w, http.StatusForbidden, "radio_denied", "abre Radio en la app para hablar en el canal de tu cooperativa")
 	case errors.Is(err, ErrUnavailable):
 		httpx.WriteError(w, http.StatusServiceUnavailable, "ptt_unavailable", "el servidor de voz no responde, inténtalo de nuevo")
 	default:

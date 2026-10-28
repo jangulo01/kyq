@@ -336,3 +336,13 @@ class FakeMessagePlayer implements MessagePlayer {
   @override
   Future<void> dispose() async {}
 }
+
+RadioMember fakeMember(
+  String id,
+  String name, {
+  RadioRole role = RadioRole.member,
+  RadioMemberStatus status = RadioMemberStatus.active,
+  RadioPresence presence = RadioPresence.available,
+  bool passenger = false,
+}) =>
+    RadioMember(userId: id, displayName: name, role: role, status: status, presence: presence, isPassenger: passenger);

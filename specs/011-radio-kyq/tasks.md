@@ -44,10 +44,10 @@
 
 ## Phase 5: US4 Canales y cooperativa (P1)
 
-- [ ] T021 [US4] `radio/conversations.go` + `members.go` (canales): crear (nombre único, 10 por conductor, 200 miembros), editar, enlace/QR, pedir entrada, aprobar/rechazar, roles, silenciar, expulsar, bloquear, salir, borrar; rotación de sala al expulsar/salir/bloquear; pruebas de integración (FR-015, FR-016, FR-014)
-- [ ] T022 [US4] Política de pasajeros en canales (FR-017): validar contra `radio_settings` y `passenger_role_max`; degradar o sacar pasajeros al restringir la política, con aviso `radio.member`; pruebas por política
-- [ ] T023 [US4] `cooperatives`: sincronizar membresías y suspensión de 006 con la conversación `cooperative` (alta, baja, rotación), sin salir desde Radio (`403 cooperative_channel`); migrar el canal de grupo de 006 a la sala de Radio sin romper `/v1/driver/cooperative/ptt/*`; pruebas de integración (FR-018)
-- [ ] T024 [US4] `kyq_radio`: crear canal, detalle con miembros y estados, solicitudes pendientes, menú de moderación por rol; pruebas de widget
+- [X] T021 [US4] `radio/conversations.go` + `members.go` (canales): crear (nombre único, 10 por conductor, 200 miembros), editar, enlace/QR, pedir entrada, aprobar/rechazar, roles, silenciar, expulsar, bloquear, salir, borrar; rotación de sala al expulsar/salir/bloquear; pruebas de integración (FR-015, FR-016, FR-014)
+- [X] T022 [US4] Política de pasajeros en canales (FR-017): validar contra `radio_settings` y `passenger_role_max`; degradar o sacar pasajeros al restringir la política, con aviso `radio.member`; pruebas por política
+- [X] T023 [US4] `cooperatives`: sincronizar membresías y suspensión de 006 con la conversación `cooperative` (alta, baja, rotación), sin salir desde Radio (`403 cooperative_channel`); migrar el canal de grupo de 006 a la sala de Radio sin romper `/v1/driver/cooperative/ptt/*`; pruebas de integración (FR-018)
+- [X] T024 [US4] `kyq_radio`: crear canal, detalle con miembros y estados, solicitudes pendientes, menú de moderación por rol; pruebas de widget
 
 ## Phase 6: US7 Varias conversaciones (P2)
 
