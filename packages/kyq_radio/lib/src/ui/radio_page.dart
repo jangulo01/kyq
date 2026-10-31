@@ -152,7 +152,9 @@ class _RadioPageState extends State<RadioPage> {
                           leading: const Icon(Icons.radio_outlined),
                           title: const Text('Radio apagada'),
                           subtitle: const Text('Los mensajes llegan al historial. Enciéndela para oírlos en vivo.'),
+                          // El tema de Kyq hace los FilledButton de ancho completo: en una fila se acota.
                           trailing: FilledButton(
+                            style: FilledButton.styleFrom(minimumSize: const Size(0, 40)),
                             onPressed: () => cubit.setRadioOn(true),
                             child: const Text('Encender'),
                           ),

@@ -9,6 +9,7 @@ import 'package:kyq_ptt/testing.dart';
 import 'package:kyq_radio/kyq_radio.dart';
 import 'package:kyq_radio/testing.dart';
 import 'package:kyq_realtime/kyq_realtime.dart';
+import 'package:kyq_ui/kyq_ui.dart';
 
 /// Radio montada en un router de prueba con API, salas, tonos y audio falsos.
 class RadioHarness {
@@ -71,7 +72,8 @@ class RadioHarness {
         ),
         child: BlocProvider.value(
           value: cubit..load(),
-          child: MaterialApp.router(routerConfig: router),
+          // Tema real de las apps: atrapa choques de layout como un FilledButton de ancho completo.
+          child: MaterialApp.router(theme: kyqTheme(), routerConfig: router),
         ),
       ),
     );

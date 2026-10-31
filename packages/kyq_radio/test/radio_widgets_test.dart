@@ -22,6 +22,22 @@ void main() {
     await h.done(tester);
   });
 
+  testWidgets('con la radio apagada la lista se ve y "Encender" la prende (FR-026)', (tester) async {
+    // En un teléfono real el botón de ancho completo del tema dejaba Radio en blanco.
+    tester.view.physicalSize = const Size(1220, 2712);
+    tester.view.devicePixelRatio = 3.0;
+    addTearDown(tester.view.reset);
+    final h = RadioHarness(FakeRadioApi(me: fakeMe(radioOn: false), conversations: [fakeContact('c1')]));
+    await h.pump(tester);
+    expect(tester.takeException(), isNull);
+    expect(find.byKey(const Key('radio.off')), findsOneWidget);
+    expect(find.text('Jonathan'), findsOneWidget);
+    await tester.tap(find.text('Encender'));
+    await tester.pumpAndSettle();
+    expect(h.api.calls, contains('me  true'));
+    await h.done(tester);
+  });
+
   testWidgets('aviso de registro antes del primer uso (FR-013)', (tester) async {
     final h = RadioHarness(FakeRadioApi(me: fakeMe(consentRequired: true), conversations: [fakeContact('c1')]));
     await h.pump(tester);
