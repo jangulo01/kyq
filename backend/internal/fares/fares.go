@@ -49,6 +49,25 @@ func (t Table) Suggest(distanceM, durationS int32) int64 {
 	return (raw + r/2) / r * r
 }
 
+// MaxPreferentialDiscountPct is the highest preferential discount a driver may give his clients
+// (008, RN-KYQ-013).
+const MaxPreferentialDiscountPct = 30
+
+// WithDiscount applies a preferential discount of pct percent to a list fare, rounded like
+// Suggest. 0 (or an out-of-range pct) leaves the fare unchanged; the result is never below one
+// rounding unit.
+func (t Table) WithDiscount(listMinor int64, pct int) int64 {
+	if pct <= 0 || pct > MaxPreferentialDiscountPct {
+		return listMinor
+	}
+	raw := listMinor * int64(100-pct) / 100
+	r := t.RoundingMinor
+	if r <= 1 {
+		return max(raw, 1)
+	}
+	return max((raw+r/2)/r*r, r)
+}
+
 // Route is a road route estimate.
 type Route struct {
 	DistanceM int32

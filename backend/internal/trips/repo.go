@@ -53,6 +53,7 @@ func fromRow(r store.Trip) *Trip {
 		CompletedAt: tsPtr(r.CompletedAt), CancelledAt: tsPtr(r.CancelledAt),
 		Dispatch: Dispatch(r.Dispatch), RequestedDriverID: r.RequestedDriverID, CooperativeID: uuidPtr(r.CooperativeID),
 		AllowDelegation: r.AllowDelegation, Handovers: int(r.HandoverCount),
+		ListFare: r.ListFareMinor, DiscountPct: int(r.PreferentialDiscountPct),
 	}
 	if r.CancelReason.Valid {
 		reason := string(r.CancelReason.TripCancelReason)
@@ -91,6 +92,7 @@ func insertTrip(ctx context.Context, q *store.Queries, t *Trip) error {
 		Status: store.TripStatus(t.Status), RespondBy: ts(t.RespondBy), CreatedAt: t.CreatedAt,
 		Dispatch: string(t.Dispatch), RequestedDriverID: t.RequestedDriverID,
 		CooperativeID: nullUUID(t.CooperativeID), AllowDelegation: t.AllowDelegation, HandoverCount: int16(t.Handovers),
+		ListFareMinor: t.ListFare, PreferentialDiscountPct: int16(t.DiscountPct),
 	})
 }
 
@@ -118,6 +120,7 @@ func save(ctx context.Context, q *store.Queries, t *Trip) error {
 		AcceptedAt: ts(t.AcceptedAt), ArrivedAt: ts(t.ArrivedAt), StartedAt: ts(t.StartedAt),
 		CompletedAt: ts(t.CompletedAt), CancelledAt: ts(t.CancelledAt),
 		DriverID: t.DriverID, HandoverCount: int16(t.Handovers),
+		SuggestedFareMinor: t.SuggestedFare, PreferentialDiscountPct: int16(t.DiscountPct),
 	})
 }
 

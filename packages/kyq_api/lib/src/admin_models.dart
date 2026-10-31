@@ -48,6 +48,9 @@ abstract class TowerCell with _$TowerCell {
     /// Solicitudes por conductor libre; null sin conductores libres.
     double? pressure,
     @JsonKey(unknownEnumValue: PressureLevel.none) @Default(PressureLevel.none) PressureLevel level,
+
+    /// 009: viajes activos del hexágono, para abrirlos desde la torre.
+    @Default(<String>[]) List<String> tripIds,
   }) = _TowerCell;
 
   factory TowerCell.fromJson(Map<String, dynamic> json) => _$TowerCellFromJson(json);
@@ -65,6 +68,9 @@ abstract class TowerDriver with _$TowerDriver {
     required DateTime locationAt,
     @Default(false) bool stale,
     required String cell,
+
+    /// 009: viaje activo del conductor ocupado.
+    String? activeTripId,
   }) = _TowerDriver;
 
   factory TowerDriver.fromJson(Map<String, dynamic> json) => _$TowerDriverFromJson(json);
@@ -161,6 +167,9 @@ abstract class CrmAffiliations with _$CrmAffiliations {
     @Default(0) int net,
     double? churnRate,
     @Default(<CrmWeek>[]) List<CrmWeek> weekly,
+
+    /// 008: altas por origen (`qr_scan`, `post_trip`, `link`).
+    @Default(<String, int>{}) Map<String, int> createdBySource,
   }) = _CrmAffiliations;
 
   factory CrmAffiliations.fromJson(Map<String, dynamic> json) => _$CrmAffiliationsFromJson(json);

@@ -25,6 +25,8 @@ class RequestState {
     this.tripId,
     this.dispatch = TripDispatch.chosenDriver,
     this.allowDelegation = false,
+    this.pickupLabel,
+    this.dropoffLabel,
   });
 
   final GeoPoint? pickup;
@@ -49,9 +51,13 @@ class RequestState {
   final TripDispatch dispatch;
   final bool allowDelegation;
 
+  /// 010: nombre del lugar elegido en el buscador; null si se marcó en el mapa.
+  final String? pickupLabel;
+  final String? dropoffLabel;
+
   /// Con la cooperativa como respaldo, un conductor ocupado no impide pedir: el backend busca a
-  /// un compañero libre (RN-KYQ-008).
-  bool get coversBusyDriver => dispatch == TripDispatch.cooperative || allowDelegation;
+  /// un compañero libre (RN-KYQ-008). En la bolsa zonal (008) no se pide a él.
+  bool get coversBusyDriver => dispatch != TripDispatch.chosenDriver || allowDelegation;
 
   bool get canRequest => quote != null && (driverFree || coversBusyDriver) && !quoting && !requesting && tripId == null;
 
@@ -69,6 +75,8 @@ class RequestState {
     String? tripId,
     TripDispatch? dispatch,
     bool? allowDelegation,
+    String? Function()? pickupLabel,
+    String? Function()? dropoffLabel,
   }) => RequestState(
     pickup: pickup ?? this.pickup,
     dropoff: dropoff ?? this.dropoff,
@@ -83,25 +91,38 @@ class RequestState {
     tripId: tripId ?? this.tripId,
     dispatch: dispatch ?? this.dispatch,
     allowDelegation: allowDelegation ?? this.allowDelegation,
+    pickupLabel: pickupLabel != null ? pickupLabel() : this.pickupLabel,
+    dropoffLabel: dropoffLabel != null ? dropoffLabel() : this.dropoffLabel,
   );
 }
 
-/// Solicitud de viaje a un Conductor Elegido (FR-009, FR-010, FR-011).
+/// Solicitud de viaje a un Conductor Elegido (FR-009, FR-010, FR-011) o, sin [driverId], a la
+/// bolsa zonal (008, FR-001): el conductor libre más cercano que la tenga activada.
 class RequestCubit extends Cubit<RequestState> {
   RequestCubit({
     required this._api,
     required this._location,
-    required this.driverId,
-    required this.driverName,
+    this.driverId,
+    this.driverName = 'un conductor cercano',
     this._realtime = const NoRealtimeEvents(),
     this.cooperative,
-  }) : super(RequestState(allowDelegation: cooperative != null));
+  }) : super(
+         RequestState(
+           dispatch: driverId == null ? TripDispatch.zonePool : TripDispatch.chosenDriver,
+           allowDelegation: driverId != null && cooperative != null,
+         ),
+       );
 
   final KyqApiClient _api;
   final LocationSource _location;
   final RealtimeEvents _realtime;
-  final String driverId;
+
+  /// Conductor Elegido al que se pide; null cuando el pasajero pide a la bolsa zonal desde el inicio.
+  final String? driverId;
   final String driverName;
+
+  /// 008: solo la bolsa zonal, sin selector (el pasajero no eligió un conductor).
+  bool get nearbyOnly => driverId == null;
 
   /// 006: cooperativa activa del conductor; sin ella solo se puede pedir a él, como en 001.
   final CooperativeRef? cooperative;
@@ -110,21 +131,28 @@ class RequestCubit extends Cubit<RequestState> {
   /// Nombre del conductor que recibió la oferta (otro si la solicitud fue a la cooperativa).
   String? assignedDriverName;
 
-  /// Selector de despacho (FR-009). La opción 3 no existe en esta etapa.
-  void setDispatch(TripDispatch dispatch) {
+  /// Selector de despacho (006, FR-009) con la opción 3, la bolsa zonal (008).
+  Future<void> setDispatch(TripDispatch dispatch) async {
+    if (nearbyOnly || dispatch == state.dispatch) return;
     if (cooperative == null && dispatch == TripDispatch.cooperative) return;
+    final wasChosen = state.dispatch == TripDispatch.chosenDriver;
     emit(state.copyWith(dispatch: dispatch, error: () => null));
+    // La tarifa preferencial (RN-KYQ-013) solo vale pidiéndole a él: se vuelve a cotizar.
+    if (wasChosen != (dispatch == TripDispatch.chosenDriver)) await _requote();
   }
 
   /// Consentimiento para pasar a un compañero de la cooperativa (FR-010).
   void setAllowDelegation(bool allow) {
-    if (cooperative == null) return;
+    if (cooperative == null || nearbyOnly) return;
     emit(state.copyWith(allowDelegation: allow));
   }
 
   /// Escucha la presencia del conductor y usa la ubicación si ya hay permiso.
   Future<void> start() async {
-    _presence = _realtime.subscribe(Channels.driverPresence(driverId)).listen(_onPresence, onError: (Object _) {});
+    final id = driverId;
+    if (id != null) {
+      _presence = _realtime.subscribe(Channels.driverPresence(id)).listen(_onPresence, onError: (Object _) {});
+    }
     bool granted;
     try {
       granted = await _location.hasPermission();
@@ -156,7 +184,7 @@ class RequestCubit extends Cubit<RequestState> {
     try {
       final here = await _location.current();
       if (isClosed) return;
-      emit(state.copyWith(pickup: here, locating: false, editing: RequestPoint.dropoff));
+      emit(state.copyWith(pickup: here, pickupLabel: () => null, locating: false, editing: RequestPoint.dropoff));
       await _requote();
     } on LocationUnavailable catch (e) {
       if (isClosed) return;
@@ -167,11 +195,22 @@ class RequestCubit extends Cubit<RequestState> {
   void edit(RequestPoint point) => emit(state.copyWith(editing: point));
 
   /// Toque en el mapa: fija el punto que se está editando y vuelve a cotizar.
-  Future<void> setPoint(GeoPoint point) async {
+  Future<void> setPoint(GeoPoint point) => _setPoint(point, null);
+
+  /// 010: lugar elegido en el buscador (FR-014); se cotiza igual que con el mapa.
+  Future<void> setPlace(Place place) => _setPoint(place.point, place.label);
+
+  Future<void> _setPoint(GeoPoint point, String? label) async {
     if (state.editing == RequestPoint.pickup) {
-      emit(state.copyWith(pickup: point, editing: state.dropoff == null ? RequestPoint.dropoff : RequestPoint.pickup));
+      emit(
+        state.copyWith(
+          pickup: point,
+          pickupLabel: () => label,
+          editing: state.dropoff == null ? RequestPoint.dropoff : RequestPoint.pickup,
+        ),
+      );
     } else {
-      emit(state.copyWith(dropoff: point));
+      emit(state.copyWith(dropoff: point, dropoffLabel: () => label));
     }
     await _requote();
   }
@@ -180,14 +219,20 @@ class RequestCubit extends Cubit<RequestState> {
     final pickup = state.pickup;
     final dropoff = state.dropoff;
     if (pickup == null || dropoff == null) return;
+    final dispatch = state.dispatch;
     emit(state.copyWith(quoting: true, quote: () => null, error: () => null));
+    // Si el pasajero movió un punto o cambió el despacho mientras cotizábamos, gana lo más reciente.
+    bool stale() => isClosed || state.pickup != pickup || state.dropoff != dropoff || state.dispatch != dispatch;
     try {
-      final quote = await _api.quote(pickup, dropoff);
-      // Si el pasajero movió un punto mientras cotizábamos, gana la cotización más reciente.
-      if (isClosed || state.pickup != pickup || state.dropoff != dropoff) return;
+      final quote = await _api.quote(
+        pickup,
+        dropoff,
+        driverId: dispatch == TripDispatch.chosenDriver ? driverId : null,
+      );
+      if (stale()) return;
       emit(state.copyWith(quoting: false, quote: () => quote));
     } on ApiException catch (e) {
-      if (isClosed || state.pickup != pickup || state.dropoff != dropoff) return;
+      if (stale()) return;
       emit(state.copyWith(quoting: false, error: () => _message(e)));
     }
   }
@@ -199,16 +244,22 @@ class RequestCubit extends Cubit<RequestState> {
     if (!state.canRequest || pickup == null || dropoff == null) return;
     emit(state.copyWith(requesting: true, error: () => null));
     try {
-      // Sin cooperativa la llamada es la de 001.
-      final trip = cooperative == null
-          ? await _api.requestTrip(driverId: driverId, pickup: pickup, dropoff: dropoff)
-          : await _api.requestTrip(
-              driverId: driverId,
-              pickup: pickup,
-              dropoff: dropoff,
-              dispatch: state.dispatch,
-              allowDelegation: state.dispatch == TripDispatch.chosenDriver && state.allowDelegation,
-            );
+      final trip = switch (state.dispatch) {
+        TripDispatch.zonePool => await _api.requestTrip(
+          pickup: pickup,
+          dropoff: dropoff,
+          dispatch: TripDispatch.zonePool,
+        ),
+        // Sin cooperativa la llamada es la de 001.
+        _ when cooperative == null => await _api.requestTrip(driverId: driverId, pickup: pickup, dropoff: dropoff),
+        _ => await _api.requestTrip(
+          driverId: driverId,
+          pickup: pickup,
+          dropoff: dropoff,
+          dispatch: state.dispatch,
+          allowDelegation: state.dispatch == TripDispatch.chosenDriver && state.allowDelegation,
+        ),
+      };
       assignedDriverName = trip.driverName;
       if (isClosed) return;
       emit(state.copyWith(requesting: false, tripId: trip.id));
@@ -226,6 +277,8 @@ class RequestCubit extends Cubit<RequestState> {
 
   String _message(ApiException e) => switch (e.code) {
     'driver_not_free' => '$driverName ya no está libre. Inténtalo en unos minutos o pide a otro conductor.',
+    'no_driver_available' when state.dispatch == TripDispatch.zonePool =>
+      'No hay conductores libres cerca en este momento. Inténtalo en unos minutos.',
     'no_driver_available' =>
       'No hay conductores libres de ${cooperative?.name ?? 'la cooperativa'} cerca. Inténtalo en unos minutos.',
     'no_cooperative' => '$driverName ya no pertenece a una cooperativa activa.',

@@ -51,7 +51,7 @@ func (q *Queries) ListCostRates(ctx context.Context) ([]ListCostRatesRow, error)
 }
 
 const listDailyUsage = `-- name: ListDailyUsage :many
-SELECT driver_id, day, voice_participant_seconds, realtime_events, route_requests
+SELECT driver_id, day, voice_participant_seconds, realtime_events, route_requests, radio_storage_bytes
 FROM driver_usage_daily
 WHERE day >= $1 AND day < $2
   AND driver_id <> '00000000-0000-0000-0000-000000000000'::uuid
@@ -65,21 +65,31 @@ type ListDailyUsageParams struct {
 	DriverID uuid.NullUUID
 }
 
-func (q *Queries) ListDailyUsage(ctx context.Context, arg ListDailyUsageParams) ([]DriverUsageDaily, error) {
+type ListDailyUsageRow struct {
+	DriverID                uuid.UUID
+	Day                     time.Time
+	VoiceParticipantSeconds int64
+	RealtimeEvents          int64
+	RouteRequests           int64
+	RadioStorageBytes       int64
+}
+
+func (q *Queries) ListDailyUsage(ctx context.Context, arg ListDailyUsageParams) ([]ListDailyUsageRow, error) {
 	rows, err := q.db.Query(ctx, listDailyUsage, arg.FromDay, arg.ToDay, arg.DriverID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []DriverUsageDaily{}
+	items := []ListDailyUsageRow{}
 	for rows.Next() {
-		var i DriverUsageDaily
+		var i ListDailyUsageRow
 		if err := rows.Scan(
 			&i.DriverID,
 			&i.Day,
 			&i.VoiceParticipantSeconds,
 			&i.RealtimeEvents,
 			&i.RouteRequests,
+			&i.RadioStorageBytes,
 		); err != nil {
 			return nil, err
 		}

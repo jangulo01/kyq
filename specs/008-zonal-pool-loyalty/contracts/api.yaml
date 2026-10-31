@@ -1,0 +1,45 @@
+openapi: 3.1.0
+info:
+  title: Kyq API — 008 bolsa zonal y fidelización (rutas nuevas y cambiadas)
+  version: 0.4.0
+  description: |
+    Vista de las rutas nuevas y cambiadas de 008. Las definiciones viven en el contrato principal
+    `specs/001-chosen-driver-trip-ptt/contracts/api.yaml`, contra el que corren las pruebas de
+    contrato (`backend/internal/contracttest/zone_pool_test.go`); aquí solo se referencian.
+
+    Cambios:
+    - `POST /v1/trips`: `dispatch` admite `zone_pool` (opción 3, conductor libre más cercano con la
+      bolsa activada); con `zone_pool`, `driver_id` es opcional y no hace falta afiliación.
+      `400 invalid_route` si falta `driver_id` fuera de la bolsa.
+    - `POST /v1/fares/quote`: `driver_id` opcional; si el pasajero es su cliente, la respuesta trae
+      `preferential_discount_pct` y `suggested_fare_minor` ya con el descuento, y `list_fare_minor`
+      sin él (RN-KYQ-013).
+    - `Trip` añade `list_fare_minor` y `preferential_discount_pct`.
+    - `GET/PUT /v1/driver/dispatch-settings` (rol `driver`): `accepts_zone_pool`,
+      `preferential_discount_pct` (0–30, `400 invalid_settings` fuera de rango) y `affiliate_link`.
+    - `POST /v1/affiliations`: `qr_token` con `source` (`qr_scan` por defecto o `link`), o
+      `trip_id` de un viaje completado (`post_trip`, `404 trip_not_found`).
+    - `GET /v1/driver/clients`: cada cliente trae `source`.
+    - `GET /a/{token}` (pública, HTML): página del enlace del conductor con el botón
+      `kyq://affiliate/{token}`; sin teléfono ni placa; `404` si no existe o no puede recibir
+      clientes.
+    - `GET /v1/admin/crm`: `affiliations.created_by_source` con `qr_scan`, `post_trip` y `link`.
+
+    Tiempo real (contracts/realtime.md de 001): `trip.offer` añade `origin`
+    (`chosen_driver` | `cooperative` | `zone_pool`), `loyal_client`, `trips_together`,
+    `pickup_distance_m` (entero o null) y `preferential_discount_pct`.
+paths:
+  /v1/trips:
+    $ref: '../../001-chosen-driver-trip-ptt/contracts/api.yaml#/paths/~1v1~1trips'
+  /v1/fares/quote:
+    $ref: '../../001-chosen-driver-trip-ptt/contracts/api.yaml#/paths/~1v1~1fares~1quote'
+  /v1/driver/dispatch-settings:
+    $ref: '../../001-chosen-driver-trip-ptt/contracts/api.yaml#/paths/~1v1~1driver~1dispatch-settings'
+  /v1/affiliations:
+    $ref: '../../001-chosen-driver-trip-ptt/contracts/api.yaml#/paths/~1v1~1affiliations'
+  /v1/driver/clients:
+    $ref: '../../001-chosen-driver-trip-ptt/contracts/api.yaml#/paths/~1v1~1driver~1clients'
+  /a/{token}:
+    $ref: '../../001-chosen-driver-trip-ptt/contracts/api.yaml#/paths/~1a~1{token}'
+  /v1/admin/crm:
+    $ref: '../../001-chosen-driver-trip-ptt/contracts/api.yaml#/paths/~1v1~1admin~1crm'

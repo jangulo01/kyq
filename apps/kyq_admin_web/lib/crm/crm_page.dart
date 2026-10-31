@@ -112,6 +112,22 @@ class CrmPage extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: 12),
+                // 008: de dónde salen las nuevas afiliaciones.
+                Text('Nuevas por origen', style: theme.textTheme.titleSmall),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    for (final (key, label) in _sources)
+                      _Kpi(
+                        keyName: 'source.$key',
+                        label: label,
+                        value: formatCount(r.affiliations.createdBySource[key] ?? 0),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 12),
                 _WeeklyBars(weeks: r.affiliations.weekly),
                 const SizedBox(height: 16),
                 Text('Viajes repetidos con el mismo conductor', style: theme.textTheme.titleMedium),
@@ -206,6 +222,9 @@ class _Sc008Card extends StatelessWidget {
     );
   }
 }
+
+/// Orígenes de una afiliación (008, FR-018) con su nombre en el panel.
+const _sources = [('qr_scan', 'Por QR'), ('post_trip', 'Después de un viaje'), ('link', 'Por enlace')];
 
 class _Kpi extends StatelessWidget {
   const _Kpi({required this.keyName, required this.label, required this.value});

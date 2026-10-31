@@ -30,6 +30,8 @@ String _unitLabel(String concept) => switch (concept) {
   CostConcepts.realtimeEvent => 'por evento',
   CostConcepts.routeRequest => 'por ruta',
   CostConcepts.fixedMonthly => 'por conductor al mes',
+  CostConcepts.radioStorage => 'por GB guardado',
+  CostConcepts.smsInvite => 'por SMS',
   _ => '',
 };
 

@@ -145,7 +145,7 @@ func (q *Queries) InactiveChosenDrivers(ctx context.Context, since time.Time) ([
 
 const listAffiliationTimeline = `-- name: ListAffiliationTimeline :many
 
-SELECT created_at, removed_at
+SELECT created_at, removed_at, source::text AS source
 FROM affiliations
 WHERE created_at < $1
 `
@@ -153,6 +153,7 @@ WHERE created_at < $1
 type ListAffiliationTimelineRow struct {
 	CreatedAt time.Time
 	RemovedAt pgtype.Timestamptz
+	Source    string
 }
 
 // 007: indicadores de fidelización (research R6).
@@ -166,7 +167,7 @@ func (q *Queries) ListAffiliationTimeline(ctx context.Context, until time.Time) 
 	items := []ListAffiliationTimelineRow{}
 	for rows.Next() {
 		var i ListAffiliationTimelineRow
-		if err := rows.Scan(&i.CreatedAt, &i.RemovedAt); err != nil {
+		if err := rows.Scan(&i.CreatedAt, &i.RemovedAt, &i.Source); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

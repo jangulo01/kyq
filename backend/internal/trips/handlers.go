@@ -94,6 +94,9 @@ type View struct {
 	AllowDelegation   bool       `json:"allow_delegation"`
 	HandoverCount     int        `json:"handover_count"`
 	CanDelegate       bool       `json:"can_delegate"`
+	// 008: tarifa de la tabla y descuento preferencial aplicado (RN-KYQ-013).
+	ListFareMinor           int64 `json:"list_fare_minor"`
+	PreferentialDiscountPct int   `json:"preferential_discount_pct"`
 }
 
 func viewOf(t *Trip) View {
@@ -105,6 +108,7 @@ func viewOf(t *Trip) View {
 		Dispatch: t.Dispatch, RequestedDriverID: t.RequestedDriverID, DriverName: t.DriverName,
 		CooperativeID: t.CooperativeID, CooperativeName: t.CooperativeName, AllowDelegation: t.AllowDelegation,
 		HandoverCount: t.Handovers, CanDelegate: t.CanDelegate(),
+		ListFareMinor: t.ListFare, PreferentialDiscountPct: t.DiscountPct,
 	}
 	if p := t.Proposal; p != nil {
 		v.OpenProposal = &ProposalView{ID: p.ID, ProposedBy: p.ProposedBy, AmountMinor: p.Amount, Status: p.Status, ExpiresAt: p.ExpiresAt}
@@ -147,7 +151,11 @@ func (b routeBody) valid() bool {
 }
 
 func (h *Handlers) quote(w http.ResponseWriter, r *http.Request) {
-	var body routeBody
+	var body struct {
+		routeBody
+		// 008: con el conductor, la cotización incluye su tarifa preferencial si el pasajero es su cliente.
+		DriverID uuid.UUID `json:"driver_id"`
+	}
 	if !httpx.DecodeJSON(w, r, &body) {
 		return
 	}
@@ -160,8 +168,15 @@ func (h *Handlers) quote(w http.ResponseWriter, r *http.Request) {
 		writeError(w, r, err)
 		return
 	}
+	p, _ := auth.FromContext(r.Context())
+	pct, err := h.Service.Discount(r.Context(), p.UserID, body.DriverID)
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
 	httpx.WriteJSON(w, http.StatusOK, map[string]any{
-		"distance_m": route.DistanceM, "duration_s": route.DurationS, "suggested_fare_minor": fare, "currency": table.Currency,
+		"distance_m": route.DistanceM, "duration_s": route.DurationS, "suggested_fare_minor": table.WithDiscount(fare, pct),
+		"currency": table.Currency, "list_fare_minor": fare, "preferential_discount_pct": pct,
 	})
 }
 
@@ -175,17 +190,17 @@ func (h *Handlers) request(w http.ResponseWriter, r *http.Request) {
 	if !httpx.DecodeJSON(w, r, &body) {
 		return
 	}
-	if !body.valid() || body.DriverID == uuid.Nil {
-		httpx.WriteError(w, http.StatusBadRequest, "invalid_route", "indica conductor, origen y destino válidos")
-		return
-	}
 	switch body.Dispatch {
 	case "":
 		body.Dispatch = DispatchChosenDriver
-	case DispatchChosenDriver, DispatchCooperative:
+	case DispatchChosenDriver, DispatchCooperative, DispatchZonePool:
 	default:
-		// La opción 3 (autónomo libre más cercano) no existe en 006.
-		httpx.WriteError(w, http.StatusBadRequest, "invalid_dispatch", "elige tu conductor o su cooperativa")
+		httpx.WriteError(w, http.StatusBadRequest, "invalid_dispatch", "elige tu conductor, su cooperativa o un conductor cercano")
+		return
+	}
+	// En la bolsa zonal (008) el conductor es opcional: se elige el más cercano.
+	if !body.valid() || (body.DriverID == uuid.Nil && body.Dispatch != DispatchZonePool) {
+		httpx.WriteError(w, http.StatusBadRequest, "invalid_route", "indica conductor, origen y destino válidos")
 		return
 	}
 	p, _ := auth.FromContext(r.Context())

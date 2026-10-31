@@ -96,6 +96,7 @@ class SosCubit extends Cubit<SosState> {
     MicPermission? mic,
     this.interval = const Duration(seconds: 1),
     this.retryEvery = const Duration(seconds: 5),
+    this.raiser,
   }) : _newVoice = voice ?? LiveKitVoiceRoom.new,
        _mic = mic ?? const PlatformMicPermission(),
        super(const SosState());
@@ -105,6 +106,10 @@ class SosCubit extends Cubit<SosState> {
   final VoiceRoom Function() _newVoice;
   final MicPermission _mic;
   final String tripId;
+
+  /// Otra forma de levantar la alerta: el botón Emergencia de Radio (011) abre el SOS del viaje
+  /// en curso o uno sin viaje y devuelve la alerta. null usa el SOS del viaje [tripId] (003).
+  final Future<SosAlertSelf> Function(SosPoint? location)? raiser;
   final Duration interval;
   final Duration retryEvery;
 
@@ -125,7 +130,8 @@ class SosCubit extends Cubit<SosState> {
   Future<void> resume() async {
     try {
       final alert = await _api.activeSos();
-      if (alert == null || alert.tripId != tripId || isClosed) return;
+      // Radio retoma cualquier alerta abierta de la persona; el viaje, solo la suya.
+      if (alert == null || (raiser == null && alert.tripId != tripId) || isClosed) return;
       emit(state.copyWith(phase: SosPhase.active, alert: alert));
       _start(null);
     } on ApiException {
@@ -149,6 +155,14 @@ class SosCubit extends Cubit<SosState> {
       fix = null; // sin GPS se envía igual; el operador verá la ubicación cuando llegue
     }
     try {
+      if (raiser case final raise?) {
+        final alert = await raise(fix);
+        if (isClosed) return;
+        if (fix != null) _lastSent = fix.recordedAt;
+        emit(state.copyWith(phase: SosPhase.active, alert: alert, offline: false, clearMessage: true));
+        _start(null);
+        return;
+      }
       final out = await _api.raiseSos(tripId, location: fix);
       if (isClosed) return;
       if (fix != null) _lastSent = fix.recordedAt;

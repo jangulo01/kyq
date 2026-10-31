@@ -17,6 +17,13 @@ class Offer {
     this.canDelegate = false,
     this.cooperativeName,
     this.requestedDriverName,
+    this.origin = OfferOrigin.chosenDriver,
+    this.loyalClient = false,
+    this.tripsTogether = 0,
+    this.pickupDistanceM,
+    this.preferentialDiscountPct = 0,
+    this.reservation = false,
+    this.clientNote,
   });
 
   factory Offer.fromEvent(TripOffered e) => Offer(
@@ -33,6 +40,13 @@ class Offer {
     canDelegate: e.canDelegate,
     cooperativeName: e.cooperativeName,
     requestedDriverName: e.requestedDriverName,
+    origin: e.origin,
+    loyalClient: e.loyalClient,
+    tripsTogether: e.tripsTogether,
+    pickupDistanceM: e.pickupDistanceM,
+    preferentialDiscountPct: e.preferentialDiscountPct,
+    reservation: e.reservation,
+    clientNote: e.clientNote,
   );
 
   final String tripId;
@@ -52,7 +66,46 @@ class Offer {
   final bool canDelegate;
   final String? cooperativeName;
   final String? requestedDriverName;
+
+  /// 008: de dónde viene la oferta y si el pasajero es de su cartera.
+  final OfferOrigin origin;
+  final bool loyalClient;
+  final int tripsTogether;
+  final int? pickupDistanceM;
+
+  /// 008: descuento preferencial ya aplicado a [suggestedFareMinor] (RN-KYQ-013).
+  final int preferentialDiscountPct;
+
+  /// 010: cumple una reserva de la agenda.
+  final bool reservation;
+
+  /// 010: nota privada del conductor sobre el cliente.
+  final String? clientNote;
+
+  /// Etiqueta de la tarjeta de oferta (FR-005–FR-007), o null si no lleva.
+  String? get label {
+    if (reservation) return '📅 Reserva de tu agenda';
+    if (loyalClient) {
+      final together = switch (tripsTogether) {
+        0 => '',
+        1 => ' · 1 viaje juntos',
+        final n => ' · $n viajes juntos',
+      };
+      return '⭐ Cliente de tu cartera$together';
+    }
+    return switch (origin) {
+      OfferOrigin.zonePool => switch (pickupDistanceM) {
+        final m? => 'Bolsa zonal · a ${formatKm(m)} de la recogida',
+        null => 'Bolsa zonal',
+      },
+      OfferOrigin.cooperative when !delegated => 'De tu cooperativa',
+      _ => null,
+    };
+  }
 }
+
+/// "3,2 km".
+String formatKm(int meters) => '${(meters / 1000).toStringAsFixed(1).replaceAll('.', ',')} km';
 
 /// "4,2 km · 12 min".
 String formatDistanceDuration(int distanceM, int durationS) {

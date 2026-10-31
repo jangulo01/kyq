@@ -25,14 +25,21 @@ const (
 	issuer     = "kyq"
 )
 
+// ScopeSupport limits a session to the support routes: it is what a suspended user gets (009,
+// FR-011).
+const ScopeSupport = "support"
+
 // Principal is the authenticated caller.
 type Principal struct {
 	UserID uuid.UUID
 	Role   string
+	// Scope is empty for a full session or ScopeSupport.
+	Scope string
 }
 
 type accessClaims struct {
-	Role string `json:"role"`
+	Role  string `json:"role"`
+	Scope string `json:"scp,omitempty"`
 	jwt.RegisteredClaims
 }
 
@@ -54,7 +61,8 @@ func NewTokenIssuer(secret []byte, now func() time.Time) *TokenIssuer {
 func (t *TokenIssuer) IssueAccess(p Principal) (string, error) {
 	now := t.now()
 	claims := accessClaims{
-		Role: p.Role,
+		Role:  p.Role,
+		Scope: p.Scope,
 		RegisteredClaims: jwt.RegisteredClaims{
 			Subject:   p.UserID.String(),
 			Issuer:    issuer,
@@ -86,7 +94,12 @@ func (t *TokenIssuer) ParseAccess(token string) (Principal, error) {
 	default:
 		return Principal{}, errors.New("access token has unknown role")
 	}
-	return Principal{UserID: id, Role: claims.Role}, nil
+	switch claims.Scope {
+	case "", ScopeSupport:
+	default:
+		return Principal{}, errors.New("access token has unknown scope")
+	}
+	return Principal{UserID: id, Role: claims.Role, Scope: claims.Scope}, nil
 }
 
 // newRefreshToken returns a random opaque token and the hash stored in the database.

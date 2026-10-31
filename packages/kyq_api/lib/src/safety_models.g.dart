@@ -36,7 +36,7 @@ Map<String, dynamic> _$SosLocationToJson(_SosLocation instance) => <String, dyna
 
 _SosAlertSelf _$SosAlertSelfFromJson(Map<String, dynamic> json) => _SosAlertSelf(
   id: json['id'] as String,
-  tripId: json['trip_id'] as String,
+  tripId: json['trip_id'] as String?,
   status: $enumDecode(_$SosStatusEnumMap, json['status']),
   operatorConnected: json['operator_connected'] as bool? ?? false,
   escalated: json['escalated'] as bool? ?? false,
@@ -87,7 +87,8 @@ Map<String, dynamic> _$SosRaiseToJson(_SosRaise instance) => <String, dynamic>{
 
 _SosAlertSummary _$SosAlertSummaryFromJson(Map<String, dynamic> json) => _SosAlertSummary(
   id: json['id'] as String,
-  tripId: json['trip_id'] as String,
+  tripId: json['trip_id'] as String?,
+  raisedFrom: json['raised_from'] as String? ?? 'trip',
   raisedRole: $enumDecode(_$SosRoleEnumMap, json['raised_role']),
   raisedByName: json['raised_by_name'] as String,
   status: $enumDecode(_$SosStatusEnumMap, json['status']),
@@ -108,6 +109,7 @@ _SosAlertSummary _$SosAlertSummaryFromJson(Map<String, dynamic> json) => _SosAle
 Map<String, dynamic> _$SosAlertSummaryToJson(_SosAlertSummary instance) => <String, dynamic>{
   'id': instance.id,
   'trip_id': instance.tripId,
+  'raised_from': instance.raisedFrom,
   'raised_role': _$SosRoleEnumMap[instance.raisedRole]!,
   'raised_by_name': instance.raisedByName,
   'status': _$SosStatusEnumMap[instance.status]!,
@@ -198,7 +200,8 @@ Map<String, dynamic> _$EmergencyContactToJson(_EmergencyContact instance) => <St
 
 _SosAlertDetail _$SosAlertDetailFromJson(Map<String, dynamic> json) => _SosAlertDetail(
   id: json['id'] as String,
-  tripId: json['trip_id'] as String,
+  tripId: json['trip_id'] as String?,
+  raisedFrom: json['raised_from'] as String? ?? 'trip',
   raisedRole: $enumDecode(_$SosRoleEnumMap, json['raised_role']),
   raisedByName: json['raised_by_name'] as String,
   status: $enumDecode(_$SosStatusEnumMap, json['status']),
@@ -237,6 +240,7 @@ _SosAlertDetail _$SosAlertDetailFromJson(Map<String, dynamic> json) => _SosAlert
 Map<String, dynamic> _$SosAlertDetailToJson(_SosAlertDetail instance) => <String, dynamic>{
   'id': instance.id,
   'trip_id': instance.tripId,
+  'raised_from': instance.raisedFrom,
   'raised_role': _$SosRoleEnumMap[instance.raisedRole]!,
   'raised_by_name': instance.raisedByName,
   'status': _$SosStatusEnumMap[instance.status]!,

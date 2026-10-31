@@ -7,6 +7,7 @@ import 'package:kyq_api/kyq_api.dart';
 import 'audio_focus.dart';
 import 'livekit_voice_room.dart';
 import 'mic_permission.dart';
+import 'ptt_activity.dart';
 import 'ptt_api.dart';
 import 'tones.dart';
 import 'voice_room.dart';
@@ -429,8 +430,18 @@ class PttController extends Cubit<PttState> {
     _reconnect?.cancel();
   }
 
+  // 009: el megáfono espera mientras hay voz en este canal.
+  static const _voiceStatuses = {PttStatus.requesting, PttStatus.talking, PttStatus.remoteTalking};
+
+  @override
+  void onChange(Change<PttState> change) {
+    super.onChange(change);
+    PttActivity.instance.report(this, busy: _voiceStatuses.contains(change.nextState.status));
+  }
+
   @override
   Future<void> close() async {
+    PttActivity.instance.report(this, busy: false);
     final wasTalking = state.status == PttStatus.talking;
     _stopTimers();
     _incomingFloor = false;

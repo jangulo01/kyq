@@ -75,7 +75,16 @@ class _Requested extends StatelessWidget {
               subtitle: const Text('Tu conductor no podía atenderte ahora.'),
             ),
           ),
-        ] else if (trip.dispatch == TripDispatch.cooperative)
+        ] else if (trip.dispatch == TripDispatch.zonePool)
+          Card(
+            child: ListTile(
+              key: const Key('trip.zonePool'),
+              leading: const Icon(Icons.near_me),
+              title: const Text('Buscando un conductor cercano'),
+              subtitle: const Text('Si no responde, tu solicitud pasa al siguiente conductor libre de la zona.'),
+            ),
+          )
+        else if (trip.dispatch == TripDispatch.cooperative)
           Card(
             child: ListTile(
               key: const Key('trip.cooperativeDispatch'),

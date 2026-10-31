@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:kyq_api/kyq_api.dart';
+import 'package:kyq_radio/kyq_radio.dart';
 import 'package:kyq_ui/kyq_ui.dart';
 
 import '../notices/notices_cubit.dart';
@@ -98,6 +99,16 @@ class HomePage extends StatelessWidget {
             const SizedBox(height: 16),
             Card(
               child: ListTile(
+                key: const Key('home.radio'),
+                leading: const Icon(Icons.settings_input_antenna),
+                title: const Text('Radio'),
+                subtitle: const Text('Habla con tus compañeros y tus canales cuando quieras'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => context.push(RadioRoutes.list),
+              ),
+            ),
+            Card(
+              child: ListTile(
                 key: const Key('home.documents'),
                 leading: const Icon(Icons.badge_outlined),
                 title: const Text('Mis documentos'),
@@ -136,6 +147,26 @@ class HomePage extends StatelessWidget {
             ),
             Card(
               child: ListTile(
+                key: const Key('home.agenda'),
+                leading: const Icon(Icons.event_note),
+                title: const Text('Agenda'),
+                subtitle: const Text('Reservas de tus clientes: acéptalas y te avisamos antes'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => context.push('/agenda'),
+              ),
+            ),
+            Card(
+              child: ListTile(
+                key: const Key('home.dispatch'),
+                leading: const Icon(Icons.tune),
+                title: const Text('Despacho y tarifas'),
+                subtitle: const Text('Bolsa zonal, tarifa preferencial y tu enlace para ganar clientes'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => context.push('/dispatch'),
+              ),
+            ),
+            Card(
+              child: ListTile(
                 key: const Key('home.preconsults'),
                 leading: const Icon(Icons.record_voice_over),
                 title: const Text('Consultas de voz'),
@@ -152,6 +183,16 @@ class HomePage extends StatelessWidget {
                 subtitle: const Text('Compañeros, solicitudes derivadas y canal de voz del grupo'),
                 trailing: const Icon(Icons.chevron_right),
                 onTap: () => context.push('/cooperative'),
+              ),
+            ),
+            Card(
+              child: ListTile(
+                key: const Key('home.support'),
+                leading: const Icon(Icons.support_agent),
+                title: const Text('Ayuda'),
+                subtitle: const Text('Escríbele al soporte de Kyq sobre un viaje, un pago o tu cuenta'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => context.push(supportLocation),
               ),
             ),
             Card(

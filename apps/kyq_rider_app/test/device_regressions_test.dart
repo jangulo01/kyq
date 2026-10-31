@@ -38,7 +38,7 @@ void main() {
   });
 
   test('nuestra propia solicitud no dispara el aviso "dejó de estar libre"', () async {
-    when(() => api.quote(any(), any())).thenAnswer(
+    when(() => api.quote(any(), any(), driverId: any(named: 'driverId'))).thenAnswer(
       (_) async => const FareQuote(distanceM: 400, durationS: 60, suggestedFareMinor: 700000, currency: 'COP'),
     );
     when(

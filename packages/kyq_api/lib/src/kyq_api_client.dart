@@ -3,10 +3,14 @@ import 'dart:typed_data';
 import 'package:dio/dio.dart';
 
 import 'admin_models.dart';
+import 'domain_rotator.dart';
 import 'cooperative_models.dart';
 import 'models.dart';
+import 'native_models.dart';
 import 'onboarding_models.dart';
+import 'ops_models.dart';
 import 'preconsult_models.dart';
+import 'radio_models.dart';
 import 'safety_models.dart';
 import 'token_store.dart';
 import 'trip_payment_models.dart';
@@ -47,11 +51,12 @@ abstract interface class SafetyApi {
 }
 
 /// Cliente de la API Kyq. Añade el token de acceso y lo renueva una vez ante un 401.
-class KyqApiClient implements SafetyApi {
+class KyqApiClient implements SafetyApi, RadioApi {
   KyqApiClient({
     required String baseUrl,
     required TokenStore tokenStore,
     this.onSessionExpired,
+    this.onSupportOnly,
     Dio? dio,
     Dio? refreshDio,
     Dio? uploadDio,
@@ -77,7 +82,37 @@ class KyqApiClient implements SafetyApi {
   /// Se llama cuando la sesión ya no se puede renovar y hay que volver al login.
   final void Function()? onSessionExpired;
 
+  /// 009: la cuenta se suspendió con la sesión abierta; queda solo el centro de soporte.
+  void Function()? onSupportOnly;
+
   Dio get dio => _dio;
+
+  DomainRotator? _domains;
+
+  /// 009: usa los dominios espejo de [rotator]: toma el dominio en uso y, ante fallos de red
+  /// seguidos, pasa al siguiente y repite la petición una vez, sin perder la sesión (FR-021).
+  void useDomains(DomainRotator rotator) {
+    _domains = rotator;
+    _setBaseUrl(rotator.current.apiUrl);
+    rotator.changes.listen((d) => _setBaseUrl(d.apiUrl));
+    _dio.interceptors.add(_DomainInterceptor(this, rotator));
+  }
+
+  void _setBaseUrl(String url) {
+    _dio.options.baseUrl = url;
+    _refreshDio.options.baseUrl = url;
+  }
+
+  /// 009: pide la lista firmada al dominio en uso y la aplica si es válida y más nueva (FR-020).
+  Future<bool> refreshDomains() async {
+    final rotator = _domains;
+    if (rotator == null) return false;
+    try {
+      return await rotator.accept(await signedDomains());
+    } on ApiException {
+      return false;
+    }
+  }
 
   // Auth
 
@@ -87,8 +122,9 @@ class KyqApiClient implements SafetyApi {
   /// [role] solo cuenta en el primer registro: con `driver` crea una cuenta de conductor. Si el
   /// teléfono ya existe con otro rol, lanza [ApiException] 409 `phone_has_other_role`.
   Future<Tokens> verifyOtp(String phoneE164, String code, {String? displayName, UserRole? role}) async {
-    final res = await _send(
-      () => _dio.post<Map<String, dynamic>>(
+    final Response<Map<String, dynamic>> res;
+    try {
+      res = await _dio.post<Map<String, dynamic>>(
         '/v1/auth/otp/verify',
         data: {
           'phone_e164': phoneE164,
@@ -96,11 +132,25 @@ class KyqApiClient implements SafetyApi {
           if (displayName != null && displayName.trim().isNotEmpty) 'display_name': displayName.trim(),
           'role': ?role?.name,
         },
-      ),
-    );
+      );
+    } on DioException catch (e) {
+      // 009: el 403 de una cuenta suspendida trae una sesión que solo abre soporte.
+      final support = _supportSession(e);
+      if (support == null) throw _toApiException(e);
+      await _tokens.write(support);
+      return support;
+    }
     final tokens = Tokens.fromJson(res.data!);
-    await _tokens.write(tokens);
+    // Las invitaciones aplicadas son de este login: no se guardan con la sesión.
+    await _tokens.write(tokens.copyWith(radioInvitesApplied: const []));
     return tokens;
+  }
+
+  /// Sesión de solo soporte del `403 account_suspended` (009), o null.
+  static Tokens? _supportSession(DioException e) {
+    final data = e.response?.data;
+    if (e.response?.statusCode != 403 || data is! Map || data['support_session'] is! Map) return null;
+    return Tokens.fromJson((data['support_session'] as Map).cast<String, dynamic>());
   }
 
   Future<Tokens?> currentSession() => _tokens.read();
@@ -118,7 +168,14 @@ class KyqApiClient implements SafetyApi {
       final tokens = Tokens.fromJson(res.data!);
       await _tokens.write(tokens);
       return tokens;
-    } on DioException {
+    } on DioException catch (e) {
+      // 009: suspendido mientras tenía sesión: sigue solo con soporte.
+      final support = _supportSession(e);
+      if (support != null) {
+        await _tokens.write(support);
+        onSupportOnly?.call();
+        return support;
+      }
       await _tokens.clear();
       onSessionExpired?.call();
       return null;
@@ -149,6 +206,26 @@ class KyqApiClient implements SafetyApi {
   Future<List<DriverClient>> driverClients() async {
     final res = await _send(() => _dio.get<List<dynamic>>('/v1/driver/clients'));
     return res.data!.map((e) => DriverClient.fromJson(e as Map<String, dynamic>)).toList();
+  }
+
+  /// 008: bolsa zonal, tarifa preferencial y enlace para compartir.
+  Future<DispatchSettings> dispatchSettings() async {
+    final res = await _send(() => _dio.get<Map<String, dynamic>>('/v1/driver/dispatch-settings'));
+    return DispatchSettings.fromJson(res.data!);
+  }
+
+  /// 008: el descuento va de 0 a 30 %; fuera de rango responde 400 `invalid_settings`.
+  Future<DispatchSettings> setDispatchSettings({
+    required bool acceptsZonePool,
+    required int preferentialDiscountPct,
+  }) async {
+    final res = await _send(
+      () => _dio.put<Map<String, dynamic>>(
+        '/v1/driver/dispatch-settings',
+        data: {'accepts_zone_pool': acceptsZonePool, 'preferential_discount_pct': preferentialDiscountPct},
+      ),
+    );
+    return DispatchSettings.fromJson(res.data!);
   }
 
   // Conductor: alta y documentos (002)
@@ -266,8 +343,18 @@ class KyqApiClient implements SafetyApi {
   // Pasajero: Conductores Elegidos
 
   /// Afilia al conductor del QR. [created] es false si ya estaba en la lista.
-  Future<({ChosenDriver driver, bool created})> affiliate(String qrToken) async {
-    final res = await _send(() => _dio.post<Map<String, dynamic>>('/v1/affiliations', data: {'qr_token': qrToken}));
+  /// Guarda al conductor del [qrToken] como Conductor Elegido. 008: con [source] =
+  /// [AffiliationSource.link] cuando llega desde su enlace compartido.
+  Future<({ChosenDriver driver, bool created})> affiliate(
+    String qrToken, {
+    AffiliationSource source = AffiliationSource.qrScan,
+  }) => _affiliate({'qr_token': qrToken, if (source == AffiliationSource.link) 'source': 'link'});
+
+  /// 008: guarda al conductor de un viaje completado (`trip_id`); 404 `trip_not_found`.
+  Future<({ChosenDriver driver, bool created})> affiliateAfterTrip(String tripId) => _affiliate({'trip_id': tripId});
+
+  Future<({ChosenDriver driver, bool created})> _affiliate(Map<String, dynamic> body) async {
+    final res = await _send(() => _dio.post<Map<String, dynamic>>('/v1/affiliations', data: body));
     return (driver: ChosenDriver.fromJson(res.data!), created: res.statusCode == 201);
   }
 
@@ -287,7 +374,14 @@ class KyqApiClient implements SafetyApi {
     return DriverPresence.values.byName(res.data!['presence'] as String);
   }
 
-  Future<void> sendLocation(GeoPoint point, {double? heading, double? speedMps, DateTime? recordedAt}) => _send(
+  /// [accuracyM] (010): precisión del GPS; con 50 m o menos cuenta para la llegada automática.
+  Future<void> sendLocation(
+    GeoPoint point, {
+    double? heading,
+    double? speedMps,
+    DateTime? recordedAt,
+    double? accuracyM,
+  }) => _send(
     () => _dio.post<void>(
       '/v1/driver/location',
       data: {
@@ -295,6 +389,7 @@ class KyqApiClient implements SafetyApi {
         'lng': point.lng,
         'heading': ?heading,
         'speed_mps': ?speedMps,
+        'accuracy_m': ?accuracyM,
         if (recordedAt != null) 'recorded_at': recordedAt.toUtc().toIso8601String(),
       },
     ),
@@ -302,11 +397,13 @@ class KyqApiClient implements SafetyApi {
 
   // Viajes
 
-  Future<FareQuote> quote(GeoPoint pickup, GeoPoint dropoff) async {
+  /// Cotiza el recorrido. 008: con [driverId] aplica su tarifa preferencial si el pasajero es su
+  /// cliente (RN-KYQ-013).
+  Future<FareQuote> quote(GeoPoint pickup, GeoPoint dropoff, {String? driverId}) async {
     final res = await _send(
       () => _dio.post<Map<String, dynamic>>(
         '/v1/fares/quote',
-        data: {'pickup': pickup.toJson(), 'dropoff': dropoff.toJson()},
+        data: {'pickup': pickup.toJson(), 'dropoff': dropoff.toJson(), 'driver_id': ?driverId},
       ),
     );
     return FareQuote.fromJson(res.data!);
@@ -314,9 +411,10 @@ class KyqApiClient implements SafetyApi {
 
   /// Pide un viaje al Conductor Elegido [driverId] o, con [dispatch] = cooperativa, a su cooperativa.
   /// Con [allowDelegation] el pasajero consiente que pase a un compañero si su conductor no puede
-  /// (006, RN-KYQ-008). 409 `driver_not_free`, `no_cooperative` o `no_driver_available`.
+  /// (006, RN-KYQ-008). 008: con [TripDispatch.zonePool] no hace falta [driverId] (bolsa zonal).
+  /// 409 `driver_not_free`, `no_cooperative` o `no_driver_available`.
   Future<Trip> requestTrip({
-    required String driverId,
+    String? driverId,
     required GeoPoint pickup,
     required GeoPoint dropoff,
     TripDispatch dispatch = TripDispatch.chosenDriver,
@@ -325,7 +423,7 @@ class KyqApiClient implements SafetyApi {
     () => _dio.post(
       '/v1/trips',
       data: {
-        'driver_id': driverId,
+        'driver_id': ?driverId,
         'pickup': pickup.toJson(),
         'dropoff': dropoff.toJson(),
         if (dispatch != TripDispatch.chosenDriver) 'dispatch': tripDispatchToApi(dispatch),
@@ -1055,6 +1153,574 @@ class KyqApiClient implements SafetyApi {
     ),
   );
 
+  // 010: agenda de reservas
+
+  /// Reserva con un Conductor Elegido entre 30 minutos y 7 días. 400 `invalid_time`, 403
+  /// `not_affiliated`, 409 `too_many_reservations`.
+  Future<Reservation> createReservation({
+    required String driverId,
+    required GeoPoint pickup,
+    required GeoPoint dropoff,
+    required DateTime scheduledAt,
+    String? pickupLabel,
+    String? dropoffLabel,
+  }) async {
+    final res = await _send(
+      () => _dio.post<Map<String, dynamic>>(
+        '/v1/reservations',
+        data: {
+          'driver_id': driverId,
+          'pickup': pickup.toJson(),
+          'dropoff': dropoff.toJson(),
+          'scheduled_at': scheduledAt.toUtc().toIso8601String(),
+          'pickup_label': ?pickupLabel,
+          'dropoff_label': ?dropoffLabel,
+        },
+      ),
+    );
+    return Reservation.fromJson(res.data!);
+  }
+
+  Future<List<Reservation>> reservations() => _reservations('/v1/reservations');
+
+  Future<Reservation> cancelReservation(String id) => _reservation('/v1/reservations/$id/cancel');
+
+  /// Agenda del conductor (010 FR-002).
+  Future<List<Reservation>> driverAgenda() => _reservations('/v1/driver/reservations');
+
+  Future<Reservation> acceptReservation(String id) => _reservation('/v1/driver/reservations/$id/accept');
+
+  Future<Reservation> rejectReservation(String id) => _reservation('/v1/driver/reservations/$id/reject');
+
+  Future<Reservation> driverCancelReservation(String id) => _reservation('/v1/driver/reservations/$id/cancel');
+
+  Future<List<Reservation>> _reservations(String path) async {
+    final res = await _send(() => _dio.get<List<dynamic>>(path));
+    return res.data!.map((e) => Reservation.fromJson(e as Map<String, dynamic>)).toList();
+  }
+
+  Future<Reservation> _reservation(String path) async {
+    final res = await _send(() => _dio.post<Map<String, dynamic>>(path));
+    return Reservation.fromJson(res.data!);
+  }
+
+  // 010: ficha del cliente y nota privada del conductor
+
+  Future<ClientCard> clientCard(String passengerId) async {
+    final res = await _send(() => _dio.get<Map<String, dynamic>>('/v1/driver/clients/$passengerId'));
+    return ClientCard.fromJson(res.data!);
+  }
+
+  /// Vacía, borra la nota (máximo 500 caracteres).
+  Future<ClientCard> setClientNote(String passengerId, String note) async {
+    final res = await _send(
+      () => _dio.put<Map<String, dynamic>>('/v1/driver/clients/$passengerId/note', data: {'body': note}),
+    );
+    return ClientCard.fromJson(res.data!);
+  }
+
+  // 010: buscador de direcciones
+
+  /// Sugerencias de la ciudad desde 3 caracteres; 503 `places_unavailable` sin buscador.
+  Future<List<Place>> searchPlaces(String query) async {
+    final res = await _send(() => _dio.get<List<dynamic>>('/v1/places', queryParameters: {'q': query}));
+    return res.data!.map((e) => Place.fromJson(e as Map<String, dynamic>)).toList();
+  }
+
+  // 009: inspección de viajes desde la torre
+
+  /// Detalle de un viaje sin teléfonos; el backend registra cada apertura (FR-002, FR-004).
+  Future<TripInspection> inspectTrip(String tripId) async {
+    final res = await _send(() => _dio.get<Map<String, dynamic>>('/v1/admin/trips/$tripId'));
+    return TripInspection.fromJson(res.data!);
+  }
+
+  // 009: centro de soporte (usuarios, también con la sesión de solo soporte)
+
+  Future<List<SupportCase>> supportCases() async {
+    final res = await _send(() => _dio.get<List<dynamic>>('/v1/support/cases'));
+    return res.data!.map((e) => SupportCase.fromJson(e as Map<String, dynamic>)).toList();
+  }
+
+  /// 400 `invalid_topic`, `invalid_text` (10 a 2 000 caracteres) o `invalid_trip`.
+  Future<SupportCaseDetail> openSupportCase(SupportTopic topic, String description, {String? tripId}) async {
+    final res = await _send(
+      () => _dio.post<Map<String, dynamic>>(
+        '/v1/support/cases',
+        data: {'topic': supportTopicToApi(topic), 'description': description, 'trip_id': ?tripId},
+      ),
+    );
+    return SupportCaseDetail.fromJson(res.data!);
+  }
+
+  Future<SupportCaseDetail> supportCase(String caseId) async {
+    final res = await _send(() => _dio.get<Map<String, dynamic>>('/v1/support/cases/$caseId'));
+    return SupportCaseDetail.fromJson(res.data!);
+  }
+
+  /// 409 `case_closed`: hay que abrir otro caso.
+  Future<SupportCaseDetail> replySupportCase(String caseId, String body) async {
+    final res = await _send(
+      () => _dio.post<Map<String, dynamic>>('/v1/support/cases/$caseId/messages', data: {'body': body}),
+    );
+    return SupportCaseDetail.fromJson(res.data!);
+  }
+
+  /// Viajes de los últimos 30 días para asociar a un caso.
+  Future<List<SupportTripRef>> supportTrips() async {
+    final res = await _send(() => _dio.get<List<dynamic>>('/v1/support/trips'));
+    return res.data!.map((e) => SupportTripRef.fromJson(e as Map<String, dynamic>)).toList();
+  }
+
+  // 009: soporte en el panel
+
+  Future<List<SupportCase>> adminSupportCases({
+    SupportStatus? status,
+    SupportTopic? topic,
+    bool assignedToMe = false,
+    bool unanswered = false,
+    bool includeClosed = false,
+  }) async {
+    final res = await _send(
+      () => _dio.get<List<dynamic>>(
+        '/v1/admin/support/cases',
+        queryParameters: {
+          if (status != null) 'status': supportStatusToApi(status),
+          if (topic != null) 'topic': supportTopicToApi(topic),
+          if (assignedToMe) 'assigned_to': 'me',
+          if (unanswered) 'unanswered': 'true',
+          if (includeClosed) 'include_closed': 'true',
+        },
+      ),
+    );
+    return res.data!.map((e) => SupportCase.fromJson(e as Map<String, dynamic>)).toList();
+  }
+
+  Future<SupportCaseDetail> adminSupportCase(String caseId) async {
+    final res = await _send(() => _dio.get<Map<String, dynamic>>('/v1/admin/support/cases/$caseId'));
+    return SupportCaseDetail.fromJson(res.data!);
+  }
+
+  /// Con [internal] es una nota que el usuario no ve (FR-006).
+  Future<SupportCaseDetail> adminReplySupportCase(String caseId, String body, {bool internal = false}) async {
+    final res = await _send(
+      () => _dio.post<Map<String, dynamic>>(
+        '/v1/admin/support/cases/$caseId/messages',
+        data: {'body': body, if (internal) 'internal': true},
+      ),
+    );
+    return SupportCaseDetail.fromJson(res.data!);
+  }
+
+  Future<SupportCaseDetail> setSupportCaseStatus(String caseId, SupportStatus status) async {
+    final res = await _send(
+      () => _dio.post<Map<String, dynamic>>(
+        '/v1/admin/support/cases/$caseId/status',
+        data: {'status': supportStatusToApi(status)},
+      ),
+    );
+    return SupportCaseDetail.fromJson(res.data!);
+  }
+
+  /// Sin [adminId] el caso queda sin asignar.
+  Future<SupportCaseDetail> assignSupportCase(String caseId, {String? adminId}) async {
+    final res = await _send(
+      () => _dio.post<Map<String, dynamic>>('/v1/admin/support/cases/$caseId/assign', data: {'admin_id': adminId}),
+    );
+    return SupportCaseDetail.fromJson(res.data!);
+  }
+
+  /// Resuelve el pago de un caso de disputa con las reglas de 004 (`paid` o `unpaid`).
+  Future<SupportCaseDetail> resolveSupportPayment(String caseId, {required bool paid, required String note}) async {
+    final res = await _send(
+      () => _dio.post<Map<String, dynamic>>(
+        '/v1/admin/support/cases/$caseId/resolve-payment',
+        data: {'outcome': paid ? 'paid' : 'unpaid', 'note': note},
+      ),
+    );
+    return SupportCaseDetail.fromJson(res.data!);
+  }
+
+  // 009: megáfono por zonas
+
+  /// 409 `on_air` o `no_recipients`; 400 `invalid_cells`.
+  Future<MegaphoneOnAir> startMegaphone(List<String> cells) async {
+    final res = await _send(() => _dio.post<Map<String, dynamic>>('/v1/admin/megaphone', data: {'cells': cells}));
+    return MegaphoneOnAir.fromJson(res.data!);
+  }
+
+  Future<void> endMegaphone(String broadcastId) => _send(() => _dio.post<void>('/v1/admin/megaphone/$broadcastId/end'));
+
+  Future<List<MegaphoneBroadcast>> megaphoneLog({int limit = 50}) async {
+    final res = await _send(() => _dio.get<List<dynamic>>('/v1/admin/megaphone', queryParameters: {'limit': limit}));
+    return res.data!.map((e) => MegaphoneBroadcast.fromJson(e as Map<String, dynamic>)).toList();
+  }
+
+  // 009: sesiones sin fallos
+
+  Future<SessionsReport> healthSessions() async {
+    final res = await _send(() => _dio.get<Map<String, dynamic>>('/v1/admin/health/sessions'));
+    return SessionsReport.fromJson(res.data!);
+  }
+
+  // 009: dominios espejo
+
+  Future<MirrorDomainListing> mirrorDomains() async {
+    final res = await _send(() => _dio.get<Map<String, dynamic>>('/v1/admin/domains'));
+    return MirrorDomainListing.fromJson(res.data!);
+  }
+
+  /// 400 `invalid_url`; 409 `duplicate_domain`.
+  Future<MirrorDomain> createMirrorDomain({
+    required String apiUrl,
+    required String realtimeUrl,
+    bool active = true,
+  }) async {
+    final res = await _send(
+      () => _dio.post<Map<String, dynamic>>(
+        '/v1/admin/domains',
+        data: {'api_url': apiUrl, 'realtime_url': realtimeUrl, 'active': active},
+      ),
+    );
+    return MirrorDomain.fromJson(res.data!);
+  }
+
+  /// 409 `last_active_domain` si se desactiva el último activo.
+  Future<MirrorDomain> updateMirrorDomain(
+    String id, {
+    required String apiUrl,
+    required String realtimeUrl,
+    required bool active,
+  }) async {
+    final res = await _send(
+      () => _dio.put<Map<String, dynamic>>(
+        '/v1/admin/domains/$id',
+        data: {'api_url': apiUrl, 'realtime_url': realtimeUrl, 'active': active},
+      ),
+    );
+    return MirrorDomain.fromJson(res.data!);
+  }
+
+  Future<void> deleteMirrorDomain(String id) => _send(() => _dio.delete<void>('/v1/admin/domains/$id'));
+
+  Future<MirrorDomainListing> reorderMirrorDomains(List<String> ids) async {
+    final res = await _send(() => _dio.put<Map<String, dynamic>>('/v1/admin/domains/order', data: {'ids': ids}));
+    return MirrorDomainListing.fromJson(res.data!);
+  }
+
+  /// Lista firmada pública; la verifica [DomainRotator] antes de usarla.
+  Future<SignedDomainList> signedDomains() async {
+    final res = await _send(() => _dio.get<Map<String, dynamic>>('/v1/domains'));
+    return SignedDomainList.fromJson(res.data!);
+  }
+
+  // 011 Radio Kyq
+
+  @override
+  Future<RadioMe> radioMe() async {
+    final res = await _send(() => _dio.get<Map<String, dynamic>>('/v1/radio/me'));
+    return RadioMe.fromJson(res.data!);
+  }
+
+  @override
+  Future<RadioMe> updateRadioMe({RadioPresence? status, bool? radioOn, RadioPushMode? pushMode}) async {
+    final res = await _send(
+      () => _dio.put<Map<String, dynamic>>(
+        '/v1/radio/me',
+        data: {
+          if (status != null) 'status': _presenceName(status),
+          'radio_on': ?radioOn,
+          if (pushMode != null) 'push_mode': pushMode.name,
+        },
+      ),
+    );
+    return RadioMe.fromJson(res.data!);
+  }
+
+  static String _presenceName(RadioPresence p) => p == RadioPresence.listenOnly ? 'listen_only' : p.name;
+
+  @override
+  Future<void> acceptRadioConsent() => _send(() => _dio.post<void>('/v1/radio/me/consent'));
+
+  @override
+  Future<void> radioHeartbeat() => _send(() => _dio.post<void>('/v1/radio/me/heartbeat'));
+
+  @override
+  Future<List<RadioQuietHours>> radioQuietHours() async {
+    final res = await _send(() => _dio.get<List<dynamic>>('/v1/radio/me/quiet-hours'));
+    return [for (final e in res.data!) RadioQuietHours.fromJson(e as Map<String, dynamic>)];
+  }
+
+  @override
+  Future<void> setRadioQuietHours(List<RadioQuietHours> rules) =>
+      _send(() => _dio.put<void>('/v1/radio/me/quiet-hours', data: [for (final r in rules) r.toJson()]));
+
+  @override
+  Future<List<RadioConversation>> radioConversations() async {
+    final res = await _send(() => _dio.get<List<dynamic>>('/v1/radio/conversations'));
+    return [for (final e in res.data!) RadioConversation.fromJson(e as Map<String, dynamic>)];
+  }
+
+  @override
+  Future<RadioConversationDetail> radioConversation(String id) async {
+    final res = await _send(() => _dio.get<Map<String, dynamic>>('/v1/radio/conversations/$id'));
+    return RadioConversationDetail.fromJson(res.data!);
+  }
+
+  @override
+  Future<void> deleteRadioConversation(String id) => _send(() => _dio.delete<void>('/v1/radio/conversations/$id'));
+
+  @override
+  Future<void> setRadioListening(String id, bool listening) =>
+      _send(() => _dio.put<void>('/v1/radio/conversations/$id/listening', data: {'listening': listening}));
+
+  @override
+  Future<RadioCredentials> radioToken(String conversationId) async {
+    final res = await _send(() => _dio.post<Map<String, dynamic>>('/v1/radio/conversations/$conversationId/ptt/token'));
+    return RadioCredentials.fromJson(res.data!);
+  }
+
+  @override
+  Future<RadioFloor> takeRadioFloor(String conversationId) async {
+    final res = await _send(() => _dio.post<Map<String, dynamic>>('/v1/radio/conversations/$conversationId/ptt/floor'));
+    return RadioFloor.fromJson(res.data!);
+  }
+
+  @override
+  Future<void> releaseRadioFloor(String conversationId) =>
+      _send(() => _dio.delete<void>('/v1/radio/conversations/$conversationId/ptt/floor'));
+
+  @override
+  Future<List<RadioMessage>> radioMessages(String conversationId, {String? before, int limit = 50}) async {
+    final res = await _send(
+      () => _dio.get<List<dynamic>>(
+        '/v1/radio/conversations/$conversationId/messages',
+        queryParameters: {'before': ?before, 'limit': limit},
+      ),
+    );
+    return [for (final e in res.data!) RadioMessage.fromJson(e as Map<String, dynamic>)];
+  }
+
+  Future<RadioMessage> _sendRadio(String conversationId, Map<String, Object?> body) async {
+    final res = await _send(
+      () => _dio.post<Map<String, dynamic>>('/v1/radio/conversations/$conversationId/messages', data: body),
+    );
+    return RadioMessage.fromJson(res.data!);
+  }
+
+  @override
+  Future<RadioMessage> sendRadioText(String conversationId, String body) =>
+      _sendRadio(conversationId, {'kind': 'text', 'body': body});
+
+  @override
+  Future<RadioMessage> sendRadioLocation(String conversationId, double lat, double lng, {String? label}) =>
+      _sendRadio(conversationId, {'kind': 'location', 'lat': lat, 'lng': lng, 'body': ?label});
+
+  @override
+  Future<RadioMessage> sendRadioAlert(String conversationId, {String? body}) =>
+      _sendRadio(conversationId, {'kind': 'alert', 'body': ?body});
+
+  @override
+  Future<RadioPhotoUpload> reserveRadioPhoto(String conversationId) async {
+    final res = await _send(() => _dio.post<Map<String, dynamic>>('/v1/radio/conversations/$conversationId/photos'));
+    return RadioPhotoUpload.fromJson(res.data!);
+  }
+
+  @override
+  Future<void> uploadRadioPhoto(String uploadUrl, List<int> jpeg) => uploadPhoto(uploadUrl, Uint8List.fromList(jpeg));
+
+  @override
+  Future<void> confirmRadioPhoto(String messageId) =>
+      _send(() => _dio.post<void>('/v1/radio/messages/$messageId/photo-uploaded'));
+
+  @override
+  Future<String> radioMediaUrl(String messageId) async {
+    final res = await _send(() => _dio.get<Map<String, dynamic>>('/v1/radio/messages/$messageId/media'));
+    return res.data!['url'] as String;
+  }
+
+  @override
+  Future<void> setRadioReceipt(String messageId, {bool? heard, bool? saved}) =>
+      _send(() => _dio.put<void>('/v1/radio/messages/$messageId/receipt', data: {'heard': ?heard, 'saved': ?saved}));
+
+  @override
+  Future<void> reportRadioMessage(String messageId, {String reason = ''}) =>
+      _send(() => _dio.post<void>('/v1/radio/messages/$messageId/report', data: {'reason': reason}));
+
+  @override
+  Future<RadioEmergency> radioEmergency(String conversationId, {double? lat, double? lng}) async {
+    final res = await _send(
+      () => _dio.post<Map<String, dynamic>>(
+        '/v1/radio/conversations/$conversationId/emergency',
+        data: {'lat': ?lat, 'lng': ?lng},
+      ),
+    );
+    return RadioEmergency.fromJson(res.data!);
+  }
+
+  @override
+  Future<RadioInvite?> inviteRadioContact({String? phoneE164}) async {
+    final res = await _send(
+      () => _dio.post<Map<String, dynamic>>('/v1/radio/contacts/invites', data: {'phone_e164': ?phoneE164}),
+    );
+    final data = res.data;
+    return res.statusCode == 202 || data == null ? null : RadioInvite.fromJson(data);
+  }
+
+  @override
+  Future<RadioInvitePreview> radioInvitePreview(String code) async {
+    final res = await _send(() => _dio.get<Map<String, dynamic>>('/v1/radio/invites/$code'));
+    return RadioInvitePreview.fromJson(res.data!);
+  }
+
+  @override
+  Future<RadioAcceptResult> acceptRadioInvite(String code) async {
+    final res = await _send(() => _dio.post<Map<String, dynamic>>('/v1/radio/invites/$code/accept'));
+    return RadioAcceptResult(RadioConversation.fromJson(res.data!), pending: res.statusCode == 202);
+  }
+
+  @override
+  Future<void> setRadioClients(bool enabled) =>
+      _send(() => _dio.put<void>('/v1/radio/clients', data: {'enabled': enabled}));
+
+  @override
+  Future<void> setRadioClient(String passengerId, {bool? muted, bool? blocked}) =>
+      _send(() => _dio.put<void>('/v1/radio/clients/$passengerId', data: {'muted': ?muted, 'blocked': ?blocked}));
+
+  @override
+  Future<RadioConversation> createRadioChannel({
+    required String name,
+    String? description,
+    String joinMode = 'approval',
+    RadioRole? passengerRoleMax,
+  }) async {
+    final res = await _send(
+      () => _dio.post<Map<String, dynamic>>(
+        '/v1/radio/channels',
+        data: {
+          'name': name,
+          'description': ?description,
+          'join_mode': joinMode,
+          if (passengerRoleMax != null) 'passenger_role_max': passengerRoleMax.name,
+        },
+      ),
+    );
+    return RadioConversation.fromJson(res.data!);
+  }
+
+  @override
+  Future<RadioConversation> updateRadioChannel(
+    String id, {
+    String? name,
+    String? description,
+    String? joinMode,
+    RadioRole? passengerRoleMax,
+    bool setPassengerRole = false,
+  }) async {
+    final res = await _send(
+      () => _dio.patch<Map<String, dynamic>>(
+        '/v1/radio/channels/$id',
+        data: {
+          'name': ?name,
+          'description': ?description,
+          'join_mode': ?joinMode,
+          if (setPassengerRole) 'passenger_role_max': passengerRoleMax?.name,
+        },
+      ),
+    );
+    return RadioConversation.fromJson(res.data!);
+  }
+
+  @override
+  Future<RadioInvite> radioChannelInvite(String id) async {
+    final res = await _send(() => _dio.post<Map<String, dynamic>>('/v1/radio/channels/$id/invite'));
+    return RadioInvite.fromJson(res.data!);
+  }
+
+  @override
+  Future<void> moderateRadioMember(String conversationId, String userId, {String? action, RadioRole? role}) => _send(
+    () => _dio.put<void>(
+      '/v1/radio/channels/$conversationId/members/$userId',
+      data: {'action': ?action, if (role != null) 'role': role.name},
+    ),
+  );
+
+  @override
+  Future<void> leaveRadioChannel(String id) => _send(() => _dio.post<void>('/v1/radio/channels/$id/leave'));
+
+  // 011: panel de Radio (solo administradores)
+
+  Future<RadioSettings> radioSettings() async {
+    final res = await _send(() => _dio.get<Map<String, dynamic>>('/v1/admin/radio/settings'));
+    return RadioSettings.fromJson(res.data!);
+  }
+
+  Future<RadioSettings> updateRadioSettings({
+    String? trialPolicy,
+    int? trialDays,
+    String? passengersInChannels,
+    int? retentionDays,
+  }) async {
+    final res = await _send(
+      () => _dio.put<Map<String, dynamic>>(
+        '/v1/admin/radio/settings',
+        data: {
+          'trial_policy': ?trialPolicy,
+          'trial_days': ?trialDays,
+          'passengers_in_channels': ?passengersInChannels,
+          'retention_days': ?retentionDays,
+        },
+      ),
+    );
+    return RadioSettings.fromJson(res.data!);
+  }
+
+  Future<List<RadioBulkUpload>> radioBulkUploads() async {
+    final res = await _send(() => _dio.get<List<dynamic>>('/v1/admin/radio/bulk-uploads'));
+    return [for (final e in res.data!) RadioBulkUpload.fromJson(e as Map<String, dynamic>)];
+  }
+
+  /// Sube y valida el CSV sin enviar nada (FR-033).
+  Future<RadioBulkUploadDetail> uploadRadioBulk(String fileName, String csv) async {
+    final res = await _send(
+      () => _dio.post<Map<String, dynamic>>(
+        '/v1/admin/radio/bulk-uploads',
+        queryParameters: {'file_name': fileName},
+        data: csv,
+        options: Options(contentType: 'text/csv'),
+      ),
+    );
+    return RadioBulkUploadDetail.fromJson(res.data!);
+  }
+
+  Future<RadioBulkUploadDetail> radioBulkUpload(String id) async {
+    final res = await _send(() => _dio.get<Map<String, dynamic>>('/v1/admin/radio/bulk-uploads/$id'));
+    return RadioBulkUploadDetail.fromJson(res.data!);
+  }
+
+  /// Confirma y envía los SMS; con [onlyFailed] reenvía las fallidas (FR-034).
+  Future<void> sendRadioBulk(String id, {bool onlyFailed = false}) =>
+      _send(() => _dio.post<void>('/v1/admin/radio/bulk-uploads/$id/send', data: {'only_failed': onlyFailed}));
+
+  Future<List<RadioReport>> radioReports() async {
+    final res = await _send(() => _dio.get<List<dynamic>>('/v1/admin/radio/reports'));
+    return [for (final e in res.data!) RadioReport.fromJson(e as Map<String, dynamic>)];
+  }
+
+  /// Abre un reporte: el backend registra el acceso (FR-037).
+  Future<RadioReportDetail> radioReport(String id) async {
+    final res = await _send(() => _dio.get<Map<String, dynamic>>('/v1/admin/radio/reports/$id'));
+    return RadioReportDetail.fromJson(res.data!);
+  }
+
+  /// [decision]: dismissed, message_deleted, channel_suspended o user_suspended.
+  Future<void> resolveRadioReport(String id, String decision, {String? note}) =>
+      _send(() => _dio.post<void>('/v1/admin/radio/reports/$id/resolve', data: {'decision': decision, 'note': ?note}));
+
+  /// Suspende o reactiva un canal (US11-2).
+  Future<void> setRadioChannelSuspended(String id, bool suspended) =>
+      _send(() => _dio.put<void>('/v1/admin/radio/channels/$id', data: {'suspended': suspended}));
+
   Future<Response<T>> _send<T>(Future<Response<T>> Function() request) async {
     try {
       return await request();
@@ -1088,6 +1754,42 @@ ApiException _toApiException(DioException e) {
     return const ApiException(null, 'network', 'sin conexión con el servidor');
   }
   return ApiException(e.response?.statusCode, 'unknown', e.message ?? 'error desconocido');
+}
+
+/// Cuenta los fallos de red del dominio en uso y repite la petición en el siguiente al rotar.
+class _DomainInterceptor extends Interceptor {
+  _DomainInterceptor(this._client, this._rotator);
+
+  final KyqApiClient _client;
+  final DomainRotator _rotator;
+  static const _retried = 'kyq_domain_retried';
+
+  @override
+  void onResponse(Response<dynamic> response, ResponseInterceptorHandler handler) {
+    _rotator.reportSuccess();
+    handler.next(response);
+  }
+
+  @override
+  Future<void> onError(DioException err, ErrorInterceptorHandler handler) async {
+    // Con respuesta, el dominio funciona aunque la petición falle.
+    if (err.response != null) {
+      _rotator.reportSuccess();
+      return handler.next(err);
+    }
+    if (err.type == DioExceptionType.cancel) return handler.next(err);
+    final rotated = await _rotator.reportFailure();
+    final options = err.requestOptions;
+    if (!rotated || options.extra[_retried] == true) return handler.next(err);
+    try {
+      options
+        ..extra[_retried] = true
+        ..baseUrl = _rotator.current.apiUrl;
+      handler.resolve(await _client._dio.fetch<dynamic>(options));
+    } on DioException catch (e) {
+      handler.next(e);
+    }
+  }
 }
 
 class _AuthInterceptor extends QueuedInterceptor {

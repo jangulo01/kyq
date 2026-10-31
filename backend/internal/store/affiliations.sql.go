@@ -71,18 +71,89 @@ func (q *Queries) GetChosenDriverByQRToken(ctx context.Context, qrToken string) 
 	return i, err
 }
 
+const getCompletedTripDriver = `-- name: GetCompletedTripDriver :one
+SELECT driver_id FROM trips WHERE id = $1 AND passenger_id = $2 AND status = 'COMPLETED'
+`
+
+type GetCompletedTripDriverParams struct {
+	ID          uuid.UUID
+	PassengerID uuid.UUID
+}
+
+// 008: conductor de un viaje COMPLETED del pasajero (afiliación después del viaje).
+func (q *Queries) GetCompletedTripDriver(ctx context.Context, arg GetCompletedTripDriverParams) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, getCompletedTripDriver, arg.ID, arg.PassengerID)
+	var driver_id uuid.UUID
+	err := row.Scan(&driver_id)
+	return driver_id, err
+}
+
+const getDriverByID = `-- name: GetDriverByID :one
+SELECT d.user_id AS driver_id, u.display_name, d.vehicle_description, d.presence, d.busy_until_estimate, d.qr_token
+FROM drivers d
+JOIN users u ON u.id = d.user_id
+WHERE d.user_id = $1
+`
+
+type GetDriverByIDRow struct {
+	DriverID           uuid.UUID
+	DisplayName        string
+	VehicleDescription string
+	Presence           DriverPresence
+	BusyUntilEstimate  pgtype.Timestamptz
+	QrToken            string
+}
+
+// 008: conductor de un viaje completado, para afiliarse después del viaje.
+func (q *Queries) GetDriverByID(ctx context.Context, userID uuid.UUID) (GetDriverByIDRow, error) {
+	row := q.db.QueryRow(ctx, getDriverByID, userID)
+	var i GetDriverByIDRow
+	err := row.Scan(
+		&i.DriverID,
+		&i.DisplayName,
+		&i.VehicleDescription,
+		&i.Presence,
+		&i.BusyUntilEstimate,
+		&i.QrToken,
+	)
+	return i, err
+}
+
+const getPublicDriverByQRToken = `-- name: GetPublicDriverByQRToken :one
+SELECT d.user_id AS driver_id, u.display_name, (u.suspended_at IS NOT NULL)::boolean AS suspended
+FROM drivers d
+JOIN users u ON u.id = d.user_id
+WHERE d.qr_token = $1
+`
+
+type GetPublicDriverByQRTokenRow struct {
+	DriverID    uuid.UUID
+	DisplayName string
+	Suspended   bool
+}
+
+// 008: página pública del enlace: solo el nombre y si puede recibir clientes (no suspendido).
+func (q *Queries) GetPublicDriverByQRToken(ctx context.Context, qrToken string) (GetPublicDriverByQRTokenRow, error) {
+	row := q.db.QueryRow(ctx, getPublicDriverByQRToken, qrToken)
+	var i GetPublicDriverByQRTokenRow
+	err := row.Scan(&i.DriverID, &i.DisplayName, &i.Suspended)
+	return i, err
+}
+
 const insertAffiliation = `-- name: InsertAffiliation :exec
 INSERT INTO affiliations (passenger_id, driver_id, source)
-VALUES ($1, $2, 'qr_scan')
+VALUES ($1, $2, coalesce(nullif($3::text, ''), 'qr_scan')::affiliation_source)
 `
 
 type InsertAffiliationParams struct {
 	PassengerID uuid.UUID
 	DriverID    uuid.UUID
+	Source      string
 }
 
+// 008: sin origen (llamadas anteriores) cuenta como QR.
 func (q *Queries) InsertAffiliation(ctx context.Context, arg InsertAffiliationParams) error {
-	_, err := q.db.Exec(ctx, insertAffiliation, arg.PassengerID, arg.DriverID)
+	_, err := q.db.Exec(ctx, insertAffiliation, arg.PassengerID, arg.DriverID, arg.Source)
 	return err
 }
 
@@ -107,7 +178,9 @@ func (q *Queries) IsAffiliated(ctx context.Context, arg IsAffiliatedParams) (boo
 
 const listChosenDrivers = `-- name: ListChosenDrivers :many
 SELECT d.user_id AS driver_id, u.display_name, d.vehicle_description, d.presence, d.busy_until_estimate,
-       c.id AS cooperative_id, c.name AS cooperative_name
+       c.id AS cooperative_id, c.name AS cooperative_name,
+       -- 010: para la zona aproximada (pin dorado); nunca sale tal cual.
+       d.last_lat, d.last_lng, d.last_location_at
 FROM affiliations a
 JOIN drivers d ON d.user_id = a.driver_id
 JOIN users u ON u.id = d.user_id
@@ -125,6 +198,9 @@ type ListChosenDriversRow struct {
 	BusyUntilEstimate  pgtype.Timestamptz
 	CooperativeID      uuid.NullUUID
 	CooperativeName    pgtype.Text
+	LastLat            pgtype.Float8
+	LastLng            pgtype.Float8
+	LastLocationAt     pgtype.Timestamptz
 }
 
 // 006: con la cooperativa activa del conductor, si tiene (selector de despacho).
@@ -145,6 +221,9 @@ func (q *Queries) ListChosenDrivers(ctx context.Context, passengerID uuid.UUID) 
 			&i.BusyUntilEstimate,
 			&i.CooperativeID,
 			&i.CooperativeName,
+			&i.LastLat,
+			&i.LastLng,
+			&i.LastLocationAt,
 		); err != nil {
 			return nil, err
 		}
@@ -157,7 +236,7 @@ func (q *Queries) ListChosenDrivers(ctx context.Context, passengerID uuid.UUID) 
 }
 
 const listDriverClients = `-- name: ListDriverClients :many
-SELECT u.id AS passenger_id, u.display_name, a.created_at AS affiliated_at
+SELECT u.id AS passenger_id, u.display_name, a.created_at AS affiliated_at, a.source::text AS source
 FROM affiliations a
 JOIN users u ON u.id = a.passenger_id
 WHERE a.driver_id = $1 AND a.removed_at IS NULL
@@ -168,6 +247,7 @@ type ListDriverClientsRow struct {
 	PassengerID  uuid.UUID
 	DisplayName  string
 	AffiliatedAt time.Time
+	Source       string
 }
 
 func (q *Queries) ListDriverClients(ctx context.Context, driverID uuid.UUID) ([]ListDriverClientsRow, error) {
@@ -179,7 +259,12 @@ func (q *Queries) ListDriverClients(ctx context.Context, driverID uuid.UUID) ([]
 	items := []ListDriverClientsRow{}
 	for rows.Next() {
 		var i ListDriverClientsRow
-		if err := rows.Scan(&i.PassengerID, &i.DisplayName, &i.AffiliatedAt); err != nil {
+		if err := rows.Scan(
+			&i.PassengerID,
+			&i.DisplayName,
+			&i.AffiliatedAt,
+			&i.Source,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -192,17 +277,20 @@ func (q *Queries) ListDriverClients(ctx context.Context, driverID uuid.UUID) ([]
 
 const reactivateAffiliation = `-- name: ReactivateAffiliation :exec
 UPDATE affiliations
-SET removed_at = NULL, created_at = now()
+SET removed_at = NULL, created_at = now(),
+    source = coalesce(nullif($3::text, ''), 'qr_scan')::affiliation_source
 WHERE passenger_id = $1 AND driver_id = $2
 `
 
 type ReactivateAffiliationParams struct {
 	PassengerID uuid.UUID
 	DriverID    uuid.UUID
+	Source      string
 }
 
+// Volver a afiliarse cuenta como afiliación nueva (007) con el origen de esta vez (008).
 func (q *Queries) ReactivateAffiliation(ctx context.Context, arg ReactivateAffiliationParams) error {
-	_, err := q.db.Exec(ctx, reactivateAffiliation, arg.PassengerID, arg.DriverID)
+	_, err := q.db.Exec(ctx, reactivateAffiliation, arg.PassengerID, arg.DriverID, arg.Source)
 	return err
 }
 

@@ -37,6 +37,11 @@ func offerMessage(t *Trip, passengerName string, now time.Time) Message {
 		"currency": t.Currency, "expires_at": t.RespondBy,
 		"delegated": delegated, "can_delegate": t.CanDelegate(), "cooperative_name": t.CooperativeName,
 		"requested_driver_name": requestedName,
+		// 008: origen de la oferta, Prioridad Oro de la cartera y distancia a la recogida.
+		"origin": t.Offer.Origin, "loyal_client": t.Offer.LoyalClient, "trips_together": t.Offer.TripsTogether,
+		"pickup_distance_m": t.Offer.PickupDistance, "preferential_discount_pct": t.DiscountPct,
+		// 010: reserva de la agenda y nota privada del conductor (solo en este canal del conductor).
+		"reservation": t.Offer.Reservation, "client_note": t.Offer.ClientNote,
 	}}}
 }
 

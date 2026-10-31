@@ -17,7 +17,7 @@ void main() {
 
   testWidgets('toca el mapa para el destino y muestra distancia, minutos y tarifa sugerida', (tester) async {
     final api = MockApi();
-    when(() => api.quote(any(), any())).thenAnswer(
+    when(() => api.quote(any(), any(), driverId: any(named: 'driverId'))).thenAnswer(
       (_) async => const FareQuote(distanceM: 6200, durationS: 900, suggestedFareMinor: 1470000, currency: 'COP'),
     );
     ValueChanged<GeoPoint>? tap;

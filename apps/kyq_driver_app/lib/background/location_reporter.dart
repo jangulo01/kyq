@@ -2,13 +2,23 @@ import 'dart:async';
 
 /// Posición del conductor lista para enviar a `POST /v1/driver/location`.
 class LocationFix {
-  const LocationFix({required this.lat, required this.lng, required this.recordedAt, this.heading, this.speedMps});
+  const LocationFix({
+    required this.lat,
+    required this.lng,
+    required this.recordedAt,
+    this.heading,
+    this.speedMps,
+    this.accuracyM,
+  });
 
   final double lat;
   final double lng;
   final double? heading;
   final double? speedMps;
   final DateTime recordedAt;
+
+  /// 010: precisión del GPS en metros; el backend la usa para la llegada automática.
+  final double? accuracyM;
 }
 
 /// Fuente de la posición actual. La real usa `geolocator`; las pruebas usan un falso.

@@ -22,7 +22,8 @@ INSERT INTO trips (
     pickup_lat, pickup_lng, dropoff_lat, dropoff_lng,
     route_distance_m, route_duration_s, suggested_fare_minor,
     status, respond_by, created_at,
-    dispatch, requested_driver_id, cooperative_id, allow_delegation, handover_count
+    dispatch, requested_driver_id, cooperative_id, allow_delegation, handover_count,
+    list_fare_minor, preferential_discount_pct
 ) VALUES (
     $1, $2, $3, $4, $5,
     $6, $7, $8, $9,
@@ -31,7 +32,9 @@ INSERT INTO trips (
     -- Valores vacíos (llamadas anteriores a 006) quedan como despacho directo al conductor.
     coalesce(nullif(sqlc.arg(dispatch)::text, ''), 'chosen_driver')::trip_dispatch,
     coalesce(nullif(sqlc.arg(requested_driver_id)::uuid, '00000000-0000-0000-0000-000000000000'::uuid), $3),
-    sqlc.arg(cooperative_id), sqlc.arg(allow_delegation), sqlc.arg(handover_count)
+    sqlc.arg(cooperative_id), sqlc.arg(allow_delegation), sqlc.arg(handover_count),
+    -- 008: sin tarifa de lista (llamadas anteriores) se toma la sugerida.
+    coalesce(nullif(sqlc.arg(list_fare_minor)::bigint, 0), $12), sqlc.arg(preferential_discount_pct)
 );
 
 -- name: GetTrip :one
@@ -54,7 +57,10 @@ SET status = $2,
     completed_at = $11,
     cancelled_at = $12,
     driver_id = $13,
-    handover_count = $14
+    handover_count = $14,
+    -- 008: la tarifa ofrecida cambia si el traspaso quita o pone la tarifa preferencial; 0 la conserva.
+    suggested_fare_minor = coalesce(nullif(sqlc.arg(suggested_fare_minor)::bigint, 0), suggested_fare_minor),
+    preferential_discount_pct = sqlc.arg(preferential_discount_pct)
 WHERE id = $1;
 
 -- name: GetOpenProposal :one
@@ -103,3 +109,20 @@ JOIN users u ON u.id = t.driver_id
 JOIN users r ON r.id = t.requested_driver_id
 LEFT JOIN cooperatives c ON c.id = t.cooperative_id
 WHERE t.id = $1;
+
+-- name: CountCompletedTripsForPair :one
+-- 008: viajes completados entre un pasajero y un conductor (tarjeta de la oferta).
+SELECT count(*)::int AS trips
+FROM trips
+WHERE passenger_id = $1 AND driver_id = $2 AND status = 'COMPLETED';
+
+-- name: GetDriverPickupDistance :one
+-- 008: distancia en línea recta de la última ubicación del conductor a la recogida.
+SELECT (d.last_location IS NOT NULL)::boolean AS has_location,
+       coalesce(ST_Distance(d.last_location, ST_SetSRID(ST_MakePoint(sqlc.arg(lng)::float8, sqlc.arg(lat)::float8), 4326)::geography), 0)::float8 AS distance_m
+FROM drivers d
+WHERE d.user_id = sqlc.arg(driver_id);
+
+-- name: GetDriverDiscount :one
+-- 008: descuento preferencial del conductor (RN-KYQ-013).
+SELECT preferential_discount_pct FROM drivers WHERE user_id = $1;

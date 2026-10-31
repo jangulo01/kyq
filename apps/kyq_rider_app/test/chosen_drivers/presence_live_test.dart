@@ -15,7 +15,7 @@ const _ana = ChosenDriver(
 );
 
 void main() {
-  testWidgets('el chip de un conductor ocupado cambia en vivo con driver.presence', (tester) async {
+  testWidgets('RN-KYQ-006: el chip de un conductor ocupado cambia en vivo con driver.presence', (tester) async {
     final api = MockApi();
     final realtime = FakeRealtime();
     when(

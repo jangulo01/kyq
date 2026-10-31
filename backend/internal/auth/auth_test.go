@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -268,4 +269,50 @@ func TestSuspendedUserGetsNoSession(t *testing.T) {
 	repo.SetSuspended(user.ID, false)
 	_, err = svc.VerifyOTP(ctx, "+573001234567", devCode, "", "")
 	assert.NoError(t, err)
+}
+
+// 009 (FR-011): el 403 de un suspendido trae una sesión que solo abre las rutas de soporte.
+func TestSuspendedUserGetsSupportOnlySession(t *testing.T) {
+	svc, repo, _, tokens := newTestService()
+	ctx := context.Background()
+	first, err := svc.VerifyOTP(ctx, "+573001234567", devCode, "Ana", "")
+	require.NoError(t, err)
+	assert.Empty(t, first.Scope)
+	user, err := repo.GetUserByPhone(ctx, "+573001234567")
+	require.NoError(t, err)
+	repo.SetSuspended(user.ID, true)
+
+	_, err = svc.VerifyOTP(ctx, "+573001234567", devCode, "", "")
+	var suspended *SuspendedError
+	require.ErrorAs(t, err, &suspended)
+	assert.Equal(t, ScopeSupport, suspended.Support.Scope)
+	p, err := tokens.ParseAccess(suspended.Support.AccessToken)
+	require.NoError(t, err)
+	assert.Equal(t, Principal{UserID: user.ID, Role: RolePassenger, Scope: ScopeSupport}, p)
+	_, err = svc.Refresh(ctx, suspended.Support.RefreshToken)
+	require.ErrorAs(t, err, &suspended, "renovar sigue dando solo soporte")
+
+	h := RequireAuth(tokens)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) }))
+	call := func(path string) int {
+		req := httptest.NewRequest(http.MethodGet, path, nil)
+		req.Header.Set("Authorization", "Bearer "+suspended.Support.AccessToken)
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, req)
+		return rec.Code
+	}
+	assert.Equal(t, http.StatusNoContent, call("/v1/support/cases"))
+	assert.Equal(t, http.StatusNoContent, call("/v1/realtime/token"))
+	assert.Equal(t, http.StatusForbidden, call("/v1/trips/active"))
+	assert.Equal(t, http.StatusForbidden, call("/v1/affiliations"))
+
+	// El handler responde el 403 de 007 con la sesión de soporte.
+	mux := http.NewServeMux()
+	NewHandlers(svc).Register(mux)
+	req := httptest.NewRequest(http.MethodPost, "/v1/auth/otp/verify",
+		strings.NewReader(`{"phone_e164":"+573001234567","code":"`+devCode+`"}`))
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	assert.Equal(t, http.StatusForbidden, rec.Code)
+	assert.Contains(t, rec.Body.String(), `"code":"account_suspended"`)
+	assert.Contains(t, rec.Body.String(), `"scope":"support"`)
 }

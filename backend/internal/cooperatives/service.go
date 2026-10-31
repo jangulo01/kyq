@@ -44,6 +44,30 @@ type GroupChannel interface {
 	CloseGroup(ctx context.Context, cooperativeID uuid.UUID) error
 }
 
+// Groups sends each change to several group channels: the 006 room and the cooperative's
+// conversation in Radio Kyq (011). Every channel is tried; the first error is returned.
+type Groups []GroupChannel
+
+func (g Groups) LeaveGroup(ctx context.Context, cooperativeID, driverID uuid.UUID) error {
+	var first error
+	for _, c := range g {
+		if err := c.LeaveGroup(ctx, cooperativeID, driverID); err != nil && first == nil {
+			first = err
+		}
+	}
+	return first
+}
+
+func (g Groups) CloseGroup(ctx context.Context, cooperativeID uuid.UUID) error {
+	var first error
+	for _, c := range g {
+		if err := c.CloseGroup(ctx, cooperativeID); err != nil && first == nil {
+			first = err
+		}
+	}
+	return first
+}
+
 // Service implements the cooperative use cases.
 type Service struct {
 	Store     *store.Store

@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:kyq_api/kyq_api.dart';
 import 'package:kyq_ui/kyq_ui.dart';
 
+import '../map/driver_motion.dart';
 import '../map/trip_map.dart';
 import 'trip_cubit.dart';
 
@@ -14,6 +15,7 @@ class TripTrackingView extends StatelessWidget {
     required this.driverName,
     required this.map,
     this.driverPosition,
+    this.driverHeading,
     this.busy = false,
   });
 
@@ -21,6 +23,7 @@ class TripTrackingView extends StatelessWidget {
   final String driverName;
   final TripMapBuilder map;
   final GeoPoint? driverPosition;
+  final double? driverHeading;
   final bool busy;
 
   Future<void> _confirmCancel(BuildContext context) async {
@@ -51,7 +54,12 @@ class TripTrackingView extends StatelessWidget {
     return Column(
       children: [
         Expanded(
-          child: map(TripMapMarkers(pickup: trip.pickup, dropoff: trip.dropoff, driver: driverPosition), null),
+          // 010: el vehículo se desplaza y gira entre ubicaciones en lugar de saltar (FR-017).
+          child: DriverMotion(
+            markers: TripMapMarkers(pickup: trip.pickup, dropoff: trip.dropoff, driver: driverPosition),
+            heading: driverHeading,
+            builder: (markers) => map(markers, null),
+          ),
         ),
         SafeArea(
           top: false,

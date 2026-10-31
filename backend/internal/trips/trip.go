@@ -112,6 +112,10 @@ type Trip struct {
 	SuggestedFare int64
 	AgreedFare    *int64
 	DriverPayout  *int64
+	// ListFare is the fare-table fare; SuggestedFare is what the current driver is offered, with
+	// his preferential discount (DiscountPct) when the passenger is his client (008, RN-KYQ-013).
+	ListFare    int64
+	DiscountPct int
 
 	Status       Status
 	CancelReason *string
@@ -145,6 +149,9 @@ type Trip struct {
 	RequestedDriverName string
 	CooperativeName     *string
 
+	// Offer is the context of the current offer for the driver's card (008). Not persisted.
+	Offer OfferContext
+
 	// Proposal is the open proposal, if any.
 	Proposal *Proposal
 	// ClosedProposals are proposals closed by the last operation; the repository persists them.
@@ -158,7 +165,7 @@ func NewTrip(id, passengerID, driverID uuid.UUID, city, currency string, pickup,
 	return &Trip{
 		ID: id, PassengerID: passengerID, DriverID: driverID, CityCode: city, Currency: currency,
 		Pickup: pickup, Dropoff: dropoff, DistanceM: distanceM, DurationS: durationS,
-		SuggestedFare: suggestedFare, Status: StatusRequested, RespondBy: &deadline, CreatedAt: now,
+		SuggestedFare: suggestedFare, ListFare: suggestedFare, Status: StatusRequested, RespondBy: &deadline, CreatedAt: now,
 		Dispatch: DispatchChosenDriver, RequestedDriverID: driverID,
 	}
 }
@@ -438,7 +445,10 @@ func (t *Trip) AwaitsHandOver(before Status) bool {
 		return false
 	}
 	switch *t.CancelReason {
-	case CancelOfferRejected, CancelOfferExpired, CancelDelegated:
+	case CancelOfferRejected, CancelOfferExpired:
+		// 008: en la bolsa zonal la oferta pasa al siguiente conductor sin cooperativa.
+		return t.Dispatch == DispatchZonePool || (t.AllowDelegation && t.CooperativeID != nil)
+	case CancelDelegated:
 		return t.AllowDelegation && t.CooperativeID != nil
 	}
 	return false
@@ -469,6 +479,20 @@ func (t *Trip) GiveUp() {
 	if t.Status == StatusCancelled {
 		t.CancelReason = ptr(CancelNoDriver)
 	}
+}
+
+// OfferContext is what the driver's offer card shows besides the trip (008): where the offer
+// comes from, whether the passenger is his client, their completed trips together and the
+// straight-line distance to the pickup.
+type OfferContext struct {
+	Origin         Dispatch
+	LoyalClient    bool
+	TripsTogether  int
+	PickupDistance *int
+	// 010: la oferta cumple una reserva de la agenda.
+	Reservation bool
+	// 010: nota privada del conductor sobre el cliente; solo va en su oferta (FR-008).
+	ClientNote *string
 }
 
 // PartyOf returns the caller's role, or false when the user is not part of the trip.

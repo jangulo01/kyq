@@ -9,12 +9,13 @@ import 'package:livekit_client/livekit_client.dart';
 
 import 'voice_room.dart';
 
-/// [VoiceRoom] sobre LiveKit (R1).
-class LiveKitVoiceRoom implements VoiceRoom {
+/// [VoiceRoom] sobre LiveKit (R1); también sirve de [ListeningRoom] para Radio (011).
+class LiveKitVoiceRoom implements ListeningRoom {
   final _events = StreamController<VoiceRoomEvent>.broadcast();
   Room? _room;
   EventsListener<RoomEvent>? _listener;
   bool _leaving = false;
+  bool _remoteAudio = true;
 
   static Future<void>? _initialized;
 
@@ -51,6 +52,10 @@ class LiveKitVoiceRoom implements VoiceRoom {
         (e) => _events.add(VoiceRemoteSpeaking(e.speakers.any((p) => p is RemoteParticipant))),
       )
       ..on<ParticipantDisconnectedEvent>((_) => _events.add(const VoiceRemoteLeft()))
+      // 011: una pista que llega con la voz entrante apagada empieza en silencio.
+      ..on<TrackSubscribedEvent>((e) {
+        if (!_remoteAudio && e.track is RemoteAudioTrack) unawaited(e.track.disable());
+      })
       ..on<RoomReconnectingEvent>((_) => _events.add(const VoiceConnectionChanged(VoiceConnection.reconnecting)))
       ..on<RoomReconnectedEvent>((_) => _events.add(const VoiceConnectionChanged(VoiceConnection.connected)))
       ..on<RoomDisconnectedEvent>((_) {
@@ -86,7 +91,7 @@ class LiveKitVoiceRoom implements VoiceRoom {
     try {
       final message = jsonDecode(utf8.decode(e.data));
       if (message is Map<String, dynamic>) {
-        _events.add(VoiceDataReceived(message, senderId: e.participant?.identity));
+        _events.add(VoiceDataReceived(message, senderId: e.participant?.identity, senderName: e.participant?.name));
       }
     } on FormatException {
       // Mensajes ajenos al protocolo de turno: se ignoran.
@@ -101,6 +106,20 @@ class LiveKitVoiceRoom implements VoiceRoom {
     // se publica otra.
     if (enabled) await _awaitPublishGrant(room);
     await room.localParticipant?.setMicrophoneEnabled(enabled);
+  }
+
+  @override
+  Future<void> setRemoteAudioEnabled(bool enabled) async {
+    _remoteAudio = enabled;
+    final room = _room;
+    if (room == null) return;
+    for (final p in room.remoteParticipants.values) {
+      for (final pub in p.audioTrackPublications) {
+        final track = pub.track;
+        if (track == null) continue;
+        await (enabled ? track.enable() : track.disable());
+      }
+    }
   }
 
   @override
@@ -120,3 +139,6 @@ class LiveKitVoiceRoom implements VoiceRoom {
     await room.dispose();
   }
 }
+
+/// Altavoz o auricular para todas las salas (011, salida de audio de Radio, FR-009).
+Future<void> setLiveKitSpeakerOutput(bool speaker) => AudioManager.instance.setSpeakerOutputPreferred(speaker);

@@ -209,6 +209,51 @@ func (q *Queries) FindDelegationCandidate(ctx context.Context, arg FindDelegatio
 	return i, err
 }
 
+const findZonePoolCandidate = `-- name: FindZonePoolCandidate :one
+SELECT d.user_id AS driver_id,
+       ST_Distance(d.last_location, ST_SetSRID(ST_MakePoint($1::float8, $2::float8), 4326)::geography)::float8 AS distance_m
+FROM drivers d
+JOIN users u ON u.id = d.user_id AND u.suspended_at IS NULL
+WHERE d.accepts_zone_pool
+  AND d.presence = 'free'
+  AND d.last_location IS NOT NULL
+  AND d.last_location_at >= $3::timestamptz
+  AND ST_DWithin(d.last_location, ST_SetSRID(ST_MakePoint($1::float8, $2::float8), 4326)::geography, $4::float8)
+  AND NOT EXISTS (SELECT 1 FROM trip_offers o WHERE o.trip_id = $5 AND o.driver_id = d.user_id)
+ORDER BY distance_m, d.user_id
+LIMIT 1
+FOR UPDATE OF d SKIP LOCKED
+`
+
+type FindZonePoolCandidateParams struct {
+	Lng        float64
+	Lat        float64
+	FreshSince time.Time
+	RadiusM    float64
+	TripID     uuid.UUID
+}
+
+type FindZonePoolCandidateRow struct {
+	DriverID  uuid.UUID
+	DistanceM float64
+}
+
+// 008: conductor libre más cercano a la recogida entre los que aceptan la bolsa zonal: no
+// suspendido, con ubicación reciente, dentro del radio y sin oferta previa en el viaje. La fila
+// queda bloqueada para que otra solicitud no lo reserve a la vez (como FindDelegationCandidate).
+func (q *Queries) FindZonePoolCandidate(ctx context.Context, arg FindZonePoolCandidateParams) (FindZonePoolCandidateRow, error) {
+	row := q.db.QueryRow(ctx, findZonePoolCandidate,
+		arg.Lng,
+		arg.Lat,
+		arg.FreshSince,
+		arg.RadiusM,
+		arg.TripID,
+	)
+	var i FindZonePoolCandidateRow
+	err := row.Scan(&i.DriverID, &i.DistanceM)
+	return i, err
+}
+
 const getActiveMembershipInCooperative = `-- name: GetActiveMembershipInCooperative :one
 SELECT id, cooperative_id, driver_id, role, status, reject_reason, requested_at, decided_by, decided_at, ended_by, ended_at FROM cooperative_memberships
 WHERE cooperative_id = $1 AND driver_id = $2 AND status = 'active'

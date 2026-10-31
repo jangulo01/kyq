@@ -1,6 +1,6 @@
 # Entorno de desarrollo completo. Secretos en infra/.env (copiar de .env.example; no se versiona).
 #   docker compose up -d --build            # backend + servicios
-#   docker compose --profile routing up -d  # además OSRM (requiere infra/data/osrm, ver README)
+#   docker compose --profile routing up -d  # además OSRM, teselas y Photon (requieren infra/data, ver README)
 services:
   postgres:
     image: postgis/postgis:17-3.5
@@ -75,6 +75,15 @@ services:
       KYQ_S3_SOS_BUCKET: kyq-sos
       KYQ_SOS_RECORDING: ${KYQ_SOS_RECORDING:-true}
       KYQ_TWILIO_SMS_FROM: ${KYQ_TWILIO_SMS_FROM:-}
+      # Radio Kyq (011): buckets, tiendas para los enlaces /r/{code} y registro de mensajes.
+      KYQ_S3_RADIO_BUCKET: ${KYQ_S3_RADIO_BUCKET:-kyq-radio}
+      KYQ_S3_RADIO_SAVED_BUCKET: ${KYQ_S3_RADIO_SAVED_BUCKET:-kyq-radio-saved}
+      KYQ_PLAY_DRIVER_URL: ${KYQ_PLAY_DRIVER_URL:-}
+      KYQ_PLAY_RIDER_URL: ${KYQ_PLAY_RIDER_URL:-}
+      KYQ_RADIO_RECORDING: ${KYQ_RADIO_RECORDING:-true}
+      # Buscador de direcciones (010): Photon del perfil routing; si no corre, la app usa el mapa.
+      KYQ_GEOCODER_URL: ${KYQ_GEOCODER_URL:-http://photon:2322}
+      KYQ_CITY_BBOX: ${KYQ_CITY_BBOX:-}
     ports:
       - "8080:8080"
     depends_on:
@@ -83,6 +92,8 @@ services:
       minio-init:
         condition: service_completed_successfully
       minio-init-sos:
+        condition: service_completed_successfully
+      minio-init-radio:
         condition: service_completed_successfully
     restart: unless-stopped
 
@@ -117,6 +128,17 @@ services:
   minio-init-sos:
     image: cgr.dev/chainguard/minio-client@sha256:799a60aa839c0d79b53f1dccdddc974d0fe94282cca712fbfbad3b196f88d0ee
     command: ["mb", "--ignore-existing", "local/kyq-sos"]
+    environment:
+      MC_HOST_local: http://${KYQ_S3_ACCESS_KEY}:${KYQ_S3_SECRET_KEY}@minio:9000
+    depends_on:
+      - minio
+    restart: on-failure
+
+  # Buckets privados de Radio Kyq (011, research R3): mensajes (la API les pone vencimiento de 90
+  # días, el máximo de retención) y guardados (366 días).
+  minio-init-radio:
+    image: cgr.dev/chainguard/minio-client@sha256:799a60aa839c0d79b53f1dccdddc974d0fe94282cca712fbfbad3b196f88d0ee
+    command: ["mb", "--ignore-existing", "local/${KYQ_S3_RADIO_BUCKET:-kyq-radio}", "local/${KYQ_S3_RADIO_SAVED_BUCKET:-kyq-radio-saved}"]
     environment:
       MC_HOST_local: http://${KYQ_S3_ACCESS_KEY}:${KYQ_S3_SECRET_KEY}@minio:9000
     depends_on:
@@ -197,6 +219,19 @@ services:
       - ./tiles/Caddyfile:/etc/caddy/Caddyfile:ro
     ports:
       - "8081:8081"
+    restart: unless-stopped
+
+  # Geocodificador de OpenStreetMap para el buscador de direcciones (010, research R5): jar y
+  # base de datos del país en infra/data/photon (ver README). Solo lo consulta la API.
+  photon:
+    profiles: ["routing"]
+    image: eclipse-temurin:21-jre
+    working_dir: /photon
+    command: ["java", "-jar", "/photon/photon.jar", "-data-dir", "/photon", "-listen-ip", "0.0.0.0"]
+    volumes:
+      - ./data/photon:/photon
+    ports:
+      - "127.0.0.1:2322:2322"
     restart: unless-stopped
 
 volumes:

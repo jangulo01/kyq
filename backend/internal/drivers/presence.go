@@ -28,8 +28,15 @@ type Presence struct {
 	Routes    fares.RouteEstimator
 	Publisher realtime.Publisher
 	Usage     telemetry.Usage
-	Now       func() time.Time
-	Logger    *slog.Logger
+	// Arrivals marks the arrival at the pickup on its own (010, FR-010); nil turns it off.
+	Arrivals ArrivalObserver
+	Now      func() time.Time
+	Logger   *slog.Logger
+}
+
+// ArrivalObserver evaluates each location of a driver with an accepted trip (trips.Service).
+type ArrivalObserver interface {
+	ObserveArrival(ctx context.Context, driverID, tripID uuid.UUID, lat, lng float64, accuracyM *float64, recordedAt time.Time) (bool, error)
 }
 
 // Register mounts the routes behind authMW and the driver role check.
@@ -157,6 +164,8 @@ func (p *Presence) location(w http.ResponseWriter, r *http.Request) {
 		Heading    *float64   `json:"heading"`
 		SpeedMps   *float64   `json:"speed_mps"`
 		RecordedAt *time.Time `json:"recorded_at"`
+		// 010: precisión del GPS en metros, para la llegada automática.
+		AccuracyM *float64 `json:"accuracy_m"`
 	}
 	if !httpx.DecodeJSON(w, r, &body) {
 		return
@@ -227,6 +236,11 @@ func (p *Presence) location(w http.ResponseWriter, r *http.Request) {
 	}
 	if refreshETA {
 		p.refreshBusyUntil(ctx, principal.UserID, *trip, *body.Lat, *body.Lng, now)
+	}
+	if p.Arrivals != nil && store.TripStatus(trip.Status) == store.TripStatusACCEPTED {
+		if _, err := p.Arrivals.ObserveArrival(ctx, principal.UserID, trip.ID, *body.Lat, *body.Lng, body.AccuracyM, recorded); err != nil {
+			p.logger().WarnContext(ctx, "automatic arrival", "err", err)
+		}
 	}
 }
 

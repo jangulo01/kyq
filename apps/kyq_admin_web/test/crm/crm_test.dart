@@ -14,6 +14,7 @@ CrmReport _report({double? rate = 0.8, bool? met = true}) => CrmReport(
     activeNow: 6,
     activeAtStart: 1,
     created: 6,
+    createdBySource: {'qr_scan': 3, 'post_trip': 2, 'link': 1},
     removed: 1,
     net: 5,
     churnRate: 0.1429,
@@ -56,6 +57,10 @@ void main() {
     expect(tester.widget<Text>(find.byKey(const Key('crm.kpi.churn'))).data, '14,3 %');
     expect(tester.widget<Text>(find.byKey(const Key('crm.kpi.repeatRate'))).data, '50,0 %');
     expect(tester.widget<Text>(find.byKey(const Key('crm.kpi.avgTrips'))).data, '2,0');
+    // 008: altas por origen (FR-018).
+    expect(tester.widget<Text>(find.byKey(const Key('crm.kpi.source.qr_scan'))).data, '3');
+    expect(tester.widget<Text>(find.byKey(const Key('crm.kpi.source.post_trip'))).data, '2');
+    expect(tester.widget<Text>(find.byKey(const Key('crm.kpi.source.link'))).data, '1');
     expect(find.byKey(const ValueKey('crm.week.26/10/2026')), findsOneWidget);
     expect(find.byKey(const ValueKey('crm.churned.d2')), findsOneWidget);
     expect(find.text('6 afiliados · nunca completó un viaje'), findsOneWidget);

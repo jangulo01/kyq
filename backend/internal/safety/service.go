@@ -152,19 +152,29 @@ func accuracy(a *float64) pgtype.Float4 {
 
 // AlertSelf is what the person who raised an alert sees (contracts: SosAlertSelf).
 type AlertSelf struct {
-	ID                uuid.UUID `json:"id"`
-	TripID            uuid.UUID `json:"trip_id"`
-	Status            string    `json:"status"`
-	OperatorConnected bool      `json:"operator_connected"`
-	Escalated         bool      `json:"escalated"`
-	CreatedAt         time.Time `json:"created_at"`
+	ID uuid.UUID `json:"id"`
+	// TripID es nulo en una alerta desde Radio sin viaje (011, R7).
+	TripID            *uuid.UUID `json:"trip_id"`
+	Status            string     `json:"status"`
+	OperatorConnected bool       `json:"operator_connected"`
+	Escalated         bool       `json:"escalated"`
+	CreatedAt         time.Time  `json:"created_at"`
 }
 
 func toSelf(a store.SosAlert) AlertSelf {
 	return AlertSelf{
-		ID: a.ID, TripID: a.TripID, Status: string(a.Status), OperatorConnected: a.Status == store.SosStatusClaimed,
+		ID: a.ID, TripID: idPtr(a.TripID), Status: string(a.Status), OperatorConnected: a.Status == store.SosStatusClaimed,
 		Escalated: a.EscalatedAt.Valid, CreatedAt: a.CreatedAt,
 	}
+}
+
+// idPtr es el viaje de una alerta, o nil si no tiene (011).
+func idPtr(id uuid.NullUUID) *uuid.UUID {
+	if !id.Valid {
+		return nil
+	}
+	v := id.UUID
+	return &v
 }
 
 func closed(a store.SosAlert) bool {
@@ -239,7 +249,7 @@ func (s *Service) Raise(ctx context.Context, userID, tripID uuid.UUID, at *Point
 	created := false
 	err = s.Store.WithTx(ctx, func(q *store.Queries) error {
 		var err error
-		alert, err = q.GetOpenSOSAlertFor(ctx, store.GetOpenSOSAlertForParams{TripID: tripID, RaisedBy: userID})
+		alert, err = q.GetOpenSOSAlertFor(ctx, store.GetOpenSOSAlertForParams{TripID: nullID(tripID), RaisedBy: userID})
 		if err == nil {
 			return nil // reintento de la app: la alerta abierta sigue valiendo fuera de la ventana
 		}
@@ -250,11 +260,11 @@ func (s *Service) Raise(ctx context.Context, userID, tripID uuid.UUID, at *Point
 			return ErrUnavailable
 		}
 		alert, err = q.InsertSOSAlert(ctx, store.InsertSOSAlertParams{
-			ID: id, TripID: tripID, RaisedBy: userID, RaisedRole: raisedRole, RoomName: "sos-" + id.String(), CreatedAt: now,
+			ID: id, TripID: nullID(tripID), RaisedBy: userID, RaisedRole: raisedRole, RoomName: "sos-" + id.String(), CreatedAt: now,
 		})
 		if store.IsNotFound(err) {
 			// Otra petición simultánea la creó.
-			alert, err = q.GetOpenSOSAlertFor(ctx, store.GetOpenSOSAlertForParams{TripID: tripID, RaisedBy: userID})
+			alert, err = q.GetOpenSOSAlertFor(ctx, store.GetOpenSOSAlertForParams{TripID: nullID(tripID), RaisedBy: userID})
 			return err
 		}
 		if err != nil {
@@ -298,6 +308,19 @@ func (s *Service) Raise(ctx context.Context, userID, tripID uuid.UUID, at *Point
 		return RaiseResult{}, false, err
 	}
 	return out, created, nil
+}
+
+// payer es el conductor al que se cargan los eventos de la alerta: el del viaje o, sin viaje
+// (Radio, 011), quien la levantó. uuid.Nil si no se encuentra (no se cuenta nada).
+func (s *Service) payer(ctx context.Context, alert store.SosAlert) uuid.UUID {
+	if !alert.TripID.Valid {
+		return alert.RaisedBy
+	}
+	parties, err := s.Store.GetTripParties(ctx, alert.TripID.UUID)
+	if err != nil {
+		return uuid.Nil
+	}
+	return parties.DriverID
 }
 
 // openVoice creates the room and starts the recording; failures are retried later (Token
@@ -420,8 +443,8 @@ func (s *Service) Locations(ctx context.Context, userID, alertID uuid.UUID, poin
 	s.publish(ctx, "sos:"+alertID.String(), "sos.location", now, map[string]any{
 		"alert_id": alertID, "lat": latest.Lat, "lng": latest.Lng, "accuracy_m": latest.AccuracyM, "at": latestAt,
 	})
-	if parties, err := s.Store.GetTripParties(ctx, alert.TripID); err == nil {
-		telemetry.Add(s.Usage, parties.DriverID, telemetry.Events, 1)
+	if driver := s.payer(ctx, alert); driver != uuid.Nil {
+		telemetry.Add(s.Usage, driver, telemetry.Events, 1)
 	}
 	return toSelf(alert), nil
 }

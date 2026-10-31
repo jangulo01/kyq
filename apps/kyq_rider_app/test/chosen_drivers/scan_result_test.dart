@@ -17,6 +17,8 @@ const _carlos = ChosenDriver(
 );
 
 void main() {
+  setUpAll(() => registerFallbackValue(AffiliationSource.qrScan));
+
   late _MockApi api;
   late ScanCubit cubit;
   var done = 0;
@@ -39,7 +41,9 @@ void main() {
   );
 
   testWidgets('QR válido: confirma el conductor guardado', (tester) async {
-    when(() => api.affiliate(_token)).thenAnswer((_) async => (driver: _carlos, created: true));
+    when(
+      () => api.affiliate(_token, source: AffiliationSource.qrScan),
+    ).thenAnswer((_) async => (driver: _carlos, created: true));
     await pump(tester);
 
     await cubit.onCode('kyq://driver/$_token');
@@ -51,7 +55,9 @@ void main() {
   });
 
   testWidgets('QR de un conductor ya elegido lo indica', (tester) async {
-    when(() => api.affiliate(_token)).thenAnswer((_) async => (driver: _carlos, created: false));
+    when(
+      () => api.affiliate(_token, source: AffiliationSource.qrScan),
+    ).thenAnswer((_) async => (driver: _carlos, created: false));
     await pump(tester);
 
     await cubit.onCode('kyq://driver/$_token');
@@ -67,7 +73,7 @@ void main() {
     await tester.pump();
 
     expect(find.text('Código no válido'), findsOneWidget);
-    verifyNever(() => api.affiliate(any()));
+    verifyNever(() => api.affiliate(any(), source: any(named: 'source')));
 
     await tester.tap(find.text('Escanear otro'));
     await tester.pump();
@@ -75,7 +81,9 @@ void main() {
   });
 
   testWidgets('QR con formato Kyq pero conductor inexistente: error sin vínculo', (tester) async {
-    when(() => api.affiliate(any())).thenThrow(const ApiException(404, 'driver_not_found', ''));
+    when(
+      () => api.affiliate(any(), source: any(named: 'source')),
+    ).thenThrow(const ApiException(404, 'driver_not_found', ''));
     await pump(tester);
 
     await cubit.onCode('kyq://driver/$_token');
@@ -85,8 +93,10 @@ void main() {
   });
 
   test('ignora lecturas repetidas mientras procesa', () async {
-    when(() => api.affiliate(_token)).thenAnswer((_) async => (driver: _carlos, created: true));
+    when(
+      () => api.affiliate(_token, source: AffiliationSource.qrScan),
+    ).thenAnswer((_) async => (driver: _carlos, created: true));
     await Future.wait([cubit.onCode('kyq://driver/$_token'), cubit.onCode('kyq://driver/$_token')]);
-    verify(() => api.affiliate(_token)).called(1);
+    verify(() => api.affiliate(_token, source: AffiliationSource.qrScan)).called(1);
   });
 }

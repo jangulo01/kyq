@@ -12,6 +12,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/kyq/backend/internal/admin"
 	"github.com/kyq/backend/internal/affiliations"
 	"github.com/kyq/backend/internal/auth"
@@ -20,18 +22,24 @@ import (
 	"github.com/kyq/backend/internal/control"
 	"github.com/kyq/backend/internal/cooperatives"
 	"github.com/kyq/backend/internal/crm"
+	"github.com/kyq/backend/internal/domains"
 	"github.com/kyq/backend/internal/drivers"
 	"github.com/kyq/backend/internal/fares"
 	"github.com/kyq/backend/internal/health"
 	"github.com/kyq/backend/internal/httpapi"
 	"github.com/kyq/backend/internal/kyc"
+	"github.com/kyq/backend/internal/megaphone"
 	"github.com/kyq/backend/internal/notify"
 	"github.com/kyq/backend/internal/observability"
+	"github.com/kyq/backend/internal/places"
 	"github.com/kyq/backend/internal/ptt"
+	"github.com/kyq/backend/internal/radio"
 	"github.com/kyq/backend/internal/realtime"
+	"github.com/kyq/backend/internal/reservations"
 	"github.com/kyq/backend/internal/safety"
 	"github.com/kyq/backend/internal/storage"
 	"github.com/kyq/backend/internal/store"
+	"github.com/kyq/backend/internal/support"
 	"github.com/kyq/backend/internal/telemetry"
 	"github.com/kyq/backend/internal/trippay"
 	"github.com/kyq/backend/internal/trips"
@@ -136,6 +144,15 @@ func run(logger *slog.Logger) error {
 	towerNotifier := &control.Notifier{Source: st.Queries, Publisher: publisher, Logger: logger}
 	go towerNotifier.Run(ctx, 3*time.Second)
 	probeClient := &http.Client{Timeout: health.Timeout}
+	// 009: sesiones sin fallos desde Sentry (sin token: "no configurado").
+	sentryProjects, err := health.ParseProjects(cfg.SentryProjects)
+	if err != nil {
+		return err
+	}
+	sentrySessions := &health.Sessions{
+		APIURL: cfg.SentryAPIURL, Token: cfg.SentryAPIToken, Org: cfg.SentryOrg, Projects: sentryProjects,
+		HTTP: &http.Client{Timeout: health.SessionsTimeout},
+	}
 	cityLat, cityLng := health.CityCenter(cfg.CityCode)
 	checker := &health.Checker{Probes: []health.Named{
 		{Name: health.Database, Probe: health.DatabaseProbe(st.Pool)},
@@ -174,6 +191,86 @@ func run(logger *slog.Logger) error {
 	// 004: el pago del viaje usa el mismo cliente de Bold; el webhook de 002 le delega sus
 	// referencias y el viaje abre el pago al completarse.
 	tripPayService := &trippay.Service{Store: st, Bold: billingService.Bold, Notify: notices, Publisher: publisher, Logger: logger}
+	// 009: centro de soporte; los casos de pago se abren y resuelven con el pago (research R3).
+	supportService := &support.Service{Store: st, Publisher: publisher, Payments: tripPayService, Logger: logger}
+	tripPayService.Cases = supportService
+	go supportService.RunSweeper(ctx, time.Minute)
+	// 009: megáfono por zonas; el barrido corta los comunicados a los 60 s.
+	megaphoneService := &megaphone.Service{Store: st, Voice: livekit, VoiceURL: cfg.LiveKitURL, Publisher: publisher, Logger: logger}
+	go megaphoneService.RunSweeper(ctx, time.Second)
+	// 010: agenda de reservas (barrido cada 10 s) y buscador de direcciones.
+	reservationService := &reservations.Service{Store: st, Trips: tripService, Notify: notices, Publisher: publisher, Logger: logger}
+	go reservationService.RunSweeper(ctx, 10*time.Second)
+	cityBox, err := places.ParseBBox(cfg.CityBBox)
+	if err != nil {
+		return err
+	}
+	placeService := &places.Service{URL: cfg.GeocoderURL, BBox: cityBox, HTTP: &http.Client{Timeout: places.Timeout}}
+	// 009: dominios espejo; sin clave de firma el panel los edita pero no se publica la lista.
+	domainService := &domains.Service{Store: st, Probe: domains.HTTPProbe(probeClient)}
+	if cfg.DomainsSigningKey != "" {
+		signer, err := domains.NewSigner(cfg.DomainsSigningKey)
+		if err != nil {
+			return err
+		}
+		domainService.Signer = signer
+	}
+	// 011 Radio Kyq: buckets de mensajes (90 días como máximo de retención) y guardados (366).
+	radioMedia, err := storage.NewS3(storage.S3Options{
+		Endpoint: cfg.S3Endpoint, PublicEndpoint: cfg.S3PublicEndpoint, AccessKey: cfg.S3AccessKey,
+		SecretKey: cfg.S3SecretKey, Bucket: cfg.S3RadioBucket, Region: cfg.S3Region,
+	})
+	if err != nil {
+		return err
+	}
+	radioSaved, err := storage.NewS3(storage.S3Options{
+		Endpoint: cfg.S3Endpoint, PublicEndpoint: cfg.S3PublicEndpoint, AccessKey: cfg.S3AccessKey,
+		SecretKey: cfg.S3SecretKey, Bucket: cfg.S3RadioSavedBucket, Region: cfg.S3Region,
+	})
+	if err != nil {
+		return err
+	}
+	radioCtx, cancelRadio := context.WithTimeout(ctx, 10*time.Second)
+	for _, b := range []struct {
+		bucket *storage.S3
+		days   int
+	}{{radioMedia, 90}, {radioSaved, 366}} {
+		if err := b.bucket.EnsureBucket(radioCtx); err != nil {
+			logger.Warn("bucket de Radio no disponible al arrancar", "bucket", b.bucket.Bucket(), "err", err)
+		} else if err := b.bucket.EnsureExpiry(radioCtx, b.days); err != nil {
+			logger.Warn("no se pudo fijar la expiración del bucket de Radio", "bucket", b.bucket.Bucket(), "err", err)
+		}
+	}
+	cancelRadio()
+	if !cfg.RadioRecording {
+		logger.Warn("KYQ_RADIO_RECORDING=false: Radio no guarda el audio de los mensajes")
+	}
+	radioRooms := ptt.RadioRooms{LiveKit: livekit, S3: ptt.RadioS3{
+		Endpoint: cfg.S3Endpoint, Region: cfg.S3Region, AccessKey: cfg.S3AccessKey, SecretKey: cfg.S3SecretKey, Bucket: cfg.S3RadioBucket,
+	}}
+	moderation := &crm.Moderation{Store: st, Publisher: publisher, Logger: logger}
+	radioService := &radio.Service{
+		Store: st, LiveKit: livekit, Rooms: radioRooms, VoiceURL: cfg.LiveKitURL, Publisher: publisher,
+		Media: radio.S3Media{S3: radioMedia, SavedBucket: radioSaved}, Saved: radioSaved, SMS: sms,
+		Record: cfg.RadioRecording, PublicBaseURL: cfg.PublicBaseURL, PlayDriverURL: cfg.PlayDriverURL,
+		PlayRiderURL: cfg.PlayRiderURL, Usage: usage, Logger: logger,
+		// 011: Emergencia desde Radio abre el SOS de 003 (con o sin viaje).
+		SOS: safetyService,
+		// Suspender al autor de un mensaje reportado usa la moderación de 007.
+		SuspendUser: func(ctx context.Context, userID, actorID uuid.UUID, reason string) error {
+			_, err := moderation.Suspend(ctx, userID, actorID, reason)
+			return err
+		},
+	}
+	go radioService.RunSweeper(ctx, time.Second)
+	// 011: al verificar el OTP se aplican las invitaciones de Radio enviadas a ese teléfono.
+	authService := auth.NewService(auth.NewPgRepo(st), otp, tokens, nil)
+	authService.Invites = radioService
+	// 011: la cooperativa de 006 habla en su conversación de Radio (FR-018): los endpoints del
+	// canal de grupo usan la sala y el turno de Radio, y las bajas y suspensiones llegan a los dos.
+	pttService.Radio = radioService
+	coopService.Group = cooperatives.Groups{pttService, radioService}
+
 	billingService.References = append(billingService.References, tripPayService)
 	tripService.Payments = tripPayService
 	go tripService.RunSweeper(ctx, time.Second)
@@ -182,7 +279,7 @@ func run(logger *slog.Logger) error {
 		Logger:      logger,
 		CORSOrigins: strings.Split(os.Getenv("KYQ_CORS_ORIGINS"), ","),
 		Tokens:      tokens,
-		Auth:        auth.NewHandlers(auth.NewService(auth.NewPgRepo(st), otp, tokens, nil)),
+		Auth:        auth.NewHandlers(authService),
 		Realtime: &realtime.Handlers{
 			Tokens: realtime.Tokens{Secret: cfg.CentrifugoTokenSecret},
 			Authorizer: realtime.Authorizer{
@@ -191,8 +288,8 @@ func run(logger *slog.Logger) error {
 		},
 		Admin:        &admin.Handlers{Store: st},
 		Affils:       &affiliations.Handlers{Service: affils},
-		Drivers:      &drivers.Handlers{Store: st},
-		Presence:     &drivers.Presence{Store: st, Routes: routes, Publisher: publisher, Usage: usage, Logger: logger},
+		Drivers:      &drivers.Handlers{Store: st, PublicBaseURL: cfg.PublicBaseURL},
+		Presence:     &drivers.Presence{Store: st, Routes: routes, Publisher: publisher, Usage: usage, Arrivals: tripService, Logger: logger},
 		Trips:        &trips.Handlers{Service: tripService},
 		PTT:          &ptt.Handlers{Service: pttService},
 		Usage:        &telemetry.Handlers{Store: st},
@@ -201,14 +298,20 @@ func run(logger *slog.Logger) error {
 		Notices:      &notify.Handlers{Service: notices},
 		Costs:        &telemetry.CostHandlers{Store: st, CityCode: cfg.CityCode},
 		Tower:        &control.Handlers{Store: st},
-		CRM:          &crm.Handlers{Store: st, Moderation: &crm.Moderation{Store: st, Publisher: publisher, Logger: logger}},
-		Health:       &health.Handlers{Checker: checker},
+		CRM:          &crm.Handlers{Store: st, Moderation: moderation},
+		Health:       &health.Handlers{Checker: checker, Sessions: sentrySessions},
 		Cooperatives: &cooperatives.Handlers{Service: coopService},
 		GroupPTT:     &ptt.GroupHandlers{Service: pttService},
 		Safety:       &safety.Handlers{Service: safetyService, MapStyleURL: cfg.MapStyleURL},
 		TripPay:      &trippay.Handlers{Service: tripPayService},
+		Support:      &support.Handlers{Service: supportService},
+		Megaphone:    &megaphone.Handlers{Service: megaphoneService},
+		Domains:      &domains.Handlers{Service: domainService},
+		Reservations: &reservations.Handlers{Service: reservationService},
+		Places:       &places.Handlers{Service: placeService},
+		Radio:        &radio.Handlers{Service: radioService},
 		LiveKitWebhook: &telemetry.LiveKitWebhook{
-			APIKey: cfg.LiveKitAPIKey, APISecret: cfg.LiveKitAPISecret, Store: st, Usage: usage,
+			APIKey: cfg.LiveKitAPIKey, APISecret: cfg.LiveKitAPISecret, Store: st, Usage: usage, Radio: radioService,
 		},
 	})
 

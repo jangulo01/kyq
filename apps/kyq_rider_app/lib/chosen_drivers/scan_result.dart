@@ -5,9 +5,12 @@ import 'scan_cubit.dart';
 
 /// Panel con el resultado del escaneo. [onDone] cierra el escáner tras un éxito.
 class ScanResult extends StatelessWidget {
-  const ScanResult({super.key, required this.onDone});
+  const ScanResult({super.key, required this.onDone, this.fromLink = false});
 
   final VoidCallback onDone;
+
+  /// 008: el resultado viene del enlace del conductor, no de la cámara.
+  final bool fromLink;
 
   @override
   Widget build(BuildContext context) {
@@ -21,6 +24,12 @@ class ScanResult extends StatelessWidget {
             alreadyChosen ? '${driver.displayName} ya está en tu lista' : '${driver.displayName} guardado',
             driver.vehicleDescription,
             FilledButton(onPressed: onDone, child: const Text('Listo')),
+          ),
+          ScanInvalid() when fromLink => (
+            Icons.error,
+            'Enlace no válido',
+            'Este enlace no corresponde a un conductor Kyq disponible.',
+            OutlinedButton(onPressed: onDone, child: const Text('Volver')),
           ),
           ScanInvalid() => (
             Icons.error,

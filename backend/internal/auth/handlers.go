@@ -84,8 +84,16 @@ func writeAuthError(w http.ResponseWriter, r *http.Request, err error) {
 		httpx.WriteError(w, http.StatusConflict, "phone_has_other_role",
 			"ese teléfono ya tiene una cuenta con otro rol; usa otro número")
 	case errors.Is(err, ErrAccountSuspended):
-		httpx.WriteError(w, http.StatusForbidden, "account_suspended",
-			"tu cuenta está suspendida; comunícate con el soporte de Kyq")
+		var suspended *SuspendedError
+		if errors.As(err, &suspended) {
+			// 009: la sesión de solo soporte viaja con el mismo 403 de 007.
+			httpx.WriteJSON(w, http.StatusForbidden, struct {
+				httpx.Error
+				SupportSession Tokens `json:"support_session"`
+			}{httpx.Error{Code: "account_suspended", Message: suspendedMessage}, suspended.Support})
+			return
+		}
+		httpx.WriteError(w, http.StatusForbidden, "account_suspended", suspendedMessage)
 	case errors.Is(err, ErrRateLimited):
 		httpx.WriteError(w, http.StatusTooManyRequests, "rate_limited", "demasiados códigos solicitados; espera una hora")
 	case errors.Is(err, ErrInvalidCode):
@@ -95,6 +103,20 @@ func writeAuthError(w http.ResponseWriter, r *http.Request, err error) {
 	default:
 		httpx.InternalError(w, r, err)
 	}
+}
+
+const suspendedMessage = "tu cuenta está suspendida; comunícate con el soporte de Kyq"
+
+// supportScopePrefixes are the only routes a support-only session may call (009, research R4).
+var supportScopePrefixes = []string{"/v1/support/", "/v1/realtime/", "/v1/auth/"}
+
+func allowedForSupportScope(path string) bool {
+	for _, p := range supportScopePrefixes {
+		if strings.HasPrefix(path, p) {
+			return true
+		}
+	}
+	return false
 }
 
 // clientIP returns the caller IP from the connection. Behind a reverse proxy, configure it to
@@ -121,6 +143,10 @@ func RequireAuth(tokens *TokenIssuer) func(http.Handler) http.Handler {
 			p, err := tokens.ParseAccess(raw)
 			if err != nil {
 				httpx.WriteError(w, http.StatusUnauthorized, "unauthorized", "token de acceso inválido o caducado")
+				return
+			}
+			if p.Scope == ScopeSupport && !allowedForSupportScope(r.URL.Path) {
+				httpx.WriteError(w, http.StatusForbidden, "account_suspended", suspendedMessage)
 				return
 			}
 			next.ServeHTTP(w, r.WithContext(WithPrincipal(r.Context(), p)))

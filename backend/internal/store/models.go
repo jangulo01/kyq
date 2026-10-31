@@ -16,7 +16,9 @@ import (
 type AffiliationSource string
 
 const (
-	AffiliationSourceQrScan AffiliationSource = "qr_scan"
+	AffiliationSourceQrScan   AffiliationSource = "qr_scan"
+	AffiliationSourcePostTrip AffiliationSource = "post_trip"
+	AffiliationSourceLink     AffiliationSource = "link"
 )
 
 func (e *AffiliationSource) Scan(src interface{}) error {
@@ -145,6 +147,8 @@ const (
 	CostConceptRealtimeEvent CostConcept = "realtime_event"
 	CostConceptRouteRequest  CostConcept = "route_request"
 	CostConceptFixedMonthly  CostConcept = "fixed_monthly"
+	CostConceptRadioStorage  CostConcept = "radio_storage"
+	CostConceptSmsInvite     CostConcept = "sms_invite"
 )
 
 func (e *CostConcept) Scan(src interface{}) error {
@@ -705,6 +709,537 @@ func (ns NullPttChannelType) Value() (driver.Value, error) {
 	return string(ns.PttChannelType), nil
 }
 
+type RadioConversationKind string
+
+const (
+	RadioConversationKindDirect      RadioConversationKind = "direct"
+	RadioConversationKindClient      RadioConversationKind = "client"
+	RadioConversationKindChannel     RadioConversationKind = "channel"
+	RadioConversationKindCooperative RadioConversationKind = "cooperative"
+)
+
+func (e *RadioConversationKind) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = RadioConversationKind(s)
+	case string:
+		*e = RadioConversationKind(s)
+	default:
+		return fmt.Errorf("unsupported scan type for RadioConversationKind: %T", src)
+	}
+	return nil
+}
+
+type NullRadioConversationKind struct {
+	RadioConversationKind RadioConversationKind
+	Valid                 bool // Valid is true if RadioConversationKind is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullRadioConversationKind) Scan(value interface{}) error {
+	if value == nil {
+		ns.RadioConversationKind, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.RadioConversationKind.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullRadioConversationKind) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.RadioConversationKind), nil
+}
+
+type RadioConversationStatus string
+
+const (
+	RadioConversationStatusActive    RadioConversationStatus = "active"
+	RadioConversationStatusSuspended RadioConversationStatus = "suspended"
+	RadioConversationStatusDeleted   RadioConversationStatus = "deleted"
+)
+
+func (e *RadioConversationStatus) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = RadioConversationStatus(s)
+	case string:
+		*e = RadioConversationStatus(s)
+	default:
+		return fmt.Errorf("unsupported scan type for RadioConversationStatus: %T", src)
+	}
+	return nil
+}
+
+type NullRadioConversationStatus struct {
+	RadioConversationStatus RadioConversationStatus
+	Valid                   bool // Valid is true if RadioConversationStatus is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullRadioConversationStatus) Scan(value interface{}) error {
+	if value == nil {
+		ns.RadioConversationStatus, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.RadioConversationStatus.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullRadioConversationStatus) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.RadioConversationStatus), nil
+}
+
+type RadioInviteStatus string
+
+const (
+	RadioInviteStatusPending       RadioInviteStatus = "pending"
+	RadioInviteStatusSent          RadioInviteStatus = "sent"
+	RadioInviteStatusFailed        RadioInviteStatus = "failed"
+	RadioInviteStatusAccepted      RadioInviteStatus = "accepted"
+	RadioInviteStatusAlreadyMember RadioInviteStatus = "already_member"
+	RadioInviteStatusExpired       RadioInviteStatus = "expired"
+)
+
+func (e *RadioInviteStatus) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = RadioInviteStatus(s)
+	case string:
+		*e = RadioInviteStatus(s)
+	default:
+		return fmt.Errorf("unsupported scan type for RadioInviteStatus: %T", src)
+	}
+	return nil
+}
+
+type NullRadioInviteStatus struct {
+	RadioInviteStatus RadioInviteStatus
+	Valid             bool // Valid is true if RadioInviteStatus is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullRadioInviteStatus) Scan(value interface{}) error {
+	if value == nil {
+		ns.RadioInviteStatus, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.RadioInviteStatus.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullRadioInviteStatus) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.RadioInviteStatus), nil
+}
+
+type RadioJoinMode string
+
+const (
+	RadioJoinModeOpenLink RadioJoinMode = "open_link"
+	RadioJoinModeApproval RadioJoinMode = "approval"
+)
+
+func (e *RadioJoinMode) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = RadioJoinMode(s)
+	case string:
+		*e = RadioJoinMode(s)
+	default:
+		return fmt.Errorf("unsupported scan type for RadioJoinMode: %T", src)
+	}
+	return nil
+}
+
+type NullRadioJoinMode struct {
+	RadioJoinMode RadioJoinMode
+	Valid         bool // Valid is true if RadioJoinMode is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullRadioJoinMode) Scan(value interface{}) error {
+	if value == nil {
+		ns.RadioJoinMode, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.RadioJoinMode.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullRadioJoinMode) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.RadioJoinMode), nil
+}
+
+type RadioMemberStatus string
+
+const (
+	RadioMemberStatusPending  RadioMemberStatus = "pending"
+	RadioMemberStatusActive   RadioMemberStatus = "active"
+	RadioMemberStatusMuted    RadioMemberStatus = "muted"
+	RadioMemberStatusRemoved  RadioMemberStatus = "removed"
+	RadioMemberStatusBlocked  RadioMemberStatus = "blocked"
+	RadioMemberStatusRejected RadioMemberStatus = "rejected"
+)
+
+func (e *RadioMemberStatus) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = RadioMemberStatus(s)
+	case string:
+		*e = RadioMemberStatus(s)
+	default:
+		return fmt.Errorf("unsupported scan type for RadioMemberStatus: %T", src)
+	}
+	return nil
+}
+
+type NullRadioMemberStatus struct {
+	RadioMemberStatus RadioMemberStatus
+	Valid             bool // Valid is true if RadioMemberStatus is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullRadioMemberStatus) Scan(value interface{}) error {
+	if value == nil {
+		ns.RadioMemberStatus, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.RadioMemberStatus.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullRadioMemberStatus) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.RadioMemberStatus), nil
+}
+
+type RadioMessageKind string
+
+const (
+	RadioMessageKindVoice     RadioMessageKind = "voice"
+	RadioMessageKindText      RadioMessageKind = "text"
+	RadioMessageKindPhoto     RadioMessageKind = "photo"
+	RadioMessageKindLocation  RadioMessageKind = "location"
+	RadioMessageKindAlert     RadioMessageKind = "alert"
+	RadioMessageKindEmergency RadioMessageKind = "emergency"
+)
+
+func (e *RadioMessageKind) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = RadioMessageKind(s)
+	case string:
+		*e = RadioMessageKind(s)
+	default:
+		return fmt.Errorf("unsupported scan type for RadioMessageKind: %T", src)
+	}
+	return nil
+}
+
+type NullRadioMessageKind struct {
+	RadioMessageKind RadioMessageKind
+	Valid            bool // Valid is true if RadioMessageKind is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullRadioMessageKind) Scan(value interface{}) error {
+	if value == nil {
+		ns.RadioMessageKind, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.RadioMessageKind.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullRadioMessageKind) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.RadioMessageKind), nil
+}
+
+type RadioMessageStatus string
+
+const (
+	RadioMessageStatusRecording RadioMessageStatus = "recording"
+	RadioMessageStatusReady     RadioMessageStatus = "ready"
+	RadioMessageStatusDiscarded RadioMessageStatus = "discarded"
+	RadioMessageStatusDeleted   RadioMessageStatus = "deleted"
+)
+
+func (e *RadioMessageStatus) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = RadioMessageStatus(s)
+	case string:
+		*e = RadioMessageStatus(s)
+	default:
+		return fmt.Errorf("unsupported scan type for RadioMessageStatus: %T", src)
+	}
+	return nil
+}
+
+type NullRadioMessageStatus struct {
+	RadioMessageStatus RadioMessageStatus
+	Valid              bool // Valid is true if RadioMessageStatus is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullRadioMessageStatus) Scan(value interface{}) error {
+	if value == nil {
+		ns.RadioMessageStatus, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.RadioMessageStatus.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullRadioMessageStatus) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.RadioMessageStatus), nil
+}
+
+type RadioPassengerPolicy string
+
+const (
+	RadioPassengerPolicyNone       RadioPassengerPolicy = "none"
+	RadioPassengerPolicyListenOnly RadioPassengerPolicy = "listen_only"
+	RadioPassengerPolicyAllRoles   RadioPassengerPolicy = "all_roles"
+)
+
+func (e *RadioPassengerPolicy) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = RadioPassengerPolicy(s)
+	case string:
+		*e = RadioPassengerPolicy(s)
+	default:
+		return fmt.Errorf("unsupported scan type for RadioPassengerPolicy: %T", src)
+	}
+	return nil
+}
+
+type NullRadioPassengerPolicy struct {
+	RadioPassengerPolicy RadioPassengerPolicy
+	Valid                bool // Valid is true if RadioPassengerPolicy is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullRadioPassengerPolicy) Scan(value interface{}) error {
+	if value == nil {
+		ns.RadioPassengerPolicy, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.RadioPassengerPolicy.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullRadioPassengerPolicy) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.RadioPassengerPolicy), nil
+}
+
+type RadioPresenceStatus string
+
+const (
+	RadioPresenceStatusAvailable  RadioPresenceStatus = "available"
+	RadioPresenceStatusBusy       RadioPresenceStatus = "busy"
+	RadioPresenceStatusListenOnly RadioPresenceStatus = "listen_only"
+)
+
+func (e *RadioPresenceStatus) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = RadioPresenceStatus(s)
+	case string:
+		*e = RadioPresenceStatus(s)
+	default:
+		return fmt.Errorf("unsupported scan type for RadioPresenceStatus: %T", src)
+	}
+	return nil
+}
+
+type NullRadioPresenceStatus struct {
+	RadioPresenceStatus RadioPresenceStatus
+	Valid               bool // Valid is true if RadioPresenceStatus is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullRadioPresenceStatus) Scan(value interface{}) error {
+	if value == nil {
+		ns.RadioPresenceStatus, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.RadioPresenceStatus.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullRadioPresenceStatus) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.RadioPresenceStatus), nil
+}
+
+type RadioRole string
+
+const (
+	RadioRoleOwner     RadioRole = "owner"
+	RadioRoleModerator RadioRole = "moderator"
+	RadioRoleMember    RadioRole = "member"
+	RadioRoleListener  RadioRole = "listener"
+)
+
+func (e *RadioRole) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = RadioRole(s)
+	case string:
+		*e = RadioRole(s)
+	default:
+		return fmt.Errorf("unsupported scan type for RadioRole: %T", src)
+	}
+	return nil
+}
+
+type NullRadioRole struct {
+	RadioRole RadioRole
+	Valid     bool // Valid is true if RadioRole is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullRadioRole) Scan(value interface{}) error {
+	if value == nil {
+		ns.RadioRole, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.RadioRole.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullRadioRole) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.RadioRole), nil
+}
+
+type RadioTrialPolicy string
+
+const (
+	RadioTrialPolicyTrial            RadioTrialPolicy = "trial"
+	RadioTrialPolicySubscriptionOnly RadioTrialPolicy = "subscription_only"
+	RadioTrialPolicyListenOnly       RadioTrialPolicy = "listen_only"
+)
+
+func (e *RadioTrialPolicy) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = RadioTrialPolicy(s)
+	case string:
+		*e = RadioTrialPolicy(s)
+	default:
+		return fmt.Errorf("unsupported scan type for RadioTrialPolicy: %T", src)
+	}
+	return nil
+}
+
+type NullRadioTrialPolicy struct {
+	RadioTrialPolicy RadioTrialPolicy
+	Valid            bool // Valid is true if RadioTrialPolicy is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullRadioTrialPolicy) Scan(value interface{}) error {
+	if value == nil {
+		ns.RadioTrialPolicy, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.RadioTrialPolicy.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullRadioTrialPolicy) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.RadioTrialPolicy), nil
+}
+
+type ReservationStatus string
+
+const (
+	ReservationStatusPending   ReservationStatus = "pending"
+	ReservationStatusConfirmed ReservationStatus = "confirmed"
+	ReservationStatusRejected  ReservationStatus = "rejected"
+	ReservationStatusCancelled ReservationStatus = "cancelled"
+	ReservationStatusExpired   ReservationStatus = "expired"
+	ReservationStatusFulfilled ReservationStatus = "fulfilled"
+	ReservationStatusMissed    ReservationStatus = "missed"
+)
+
+func (e *ReservationStatus) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ReservationStatus(s)
+	case string:
+		*e = ReservationStatus(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ReservationStatus: %T", src)
+	}
+	return nil
+}
+
+type NullReservationStatus struct {
+	ReservationStatus ReservationStatus
+	Valid             bool // Valid is true if ReservationStatus is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullReservationStatus) Scan(value interface{}) error {
+	if value == nil {
+		ns.ReservationStatus, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ReservationStatus.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullReservationStatus) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ReservationStatus), nil
+}
+
 type SosOutcome string
 
 const (
@@ -747,6 +1282,48 @@ func (ns NullSosOutcome) Value() (driver.Value, error) {
 		return nil, nil
 	}
 	return string(ns.SosOutcome), nil
+}
+
+type SosRaisedFrom string
+
+const (
+	SosRaisedFromTrip  SosRaisedFrom = "trip"
+	SosRaisedFromRadio SosRaisedFrom = "radio"
+)
+
+func (e *SosRaisedFrom) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = SosRaisedFrom(s)
+	case string:
+		*e = SosRaisedFrom(s)
+	default:
+		return fmt.Errorf("unsupported scan type for SosRaisedFrom: %T", src)
+	}
+	return nil
+}
+
+type NullSosRaisedFrom struct {
+	SosRaisedFrom SosRaisedFrom
+	Valid         bool // Valid is true if SosRaisedFrom is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullSosRaisedFrom) Scan(value interface{}) error {
+	if value == nil {
+		ns.SosRaisedFrom, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.SosRaisedFrom.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullSosRaisedFrom) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.SosRaisedFrom), nil
 }
 
 type SosRole string
@@ -835,6 +1412,97 @@ func (ns NullSosStatus) Value() (driver.Value, error) {
 	return string(ns.SosStatus), nil
 }
 
+type SupportStatus string
+
+const (
+	SupportStatusOpen        SupportStatus = "open"
+	SupportStatusInProgress  SupportStatus = "in_progress"
+	SupportStatusWaitingUser SupportStatus = "waiting_user"
+	SupportStatusResolved    SupportStatus = "resolved"
+	SupportStatusClosed      SupportStatus = "closed"
+)
+
+func (e *SupportStatus) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = SupportStatus(s)
+	case string:
+		*e = SupportStatus(s)
+	default:
+		return fmt.Errorf("unsupported scan type for SupportStatus: %T", src)
+	}
+	return nil
+}
+
+type NullSupportStatus struct {
+	SupportStatus SupportStatus
+	Valid         bool // Valid is true if SupportStatus is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullSupportStatus) Scan(value interface{}) error {
+	if value == nil {
+		ns.SupportStatus, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.SupportStatus.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullSupportStatus) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.SupportStatus), nil
+}
+
+type SupportTopic string
+
+const (
+	SupportTopicTrip     SupportTopic = "trip"
+	SupportTopicPayment  SupportTopic = "payment"
+	SupportTopicLostItem SupportTopic = "lost_item"
+	SupportTopicSafety   SupportTopic = "safety"
+	SupportTopicAccount  SupportTopic = "account"
+	SupportTopicOther    SupportTopic = "other"
+)
+
+func (e *SupportTopic) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = SupportTopic(s)
+	case string:
+		*e = SupportTopic(s)
+	default:
+		return fmt.Errorf("unsupported scan type for SupportTopic: %T", src)
+	}
+	return nil
+}
+
+type NullSupportTopic struct {
+	SupportTopic SupportTopic
+	Valid        bool // Valid is true if SupportTopic is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullSupportTopic) Scan(value interface{}) error {
+	if value == nil {
+		ns.SupportTopic, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.SupportTopic.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullSupportTopic) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.SupportTopic), nil
+}
+
 type TripCancelReason string
 
 const (
@@ -887,6 +1555,7 @@ type TripDispatch string
 const (
 	TripDispatchChosenDriver TripDispatch = "chosen_driver"
 	TripDispatchCooperative  TripDispatch = "cooperative"
+	TripDispatchZonePool     TripDispatch = "zone_pool"
 )
 
 func (e *TripDispatch) Scan(src interface{}) error {
@@ -1115,6 +1784,13 @@ type Affiliation struct {
 	PreconsultsBlocked bool
 }
 
+type ClientNote struct {
+	DriverID    uuid.UUID
+	PassengerID uuid.UUID
+	Body        string
+	UpdatedAt   time.Time
+}
+
 type Cooperative struct {
 	ID        uuid.UUID
 	Name      string
@@ -1157,24 +1833,26 @@ type DocumentPhoto struct {
 }
 
 type Driver struct {
-	UserID                uuid.UUID
-	QrToken               string
-	VehiclePlate          string
-	VehicleDescription    string
-	Presence              DriverPresence
-	LastLocation          interface{}
-	LastLocationAt        pgtype.Timestamptz
-	BusyUntilEstimate     pgtype.Timestamptz
-	LastLat               pgtype.Float8
-	LastLng               pgtype.Float8
-	BusyEstimateUpdatedAt pgtype.Timestamptz
-	VehicleBrand          pgtype.Text
-	VehicleModel          pgtype.Text
-	VehicleColor          pgtype.Text
-	VehicleYear           pgtype.Int2
-	AcceptsCash           bool
-	AcceptsBold           bool
-	AcceptsPreconsults    bool
+	UserID                  uuid.UUID
+	QrToken                 string
+	VehiclePlate            string
+	VehicleDescription      string
+	Presence                DriverPresence
+	LastLocation            interface{}
+	LastLocationAt          pgtype.Timestamptz
+	BusyUntilEstimate       pgtype.Timestamptz
+	LastLat                 pgtype.Float8
+	LastLng                 pgtype.Float8
+	BusyEstimateUpdatedAt   pgtype.Timestamptz
+	VehicleBrand            pgtype.Text
+	VehicleModel            pgtype.Text
+	VehicleColor            pgtype.Text
+	VehicleYear             pgtype.Int2
+	AcceptsCash             bool
+	AcceptsBold             bool
+	AcceptsPreconsults      bool
+	AcceptsZonePool         bool
+	PreferentialDiscountPct int16
 }
 
 type DriverDocument struct {
@@ -1222,6 +1900,9 @@ type DriverUsageDaily struct {
 	VoiceParticipantSeconds int64
 	RealtimeEvents          int64
 	RouteRequests           int64
+	RadioVoiceSeconds       int64
+	RadioMessages           int64
+	RadioStorageBytes       int64
 }
 
 type EmergencyContact struct {
@@ -1267,6 +1948,39 @@ type GroupPttChannel struct {
 	FloorHolderID  uuid.NullUUID
 	FloorExpiresAt pgtype.Timestamptz
 	CreatedAt      time.Time
+}
+
+type MegaphoneBroadcast struct {
+	ID             uuid.UUID
+	AdminID        uuid.UUID
+	RoomName       string
+	Cells          []string
+	Resolution     int16
+	StartedAt      time.Time
+	EndsAt         time.Time
+	EndedAt        pgtype.Timestamptz
+	RecipientCount int32
+}
+
+type MegaphoneRecipient struct {
+	BroadcastID uuid.UUID
+	DriverID    uuid.UUID
+}
+
+type MirrorDomain struct {
+	ID          uuid.UUID
+	ApiUrl      string
+	RealtimeUrl string
+	Position    int32
+	Active      bool
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+}
+
+type MirrorDomainsVersion struct {
+	ID        bool
+	Version   int64
+	UpdatedAt time.Time
 }
 
 type ModerationAction struct {
@@ -1340,6 +2054,176 @@ type PttPreconsult struct {
 	FloorExpiresAt pgtype.Timestamptz
 }
 
+type RadioBulkUpload struct {
+	ID          uuid.UUID
+	AdminID     uuid.UUID
+	FileName    string
+	RowsTotal   int32
+	RowsValid   int32
+	RowsInvalid int32
+	Status      string
+	CreatedAt   time.Time
+	ConfirmedAt pgtype.Timestamptz
+}
+
+type RadioConsent struct {
+	UserID                uuid.UUID
+	RetentionDaysAccepted int32
+	AcceptedAt            time.Time
+}
+
+type RadioConversation struct {
+	ID               uuid.UUID
+	Kind             RadioConversationKind
+	Name             pgtype.Text
+	Description      pgtype.Text
+	PhotoKey         pgtype.Text
+	JoinMode         NullRadioJoinMode
+	PassengerRoleMax NullRadioRole
+	CooperativeID    uuid.NullUUID
+	PairA            uuid.NullUUID
+	PairB            uuid.NullUUID
+	RoomName         string
+	Status           RadioConversationStatus
+	CreatedBy        uuid.NullUUID
+	CreatedAt        time.Time
+	SuspendedAt      pgtype.Timestamptz
+	DeletedAt        pgtype.Timestamptz
+}
+
+type RadioFloor struct {
+	ConversationID uuid.UUID
+	HolderID       uuid.UUID
+	MessageID      uuid.UUID
+	GrantedAt      time.Time
+	ExpiresAt      time.Time
+	LastAudioAt    pgtype.Timestamptz
+}
+
+type RadioInvite struct {
+	ID             uuid.UUID
+	Code           string
+	InviterID      uuid.NullUUID
+	ConversationID uuid.NullUUID
+	ContactOf      uuid.NullUUID
+	PhoneE164      pgtype.Text
+	InviteeKind    UserRole
+	Role           NullRadioRole
+	BulkID         uuid.NullUUID
+	Line           pgtype.Int4
+	InviteeName    pgtype.Text
+	ChannelName    pgtype.Text
+	Status         RadioInviteStatus
+	Error          pgtype.Text
+	AcceptedBy     uuid.NullUUID
+	CreatedAt      time.Time
+	SentAt         pgtype.Timestamptz
+	ExpiresAt      time.Time
+}
+
+type RadioMember struct {
+	ConversationID    uuid.UUID
+	UserID            uuid.UUID
+	Role              RadioRole
+	Status            RadioMemberStatus
+	Listening         bool
+	MutedByPeer       bool
+	BlockedByPeer     bool
+	JoinedAt          time.Time
+	UpdatedAt         time.Time
+	LastReadMessageID uuid.NullUUID
+}
+
+type RadioMessage struct {
+	ID             uuid.UUID
+	ConversationID uuid.UUID
+	AuthorID       uuid.NullUUID
+	Kind           RadioMessageKind
+	Status         RadioMessageStatus
+	Body           pgtype.Text
+	Lat            pgtype.Float8
+	Lng            pgtype.Float8
+	ObjectKey      pgtype.Text
+	DurationMs     pgtype.Int4
+	SizeBytes      pgtype.Int8
+	EgressID       pgtype.Text
+	SosAlertID     uuid.NullUUID
+	ExpiresAt      time.Time
+	Reported       bool
+	CreatedAt      time.Time
+}
+
+type RadioPresence struct {
+	UserID            uuid.UUID
+	Status            RadioPresenceStatus
+	StatusBeforeQuiet NullRadioPresenceStatus
+	RadioOn           bool
+	LastSeenAt        pgtype.Timestamptz
+	PushMode          string
+	Timezone          string
+	ClientsEnabled    bool
+	UpdatedAt         time.Time
+}
+
+type RadioQuietHour struct {
+	ID       uuid.UUID
+	UserID   uuid.UUID
+	Weekdays []int16
+	Starts   pgtype.Time
+	Ends     pgtype.Time
+	Enabled  bool
+}
+
+type RadioReceipt struct {
+	MessageID uuid.UUID
+	UserID    uuid.UUID
+	HeardAt   pgtype.Timestamptz
+	SavedAt   pgtype.Timestamptz
+	SavedKey  pgtype.Text
+}
+
+type RadioReport struct {
+	ID         uuid.UUID
+	MessageID  uuid.UUID
+	ReporterID uuid.UUID
+	Reason     string
+	Status     string
+	Decision   pgtype.Text
+	Note       pgtype.Text
+	ResolvedBy uuid.NullUUID
+	ResolvedAt pgtype.Timestamptz
+	CreatedAt  time.Time
+}
+
+type RadioReportAccess struct {
+	ReportID uuid.UUID
+	AdminID  uuid.UUID
+	At       time.Time
+}
+
+type RadioSetting struct {
+	ID                   int16
+	TrialPolicy          RadioTrialPolicy
+	TrialDays            int32
+	PassengersInChannels RadioPassengerPolicy
+	RetentionDays        int32
+	UpdatedBy            uuid.NullUUID
+	UpdatedAt            time.Time
+}
+
+type RadioSettingsAudit struct {
+	ID      uuid.UUID
+	AdminID uuid.UUID
+	Before  []byte
+	After   []byte
+	At      time.Time
+}
+
+type RadioSmsOptout struct {
+	PhoneE164 string
+	At        time.Time
+}
+
 type RefreshToken struct {
 	ID        uuid.UUID
 	UserID    uuid.UUID
@@ -1347,6 +2231,31 @@ type RefreshToken struct {
 	ExpiresAt time.Time
 	RotatedAt pgtype.Timestamptz
 	CreatedAt time.Time
+}
+
+type Reservation struct {
+	ID                      uuid.UUID
+	PassengerID             uuid.UUID
+	DriverID                uuid.UUID
+	PickupLat               float64
+	PickupLng               float64
+	DropoffLat              float64
+	DropoffLng              float64
+	PickupLabel             pgtype.Text
+	DropoffLabel            pgtype.Text
+	ScheduledAt             time.Time
+	DistanceM               int32
+	DurationS               int32
+	Currency                string
+	FareMinor               int64
+	ListFareMinor           int64
+	PreferentialDiscountPct int16
+	Status                  ReservationStatus
+	CancelledBy             uuid.NullUUID
+	RemindedAt              pgtype.Timestamptz
+	TripID                  uuid.NullUUID
+	CreatedAt               time.Time
+	UpdatedAt               time.Time
 }
 
 type SafetyPin struct {
@@ -1364,23 +2273,25 @@ type ShareLink struct {
 }
 
 type SosAlert struct {
-	ID               uuid.UUID
-	TripID           uuid.UUID
-	RaisedBy         uuid.UUID
-	RaisedRole       SosRole
-	Status           SosStatus
-	CancelWithoutPin bool
-	ClaimedBy        uuid.NullUUID
-	VoiceHolderID    uuid.NullUUID
-	Outcome          NullSosOutcome
-	RoomName         string
-	EgressID         pgtype.Text
-	RecordingKey     pgtype.Text
-	EscalatedAt      pgtype.Timestamptz
-	CreatedAt        time.Time
-	ClaimedAt        pgtype.Timestamptz
-	ClosedAt         pgtype.Timestamptz
-	VoiceClosedAt    pgtype.Timestamptz
+	ID                  uuid.UUID
+	TripID              uuid.NullUUID
+	RaisedBy            uuid.UUID
+	RaisedRole          SosRole
+	Status              SosStatus
+	CancelWithoutPin    bool
+	ClaimedBy           uuid.NullUUID
+	VoiceHolderID       uuid.NullUUID
+	Outcome             NullSosOutcome
+	RoomName            string
+	EgressID            pgtype.Text
+	RecordingKey        pgtype.Text
+	EscalatedAt         pgtype.Timestamptz
+	CreatedAt           time.Time
+	ClaimedAt           pgtype.Timestamptz
+	ClosedAt            pgtype.Timestamptz
+	VoiceClosedAt       pgtype.Timestamptz
+	RaisedFrom          SosRaisedFrom
+	RadioConversationID uuid.NullUUID
 }
 
 type SosAudit struct {
@@ -1423,6 +2334,35 @@ type SubscriptionPrice struct {
 	CreatedAt     time.Time
 }
 
+type SupportCase struct {
+	ID                uuid.UUID
+	UserID            uuid.UUID
+	UserRole          UserRole
+	CounterpartID     uuid.NullUUID
+	Topic             SupportTopic
+	Subject           string
+	TripID            uuid.NullUUID
+	TripPaymentID     uuid.NullUUID
+	Status            SupportStatus
+	AssignedTo        uuid.NullUUID
+	CreatedAt         time.Time
+	LastMessageAt     time.Time
+	LastUserMessageAt pgtype.Timestamptz
+	LastAuthorIsUser  bool
+	ResolvedAt        pgtype.Timestamptz
+	ClosedAt          pgtype.Timestamptz
+}
+
+type SupportMessage struct {
+	ID         uuid.UUID
+	CaseID     uuid.UUID
+	AuthorID   uuid.NullUUID
+	AuthorKind string
+	Body       string
+	Internal   bool
+	CreatedAt  time.Time
+}
+
 type Trip struct {
 	ID                      uuid.UUID
 	PassengerID             uuid.UUID
@@ -1454,6 +2394,16 @@ type Trip struct {
 	CooperativeID           uuid.NullUUID
 	AllowDelegation         bool
 	HandoverCount           int16
+	ListFareMinor           int64
+	PreferentialDiscountPct int16
+	NearPickupSince         pgtype.Timestamptz
+}
+
+type TripInspection struct {
+	ID       int64
+	AdminID  uuid.UUID
+	TripID   uuid.UUID
+	OpenedAt time.Time
 }
 
 type TripOffer struct {

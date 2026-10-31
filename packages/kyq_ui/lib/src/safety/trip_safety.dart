@@ -34,6 +34,10 @@ class SafetyPlatform {
   /// Crea el [SosCubit] de un viaje y retoma una alerta abierta.
   SosCubit sosFor(SafetyApi api, String tripId) =>
       SosCubit(api: api, tripId: tripId, location: location(), voice: voice, mic: mic)..resume();
+
+  /// [SosCubit] del botón Emergencia de Radio (011): [raise] abre el SOS (con o sin viaje).
+  SosCubit sosFromRadio(SafetyApi api, Future<SosAlertSelf> Function(SosPoint? location) raise) =>
+      SosCubit(api: api, tripId: '', location: location(), voice: voice, mic: mic, raiser: raise)..resume();
 }
 
 /// Estados en los que se comparte el viaje en vivo (FR-013).

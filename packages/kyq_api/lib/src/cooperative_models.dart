@@ -5,17 +5,21 @@ import 'package:freezed_annotation/freezed_annotation.dart';
 part 'cooperative_models.freezed.dart';
 part 'cooperative_models.g.dart';
 
-/// Cómo pide el pasajero (FR-009). La opción 3, "autónomo libre más cercano", no existe en 006.
+/// Cómo pide el pasajero (006, FR-009). 008 añade la opción 3, la bolsa zonal: el conductor libre
+/// más cercano que la tenga activada, sin necesidad de un Conductor Elegido.
 enum TripDispatch {
   @JsonValue('chosen_driver')
   chosenDriver,
   cooperative,
+  @JsonValue('zone_pool')
+  zonePool,
 }
 
 /// Valor de [TripDispatch] en la API.
 String tripDispatchToApi(TripDispatch d) => switch (d) {
   TripDispatch.chosenDriver => 'chosen_driver',
   TripDispatch.cooperative => 'cooperative',
+  TripDispatch.zonePool => 'zone_pool',
 };
 
 enum CooperativeStatus { active, suspended }

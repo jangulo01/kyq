@@ -13,6 +13,9 @@ enum PhotoOrigin { camera, gallery }
 abstract interface class PhotoSource {
   /// null si el conductor cancela.
   Future<Uint8List?> pick(PhotoOrigin origin);
+
+  /// Comprime una foto ya tomada (un documento escaneado); null si no baja de [maxPhotoBytes].
+  Future<Uint8List?> compress(Uint8List input);
 }
 
 /// Comprime a JPEG con [quality] de 0 a 100, reduciendo la foto hasta que su lado menor ronde
@@ -45,11 +48,13 @@ class PlatformPhotoSource implements PhotoSource {
       maxHeight: 3000,
     );
     if (file == null) return null;
-    final bytes = await file.readAsBytes();
-    final out = await compressToLimit(bytes, _compress);
+    final out = await compress(await file.readAsBytes());
     if (out == null) throw const PhotoTooLargeException();
     return out;
   }
+
+  @override
+  Future<Uint8List?> compress(Uint8List input) => compressToLimit(input, _compress);
 
   static Future<Uint8List> _compress(Uint8List input, {required int quality, required int side}) =>
       FlutterImageCompress.compressWithList(

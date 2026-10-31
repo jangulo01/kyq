@@ -78,9 +78,25 @@ enum TripStatus {
 
 @freezed
 abstract class Tokens with _$Tokens {
-  const factory Tokens({required String accessToken, required String refreshToken, required UserRole role}) = _Tokens;
+  const factory Tokens({
+    required String accessToken,
+    required String refreshToken,
+    required UserRole role,
+
+    /// 009: `support` en la sesión de un usuario suspendido: solo abre soporte.
+    String? scope,
+
+    /// 011: conversaciones de Radio a las que llevaron invitaciones enviadas a este teléfono.
+    @Default([]) List<String> radioInvitesApplied,
+  }) = _Tokens;
 
   factory Tokens.fromJson(Map<String, dynamic> json) => _$TokensFromJson(json);
+}
+
+/// 009: lectura del alcance de la sesión.
+extension TokensScope on Tokens {
+  /// Sesión de un usuario suspendido: solo puede usar el centro de soporte.
+  bool get supportOnly => scope == 'support';
 }
 
 @freezed
@@ -147,6 +163,14 @@ abstract class AdminDriver with _$AdminDriver {
   factory AdminDriver.fromJson(Map<String, dynamic> json) => _$AdminDriverFromJson(json);
 }
 
+/// 010: zona aproximada de un Conductor Elegido libre (pin dorado).
+@freezed
+abstract class DriverZone with _$DriverZone {
+  const factory DriverZone({required String cell, required double lat, required double lng}) = _DriverZone;
+
+  factory DriverZone.fromJson(Map<String, dynamic> json) => _$DriverZoneFromJson(json);
+}
+
 @freezed
 abstract class ChosenDriver with _$ChosenDriver {
   const factory ChosenDriver({
@@ -158,6 +182,9 @@ abstract class ChosenDriver with _$ChosenDriver {
 
     /// 006: cooperativa activa del conductor, si tiene (selector de despacho).
     CooperativeRef? cooperative,
+
+    /// 010: zona aproximada (centro de su hexágono) si está libre; nunca su posición.
+    DriverZone? zone,
   }) = _ChosenDriver;
 
   factory ChosenDriver.fromJson(Map<String, dynamic> json) => _$ChosenDriverFromJson(json);
@@ -178,6 +205,27 @@ abstract class FareTableInput with _$FareTableInput {
   factory FareTableInput.fromJson(Map<String, dynamic> json) => _$FareTableInputFromJson(json);
 }
 
+/// 008: origen de una afiliación (contracts/api.yaml#AffiliationSource).
+enum AffiliationSource {
+  @JsonValue('qr_scan')
+  qrScan,
+  @JsonValue('post_trip')
+  postTrip,
+  link,
+}
+
+/// 008: preferencias de despacho del conductor (`/v1/driver/dispatch-settings`).
+@freezed
+abstract class DispatchSettings with _$DispatchSettings {
+  const factory DispatchSettings({
+    @Default(false) bool acceptsZonePool,
+    @Default(0) int preferentialDiscountPct,
+    @Default('') String affiliateLink,
+  }) = _DispatchSettings;
+
+  factory DispatchSettings.fromJson(Map<String, dynamic> json) => _$DispatchSettingsFromJson(json);
+}
+
 /// Pasajero de la cartera del conductor (`GET /v1/driver/clients`).
 @freezed
 abstract class DriverClient with _$DriverClient {
@@ -185,6 +233,9 @@ abstract class DriverClient with _$DriverClient {
     required String passengerId,
     required String displayName,
     required DateTime affiliatedAt,
+
+    /// 008: cómo llegó a la cartera.
+    @Default(AffiliationSource.qrScan) AffiliationSource source,
   }) = _DriverClient;
 
   factory DriverClient.fromJson(Map<String, dynamic> json) => _$DriverClientFromJson(json);
@@ -197,6 +248,10 @@ abstract class FareQuote with _$FareQuote {
     required int durationS,
     required int suggestedFareMinor,
     required String currency,
+
+    /// 008: tarifa sin descuento; con [preferentialDiscountPct] > 0, [suggestedFareMinor] ya lo aplica.
+    int? listFareMinor,
+    @Default(0) int preferentialDiscountPct,
   }) = _FareQuote;
 
   factory FareQuote.fromJson(Map<String, dynamic> json) => _$FareQuoteFromJson(json);
@@ -250,6 +305,9 @@ abstract class Trip with _$Trip {
     @Default(false) bool allowDelegation,
     @Default(0) int handoverCount,
     @Default(false) bool canDelegate,
+    // 008: tarifa de lista y descuento preferencial aplicado (RN-KYQ-013).
+    int? listFareMinor,
+    @Default(0) int preferentialDiscountPct,
   }) = _Trip;
 
   factory Trip.fromJson(Map<String, dynamic> json) => _$TripFromJson(json);
@@ -266,6 +324,8 @@ abstract class PttCredentials with _$PttCredentials {
 
 /// 006: lectura de la delegación del viaje.
 extension TripDelegation on Trip {
-  /// La solicitud la atiende un compañero de la cooperativa y no el Conductor Elegido pedido.
-  bool get isDelegated => requestedDriverId != null && requestedDriverId != driverId;
+  /// La solicitud la atiende un compañero de la cooperativa y no el Conductor Elegido pedido. En la
+  /// bolsa zonal (008) pasar al siguiente conductor cercano no es una delegación.
+  bool get isDelegated =>
+      dispatch != TripDispatch.zonePool && requestedDriverId != null && requestedDriverId != driverId;
 }

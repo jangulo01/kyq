@@ -58,13 +58,15 @@ class _Voice implements VoiceRoom {
 final _created = DateTime.now().toUtc().subtract(const Duration(seconds: 42));
 
 SosAlertSummary _summary({
+  bool radio = false,
   String id = 'al1',
   SosStatus status = SosStatus.open,
   String? claimedBy,
   bool noPin = false,
 }) => SosAlertSummary(
   id: id,
-  tripId: 't1',
+  tripId: radio ? null : 't1',
+  raisedFrom: radio ? 'radio' : 'trip',
   raisedRole: SosRole.passenger,
   raisedByName: 'Ana',
   status: status,
@@ -139,17 +141,19 @@ void main() {
       expect(find.text('Pasajero: Ana'), findsOneWidget);
       expect(find.text('Sin tomar'), findsOneWidget);
       expect(find.byKey(const Key('ops.alert.noPin')), findsOneWidget, reason: 'posible coacción');
+      expect(find.byKey(const Key('ops.alert.radio')), findsNothing);
       expect(find.textContaining('00:4'), findsOneWidget, reason: 'tiempo de espera');
       expect(sound.plays, 0, reason: 'la carga inicial no suena');
 
-      alerts = [_summary(), _summary(id: 'al2')];
+      alerts = [_summary(), _summary(id: 'al2', radio: true)];
       realtime.emit(
         Channels.opsSos,
-        SosCreated(DateTime.now(), alertId: 'al2', tripId: 't2', raisedRole: 'driver', raisedByName: 'Carlos'),
+        SosCreated(DateTime.now(), alertId: 'al2', raisedRole: 'driver', raisedByName: 'Carlos'),
       );
       await tester.pump();
       await tester.pump();
       expect(find.byKey(const Key('ops.alert.al2')), findsOneWidget);
+      expect(find.text('Sin viaje · desde Radio'), findsOneWidget, reason: '011: emergencia desde Radio');
       expect(sound.plays, 1, reason: 'aviso sonoro con la alerta nueva');
 
       await tester.tap(find.byKey(const Key('ops.duty')));

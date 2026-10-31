@@ -55,6 +55,44 @@ void main() {
     expect(e.pickup.lat, 4.6);
     expect(e.suggestedFareMinor, 1250000);
     expect(e.expiresAt.difference(e.occurredAt), const Duration(seconds: 25));
+    expect(e.origin, OfferOrigin.chosenDriver, reason: 'sin origin, viene de su cartera');
+    expect(e.loyalClient, isFalse);
+    expect(e.pickupDistanceM, isNull);
+  });
+
+  test('trip.offer con el origen de 008', () {
+    final base = {
+      'trip_id': 't1',
+      'passenger_name': 'Ana',
+      'pickup': {'lat': 4.6, 'lng': -74.08},
+      'dropoff': {'lat': 4.65, 'lng': -74.05},
+      'distance_m': 5200,
+      'duration_s': 900,
+      'suggested_fare_minor': 1320000,
+      'currency': 'COP',
+      'expires_at': '2026-10-27T12:00:25Z',
+    };
+    final loyal =
+        RealtimeEvent.fromEnvelope(
+              envelope('trip.offer', {
+                ...base,
+                'origin': 'chosen_driver',
+                'loyal_client': true,
+                'trips_together': 4,
+                'preferential_discount_pct': 10,
+              }),
+            )
+            as TripOffered;
+    expect(loyal.loyalClient, isTrue);
+    expect(loyal.tripsTogether, 4);
+    expect(loyal.preferentialDiscountPct, 10);
+
+    final pool =
+        RealtimeEvent.fromEnvelope(envelope('trip.offer', {...base, 'origin': 'zone_pool', 'pickup_distance_m': 3000}))
+            as TripOffered;
+    expect(pool.origin, OfferOrigin.zonePool);
+    expect(pool.pickupDistanceM, 3000);
+    expect(offerOriginFromApi('cooperative'), OfferOrigin.cooperative);
   });
 
   test('trip.status, propuesta, negociación, ubicación y cierre PTT', () {
@@ -266,6 +304,18 @@ void main() {
         }),
       );
       expect(created, isA<SosCreated>().having((e) => e.raisedRole, 'role', 'driver'));
+      // 011: desde Radio sin viaje.
+      final fromRadio = RealtimeEvent.fromEnvelope(
+        envelope('sos.created', {
+          'alert_id': 'a2',
+          'trip_id': null,
+          'raised_from': 'radio',
+          'raised_role': 'passenger',
+          'raised_by_name': 'Ana',
+          'created_at': '2026-10-27T12:00:00Z',
+        }),
+      );
+      expect(fromRadio, isA<SosCreated>().having((e) => e.tripId, 'trip', isNull));
       final claimed = RealtimeEvent.fromEnvelope(
         envelope('sos.claimed', {'alert_id': 'a1', 'operator_id': 'op', 'operator_name': 'Lucía'}),
       );
@@ -297,5 +347,105 @@ void main() {
       expect(RealtimeEvent.fromEnvelope(envelope('sos.escalated', {'alert_id': 'a1'})), isA<SosEscalated>());
       expect(RealtimeEvent.fromEnvelope(envelope('sos.released', {'alert_id': 'a1'})), isA<SosReleased>());
     });
+  });
+
+  test('009: support.case y megáfono', () {
+    expect(
+      RealtimeEvent.fromEnvelope(envelope('support.case', {'case_id': 'c1', 'status': 'open'})),
+      isA<SupportCaseChanged>().having((e) => e.caseId, 'case', 'c1'),
+    );
+    final started =
+        RealtimeEvent.fromEnvelope(
+              envelope('megaphone.started', {
+                'broadcast_id': 'b1',
+                'url': 'wss://lk',
+                'token': 'tk',
+                'ends_at': '2026-10-27T12:01:00Z',
+              }),
+            )
+            as MegaphoneStarted;
+    expect(started.token, 'tk');
+    expect(started.endsAt, DateTime.utc(2026, 10, 27, 12, 1));
+    expect(RealtimeEvent.fromEnvelope(envelope('megaphone.ended', {'broadcast_id': 'b1'})), isA<MegaphoneEnded>());
+  });
+
+  test('010: reservas y nota en la oferta', () {
+    expect(
+      RealtimeEvent.fromEnvelope(envelope('reservation.updated', {'reservation_id': 'r1', 'status': 'confirmed'})),
+      isA<ReservationUpdated>().having((e) => e.status, 'status', 'confirmed'),
+    );
+    expect(
+      RealtimeEvent.fromEnvelope(
+        envelope('reservation.notice', {'reservation_id': 'r1', 'status': 'missed', 'message': 'Tu conductor no está'}),
+      ),
+      isA<ReservationNotice>().having((e) => e.message, 'message', 'Tu conductor no está'),
+    );
+    final offer =
+        RealtimeEvent.fromEnvelope(
+              envelope('trip.offer', {
+                'trip_id': 't1',
+                'passenger_name': 'Ana',
+                'pickup': {'lat': 4.6, 'lng': -74.08},
+                'dropoff': {'lat': 4.65, 'lng': -74.05},
+                'distance_m': 5200,
+                'duration_s': 900,
+                'suggested_fare_minor': 1320000,
+                'currency': 'COP',
+                'expires_at': '2026-10-27T12:00:25Z',
+                'reservation': true,
+                'client_note': 'Portería 2',
+              }),
+            )
+            as TripOffered;
+    expect(offer.reservation, isTrue);
+    expect(offer.clientNote, 'Portería 2');
+  });
+
+  test('011: eventos de Radio', () {
+    final msg =
+        RealtimeEvent.fromEnvelope(
+              envelope('radio.message', {
+                'message': {'id': 'm1', 'conversation_id': 'c1', 'kind': 'voice'},
+                'silent': true,
+              }),
+            )
+            as RadioMessageEvent;
+    expect(msg.kind, RadioEventKind.message);
+    expect(msg.conversationId, 'c1');
+    expect(msg.silent, isTrue);
+    final alert =
+        RealtimeEvent.fromEnvelope(
+              envelope('radio.alert', {
+                'message': {'conversation_id': 'c1'},
+                'silent': false,
+              }),
+            )
+            as RadioMessageEvent;
+    expect(alert.kind, RadioEventKind.alert);
+    expect(
+      (RealtimeEvent.fromEnvelope(envelope('radio.emergency', {'message': <String, dynamic>{}})) as RadioMessageEvent)
+          .kind,
+      RadioEventKind.emergency,
+    );
+    expect(
+      RealtimeEvent.fromEnvelope(envelope('radio.presence', {'user_id': 'u1', 'status': 'busy', 'quiet_hours': true})),
+      isA<RadioPresenceChanged>().having((e) => e.status, 'status', 'busy').having((e) => e.quietHours, 'q', isTrue),
+    );
+    expect(
+      RealtimeEvent.fromEnvelope(
+        envelope('radio.member', {'conversation_id': 'c1', 'user_id': 'u1', 'change': 'room_rotated'}),
+      ),
+      isA<RadioMemberChanged>().having((e) => e.change, 'change', 'room_rotated'),
+    );
+    expect(
+      RealtimeEvent.fromEnvelope(
+        envelope('radio.invite', {'conversation_id': 'c1', 'user_id': 'u2', 'display_name': 'Jonathan'}),
+      ),
+      isA<RadioInviteAccepted>().having((e) => e.displayName, 'name', 'Jonathan'),
+    );
+    expect(
+      RealtimeEvent.fromEnvelope(envelope('radio.settings', {'retention_days': 7})),
+      isA<RadioSettingsChanged>().having((e) => e.data['retention_days'], 'retention', 7),
+    );
   });
 }

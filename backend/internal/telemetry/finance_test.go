@@ -37,7 +37,8 @@ func TestSummarizeMonth(t *testing.T) {
 	assert.Equal(t, m.InfraCostMinor, *m.CostPerActiveDriverMinor)
 	require.NotNil(t, m.RevenuePerPayingDriverMinor)
 	assert.Equal(t, 5_000_000.0, *m.RevenuePerPayingDriverMinor)
-	require.Len(t, m.CostByConcept, 4)
+	require.Len(t, m.CostByConcept, len(Concepts), "011: también almacenamiento de Radio y SMS de invitación")
+	assert.Equal(t, ConceptRadioStorage, m.CostByConcept[4].Concept)
 	assert.Equal(t, ConceptFixedMonthly, m.CostByConcept[3].Concept)
 	assert.Equal(t, 1_600_000.0, m.CostByConcept[3].CostMinor, "fijo de los dos conductores")
 
@@ -46,7 +47,7 @@ func TestSummarizeMonth(t *testing.T) {
 	assert.Nil(t, empty.CostPerActiveDriverMinor)
 	assert.Nil(t, empty.RevenuePerPayingDriverMinor)
 	assert.True(t, empty.RatesMissing)
-	assert.Len(t, empty.CostByConcept, 4)
+	assert.Len(t, empty.CostByConcept, len(Concepts))
 
 	tot := SummarizeTotals([]FinanceMonth{m, empty})
 	assert.Equal(t, m.RevenueMinor, tot.RevenueMinor)

@@ -70,6 +70,7 @@ class TripPage extends StatelessWidget {
             driverName: driverName,
             map: map,
             driverPosition: state.driverPosition,
+            driverHeading: state.driverHeading,
             busy: state.busy,
           ),
           _ => AwaitingDriverView(trip: trip, driverName: driverName, busy: state.busy),

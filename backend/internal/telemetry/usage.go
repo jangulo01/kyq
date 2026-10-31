@@ -21,6 +21,12 @@ const (
 	VoiceSeconds Kind = iota // segundos de participante en la sala (LiveKit factura por participante)
 	Events                   // eventos publicados en Centrifugo
 	Routes                   // peticiones a OSRM
+	// 011 Radio Kyq (FR-038, R11).
+	RadioVoiceSeconds // segundos de participante en salas radio-*
+	RadioMessages     // mensajes de Radio enviados
+	RadioStorageBytes // bytes de audio y fotos guardados en kyq-radio
+
+	kinds // número de tipos; tamaño de los contadores
 )
 
 // Usage receives measurements. Implementations must be cheap and never block the caller.
@@ -48,7 +54,7 @@ type Recorder struct {
 	Logger *slog.Logger
 
 	mu      sync.Mutex
-	pending map[key][3]int64
+	pending map[key][kinds]int64
 }
 
 func (r *Recorder) now() time.Time {
@@ -64,7 +70,7 @@ func (r *Recorder) Add(driverID uuid.UUID, kind Kind, n int64) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.pending == nil {
-		r.pending = map[key][3]int64{}
+		r.pending = map[key][kinds]int64{}
 	}
 	v := r.pending[k]
 	v[kind] += n
@@ -81,11 +87,12 @@ func (r *Recorder) Flush(ctx context.Context) error {
 		err := r.Store.AddDriverUsage(ctx, store.AddDriverUsageParams{
 			DriverID: k.driver, Day: k.day,
 			VoiceParticipantSeconds: v[VoiceSeconds], RealtimeEvents: v[Events], RouteRequests: v[Routes],
+			RadioVoiceSeconds: v[RadioVoiceSeconds], RadioMessages: v[RadioMessages], RadioStorageBytes: v[RadioStorageBytes],
 		})
 		if err != nil {
 			r.mu.Lock()
 			if r.pending == nil {
-				r.pending = map[key][3]int64{}
+				r.pending = map[key][kinds]int64{}
 			}
 			for k2, v2 := range batch {
 				cur := r.pending[k2]

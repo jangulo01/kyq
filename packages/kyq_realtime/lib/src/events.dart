@@ -1,5 +1,5 @@
 // Eventos de specs/001-chosen-driver-trip-ptt/contracts/realtime.md, `notice.created` de 002,
-// `preconsult.*` de 005, los `sos.*` de 003 y `trip_payment.*` de 004.
+// `preconsult.*` de 005, los `sos.*` de 003, `trip_payment.*` de 004 y `radio.*` de 011.
 
 /// Nombres de canal autorizados por el backend.
 abstract final class Channels {
@@ -9,6 +9,9 @@ abstract final class Channels {
 
   /// Torre de control del panel (007): solo admins.
   static const adminTower = 'admin:tower';
+
+  /// Bandeja de soporte del panel (009): solo admins.
+  static const adminSupport = 'admin:support';
 
   /// Cola de la consola de emergencias (solo operadores, 003).
   static const opsSos = 'ops:sos';
@@ -51,6 +54,13 @@ sealed class RealtimeEvent {
         canDelegate: data['can_delegate'] as bool? ?? false,
         cooperativeName: data['cooperative_name'] as String?,
         requestedDriverName: data['requested_driver_name'] as String?,
+        origin: offerOriginFromApi(data['origin'] as String?),
+        loyalClient: data['loyal_client'] as bool? ?? false,
+        tripsTogether: data['trips_together'] as int? ?? 0,
+        pickupDistanceM: data['pickup_distance_m'] as int?,
+        preferentialDiscountPct: data['preferential_discount_pct'] as int? ?? 0,
+        reservation: data['reservation'] as bool? ?? false,
+        clientNote: data['client_note'] as String?,
       ),
       'trip.delegated' => TripDelegated(
         at,
@@ -120,7 +130,7 @@ sealed class RealtimeEvent {
       'sos.created' => SosCreated(
         at,
         alertId: data['alert_id'] as String,
-        tripId: data['trip_id'] as String,
+        tripId: data['trip_id'] as String?,
         raisedRole: data['raised_role'] as String,
         raisedByName: data['raised_by_name'] as String? ?? '',
       ),
@@ -166,6 +176,62 @@ sealed class RealtimeEvent {
         amountMinor: data['amount_minor'] as int,
         currency: data['currency'] as String,
       ),
+      'support.case' => SupportCaseChanged(
+        at,
+        caseId: data['case_id'] as String,
+        status: data['status'] as String? ?? '',
+      ),
+      'megaphone.started' => MegaphoneStarted(
+        at,
+        broadcastId: data['broadcast_id'] as String,
+        url: data['url'] as String,
+        token: data['token'] as String,
+        endsAt: DateTime.parse(data['ends_at'] as String),
+      ),
+      'megaphone.ended' => MegaphoneEnded(at, broadcastId: data['broadcast_id'] as String),
+      'reservation.updated' => ReservationUpdated(
+        at,
+        reservationId: data['reservation_id'] as String,
+        status: data['status'] as String? ?? '',
+      ),
+      'reservation.notice' => ReservationNotice(
+        at,
+        reservationId: data['reservation_id'] as String,
+        status: data['status'] as String? ?? '',
+        message: data['message'] as String? ?? '',
+      ),
+      // 011 Radio Kyq: el mensaje va como mapa del contrato (Message); kyq_api lo decodifica.
+      'radio.message' || 'radio.alert' || 'radio.emergency' => RadioMessageEvent(
+        at,
+        kind: switch (type) {
+          'radio.alert' => RadioEventKind.alert,
+          'radio.emergency' => RadioEventKind.emergency,
+          _ => RadioEventKind.message,
+        },
+        message: (data['message'] as Map?)?.cast<String, dynamic>() ?? const {},
+        silent: data['silent'] as bool? ?? false,
+      ),
+      'radio.presence' => RadioPresenceChanged(
+        at,
+        userId: data['user_id'] as String,
+        status: data['status'] as String? ?? 'offline',
+        quietHours: data['quiet_hours'] as bool?,
+      ),
+      'radio.member' => RadioMemberChanged(
+        at,
+        conversationId: data['conversation_id'] as String,
+        userId: data['user_id'] as String? ?? '',
+        change: data['change'] as String? ?? '',
+        displayName: data['display_name'] as String?,
+        role: data['role'] as String?,
+      ),
+      'radio.invite' => RadioInviteAccepted(
+        at,
+        conversationId: data['conversation_id'] as String,
+        userId: data['user_id'] as String? ?? '',
+        displayName: data['display_name'] as String? ?? '',
+      ),
+      'radio.settings' => RadioSettingsChanged(at, data: data),
       _ => UnknownEvent(at, type: type, data: data),
     };
   }
@@ -211,6 +277,13 @@ final class TripOffered extends RealtimeEvent {
     this.canDelegate = false,
     this.cooperativeName,
     this.requestedDriverName,
+    this.origin = OfferOrigin.chosenDriver,
+    this.loyalClient = false,
+    this.tripsTogether = 0,
+    this.pickupDistanceM,
+    this.preferentialDiscountPct = 0,
+    this.reservation = false,
+    this.clientNote,
   });
 
   final String tripId;
@@ -230,7 +303,38 @@ final class TripOffered extends RealtimeEvent {
   final bool canDelegate;
   final String? cooperativeName;
   final String? requestedDriverName;
+
+  /// 008: por qué le llega la oferta (etiqueta de la tarjeta).
+  final OfferOrigin origin;
+
+  /// 008: el pasajero lo tiene como Conductor Elegido ("⭐ Cliente de tu cartera").
+  final bool loyalClient;
+
+  /// 008: viajes completados juntos.
+  final int tripsTogether;
+
+  /// 008: distancia en metros hasta la recogida, si se conoce su ubicación.
+  final int? pickupDistanceM;
+
+  /// 008: descuento preferencial ya aplicado a [suggestedFareMinor] (RN-KYQ-013).
+  final int preferentialDiscountPct;
+
+  /// 010: la oferta cumple una reserva de la agenda.
+  final bool reservation;
+
+  /// 010: nota privada del conductor sobre este cliente (solo llega al conductor).
+  final String? clientNote;
 }
+
+/// 008: origen de una oferta de viaje.
+enum OfferOrigin { chosenDriver, cooperative, zonePool }
+
+/// Interpreta el campo `origin` de `trip.offer`; si falta, la oferta viene de su cartera.
+OfferOrigin offerOriginFromApi(String? v) => switch (v) {
+  'cooperative' => OfferOrigin.cooperative,
+  'zone_pool' => OfferOrigin.zonePool,
+  _ => OfferOrigin.chosenDriver,
+};
 
 /// 006: la solicitud del pasajero pasó a un compañero de la cooperativa (RN-KYQ-008).
 final class TripDelegated extends RealtimeEvent {
@@ -397,13 +501,15 @@ final class SosCreated extends RealtimeEvent {
   const SosCreated(
     super.occurredAt, {
     required this.alertId,
-    required this.tripId,
+    this.tripId,
     required this.raisedRole,
     required this.raisedByName,
   });
 
   final String alertId;
-  final String tripId;
+
+  /// null en una alerta desde Radio sin viaje (011).
+  final String? tripId;
 
   /// `passenger` o `driver`.
   final String raisedRole;
@@ -504,6 +610,118 @@ final class TripPaymentReminder extends RealtimeEvent {
   final String paymentId;
   final int amountMinor;
   final String currency;
+}
+
+/// 009: un caso de soporte cambió (mensaje nuevo o estado); no trae texto: hay que pedirlo.
+final class SupportCaseChanged extends RealtimeEvent {
+  const SupportCaseChanged(super.occurredAt, {required this.caseId, required this.status});
+
+  final String caseId;
+  final String status;
+}
+
+/// 009: comunicado de Kyq por el megáfono a la zona del conductor; [token] solo deja escuchar.
+final class MegaphoneStarted extends RealtimeEvent {
+  const MegaphoneStarted(
+    super.occurredAt, {
+    required this.broadcastId,
+    required this.url,
+    required this.token,
+    required this.endsAt,
+  });
+
+  final String broadcastId;
+  final String url;
+  final String token;
+  final DateTime endsAt;
+}
+
+/// 009: terminó el comunicado.
+final class MegaphoneEnded extends RealtimeEvent {
+  const MegaphoneEnded(super.occurredAt, {required this.broadcastId});
+
+  final String broadcastId;
+}
+
+/// 010: una reserva cambió de estado (a las dos partes).
+final class ReservationUpdated extends RealtimeEvent {
+  const ReservationUpdated(super.occurredAt, {required this.reservationId, required this.status});
+
+  final String reservationId;
+  final String status;
+}
+
+/// 010: aviso para el pasajero sobre su reserva (recordatorio, vencida, conductor no disponible).
+final class ReservationNotice extends RealtimeEvent {
+  const ReservationNotice(super.occurredAt, {required this.reservationId, required this.status, required this.message});
+
+  final String reservationId;
+  final String status;
+  final String message;
+}
+
+/// 011: qué tipo de aviso de Radio llegó.
+enum RadioEventKind { message, alert, emergency }
+
+/// 011: `radio.message`, `radio.alert` o `radio.emergency`. [silent] dice que no debe sonar para
+/// este receptor (Ocupado, "Escuchar" apagado o cliente silenciado); la emergencia siempre suena.
+final class RadioMessageEvent extends RealtimeEvent {
+  const RadioMessageEvent(super.occurredAt, {required this.kind, required this.message, required this.silent});
+
+  final RadioEventKind kind;
+  final Map<String, dynamic> message;
+  final bool silent;
+
+  String get conversationId => message['conversation_id'] as String? ?? '';
+}
+
+/// 011: un contacto o miembro cambió de estado (`available`, `busy`, `listen_only`, `offline`).
+/// [quietHours] solo llega al propio usuario cuando un horario de silencio lo cambia.
+final class RadioPresenceChanged extends RealtimeEvent {
+  const RadioPresenceChanged(super.occurredAt, {required this.userId, required this.status, this.quietHours});
+
+  final String userId;
+  final String status;
+  final bool? quietHours;
+}
+
+/// 011: altas, solicitudes, moderación, rotación de sala (`room_rotated`) o conversación borrada.
+final class RadioMemberChanged extends RealtimeEvent {
+  const RadioMemberChanged(
+    super.occurredAt, {
+    required this.conversationId,
+    required this.userId,
+    required this.change,
+    this.displayName,
+    this.role,
+  });
+
+  final String conversationId;
+  final String userId;
+  final String change;
+  final String? displayName;
+  final String? role;
+}
+
+/// 011: alguien aceptó la invitación de contacto.
+final class RadioInviteAccepted extends RealtimeEvent {
+  const RadioInviteAccepted(
+    super.occurredAt, {
+    required this.conversationId,
+    required this.userId,
+    required this.displayName,
+  });
+
+  final String conversationId;
+  final String userId;
+  final String displayName;
+}
+
+/// 011: el panel cambió la configuración de Radio.
+final class RadioSettingsChanged extends RealtimeEvent {
+  const RadioSettingsChanged(super.occurredAt, {required this.data});
+
+  final Map<String, dynamic> data;
 }
 
 final class UnknownEvent extends RealtimeEvent {

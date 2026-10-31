@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/kyq/backend/internal/fares"
 	"github.com/kyq/backend/internal/realtime"
 	"github.com/kyq/backend/internal/store"
 )
@@ -17,6 +18,9 @@ type Dispatch string
 const (
 	DispatchChosenDriver Dispatch = "chosen_driver"
 	DispatchCooperative  Dispatch = "cooperative"
+	// DispatchZonePool is the third option (008): the nearest free driver who accepts the zone
+	// pool, with or without a chosen driver.
+	DispatchZonePool Dispatch = "zone_pool"
 )
 
 // Reglas de la delegación (RN-KYQ-008, FR-015, FR-017; research R2).
@@ -28,6 +32,9 @@ const (
 	CandidateRadiusM = 10_000
 	// CandidateFreshness is how recent a coworker's location must be.
 	CandidateFreshness = 5 * time.Minute
+	// ZonePoolRadiusM is the straight-line distance from the pickup within which a zone-pool
+	// driver may receive an offer (008): more local than a coworker, he does not know the client.
+	ZonePoolRadiusM = 5_000
 )
 
 // HandoverDriverUnavailable is the hand-over reason when the chosen driver was busy or offline
@@ -44,11 +51,29 @@ var (
 type RequestOptions struct {
 	Dispatch        Dispatch
 	AllowDelegation bool
+	// 010: tarifa reservada en la agenda (con la preferencial de cuando se reservó).
+	ReservedFare int64
+	// 010: la solicitud cumple una reserva (etiqueta de la oferta).
+	Reservation bool
 }
 
-// findCandidate returns the nearest free coworker of the trip's cooperative that has not had the
-// offer yet, and locks his row (FR-015).
+// findCandidate returns the nearest free driver that has not had the offer yet and locks his
+// row: a coworker of the trip's cooperative (006, FR-015) or, in the zone pool, a driver who
+// accepts it (008, FR-002).
 func findCandidate(ctx context.Context, q *store.Queries, t *Trip, now time.Time) (uuid.UUID, error) {
+	if t.Dispatch == DispatchZonePool {
+		row, err := q.FindZonePoolCandidate(ctx, store.FindZonePoolCandidateParams{
+			Lng: t.Pickup.Lng, Lat: t.Pickup.Lat, FreshSince: now.Add(-CandidateFreshness),
+			RadiusM: ZonePoolRadiusM, TripID: t.ID,
+		})
+		if store.IsNotFound(err) {
+			return uuid.Nil, errNoCandidate
+		}
+		if err != nil {
+			return uuid.Nil, err
+		}
+		return row.DriverID, nil
+	}
 	if t.CooperativeID == nil {
 		return uuid.Nil, errNoCandidate
 	}
@@ -72,7 +97,11 @@ func handOverOrGiveUp(ctx context.Context, q *store.Queries, t *Trip, now time.T
 		next, err := findCandidate(ctx, q, t, now)
 		switch {
 		case err == nil:
-			return t.HandOver(next, now)
+			if err := t.HandOver(next, now); err != nil {
+				return err
+			}
+			// FR-012 de 008: la tarifa preferencial es del conductor que tiene al pasajero en su cartera.
+			return priceOffer(ctx, q, t)
 		case !errors.Is(err, errNoCandidate):
 			return err
 		}
@@ -96,6 +125,9 @@ func afterHandOver(ctx context.Context, q *store.Queries, t *Trip, now time.Time
 		return nil, err
 	}
 	if err := loadNames(ctx, q, t); err != nil {
+		return nil, err
+	}
+	if err := loadOfferContext(ctx, q, t); err != nil {
 		return nil, err
 	}
 	passengerName, err := q.GetUserDisplayName(ctx, t.PassengerID)
@@ -140,6 +172,19 @@ func loadNames(ctx context.Context, q *store.Queries, t *Trip) error {
 // dispatchNew applies the passenger's dispatch choice to a new trip inside the request
 // transaction: it fixes the cooperative (FR-019) and picks who gets the first offer.
 func dispatchNew(ctx context.Context, q *store.Queries, t *Trip, opts RequestOptions, now time.Time) error {
+	if opts.Dispatch == DispatchZonePool {
+		t.Dispatch = DispatchZonePool
+		next, err := findCandidate(ctx, q, t, now)
+		if errors.Is(err, errNoCandidate) {
+			return ErrNoDriverAvailable
+		}
+		if err != nil {
+			return err
+		}
+		// Sin Conductor Elegido: el conductor pedido es el primero al que se ofrece (research R2).
+		t.DriverID, t.RequestedDriverID = next, next
+		return nil
+	}
 	coop, err := q.GetDriverCooperative(ctx, t.RequestedDriverID)
 	hasCoop := err == nil
 	if err != nil && !store.IsNotFound(err) {
@@ -195,6 +240,72 @@ func dispatchNew(ctx context.Context, q *store.Queries, t *Trip, opts RequestOpt
 	t.DriverID = next
 	t.Handovers = 1
 	t.HandoverReason = HandoverDriverUnavailable
+	return nil
+}
+
+// priceOffer sets the fare offered to the current driver: the list fare with his preferential
+// discount when the passenger is in his portfolio (008, RN-KYQ-013), or the list fare otherwise.
+func priceOffer(ctx context.Context, q *store.Queries, t *Trip) error {
+	pct := 0
+	affiliated, err := q.IsAffiliated(ctx, store.IsAffiliatedParams{PassengerID: t.PassengerID, DriverID: t.DriverID})
+	if err != nil {
+		return err
+	}
+	if affiliated {
+		d, err := q.GetDriverDiscount(ctx, t.DriverID)
+		if err != nil {
+			return err
+		}
+		pct = int(d)
+	}
+	if pct == 0 {
+		t.SuggestedFare, t.DiscountPct = t.ListFare, 0
+		return nil
+	}
+	row, err := q.GetFareTable(ctx, t.CityCode)
+	if err != nil {
+		return err
+	}
+	t.SuggestedFare, t.DiscountPct = fares.Table{RoundingMinor: row.RoundingMinor}.WithDiscount(t.ListFare, pct), pct
+	return nil
+}
+
+// loadOfferContext fills what the driver's offer card shows (008, FR-010).
+func loadOfferContext(ctx context.Context, q *store.Queries, t *Trip) error {
+	origin := DispatchChosenDriver
+	switch {
+	case t.Dispatch == DispatchZonePool:
+		origin = DispatchZonePool
+	case t.Dispatch == DispatchCooperative || t.DriverID != t.RequestedDriverID:
+		origin = DispatchCooperative
+	}
+	loyal, err := q.IsAffiliated(ctx, store.IsAffiliatedParams{PassengerID: t.PassengerID, DriverID: t.DriverID})
+	if err != nil {
+		return err
+	}
+	together, err := q.CountCompletedTripsForPair(ctx, store.CountCompletedTripsForPairParams{PassengerID: t.PassengerID, DriverID: t.DriverID})
+	if err != nil {
+		return err
+	}
+	dist, err := q.GetDriverPickupDistance(ctx, store.GetDriverPickupDistanceParams{Lng: t.Pickup.Lng, Lat: t.Pickup.Lat, DriverID: t.DriverID})
+	if err != nil {
+		return err
+	}
+	t.Offer = OfferContext{Origin: origin, LoyalClient: loyal, TripsTogether: int(together), Reservation: t.Offer.Reservation}
+	if dist.HasLocation {
+		m := int(dist.DistanceM + 0.5)
+		t.Offer.PickupDistance = &m
+	}
+	// 010: la nota del conductor sobre su cliente acompaña la oferta (solo al conductor).
+	if loyal {
+		note, err := q.GetClientNote(ctx, store.GetClientNoteParams{DriverID: t.DriverID, PassengerID: t.PassengerID})
+		switch {
+		case err == nil:
+			t.Offer.ClientNote = &note.Body
+		case !store.IsNotFound(err):
+			return err
+		}
+	}
 	return nil
 }
 

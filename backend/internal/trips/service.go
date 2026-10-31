@@ -78,6 +78,23 @@ func (s *Service) Quote(ctx context.Context, pickup, dropoff Point) (fares.Table
 	return s.quote(ctx, uuid.Nil, pickup, dropoff)
 }
 
+// Discount is the preferential discount the passenger gets from driverID (008, RN-KYQ-013): the
+// driver's percentage when the passenger is in his portfolio, 0 otherwise or without driver.
+func (s *Service) Discount(ctx context.Context, passengerID, driverID uuid.UUID) (int, error) {
+	if driverID == uuid.Nil {
+		return 0, nil
+	}
+	affiliated, err := s.Store.IsAffiliated(ctx, store.IsAffiliatedParams{PassengerID: passengerID, DriverID: driverID})
+	if err != nil || !affiliated {
+		return 0, err
+	}
+	pct, err := s.Store.GetDriverDiscount(ctx, driverID)
+	if store.IsNotFound(err) {
+		return 0, nil
+	}
+	return int(pct), err
+}
+
 func (s *Service) quote(ctx context.Context, driverID uuid.UUID, pickup, dropoff Point) (fares.Table, fares.Route, int64, error) {
 	row, err := s.Store.GetFareTable(ctx, s.CityCode)
 	if store.IsNotFound(err) {
@@ -121,12 +138,15 @@ func (s *Service) RequestWith(ctx context.Context, passengerID, driverID uuid.UU
 
 	var passengerName string
 	err = s.Store.WithTx(ctx, func(q *store.Queries) error {
-		affiliated, err := q.IsAffiliated(ctx, store.IsAffiliatedParams{PassengerID: passengerID, DriverID: driverID})
-		if err != nil {
-			return err
-		}
-		if !affiliated {
-			return ErrNotAffiliated
+		// La bolsa zonal (008) no exige Conductor Elegido.
+		if opts.Dispatch != DispatchZonePool {
+			affiliated, err := q.IsAffiliated(ctx, store.IsAffiliatedParams{PassengerID: passengerID, DriverID: driverID})
+			if err != nil {
+				return err
+			}
+			if !affiliated {
+				return ErrNotAffiliated
+			}
 		}
 		// 007 (FR-016): la sesión que aún le quede a un pasajero suspendido no le deja pedir.
 		suspended, err := q.IsUserSuspended(ctx, passengerID)
@@ -154,6 +174,14 @@ func (s *Service) RequestWith(ctx context.Context, passengerID, driverID uuid.UU
 				return ErrNoDriverAvailable
 			}
 		}
+		if err := priceOffer(ctx, q, trip); err != nil {
+			return err
+		}
+		// 010: una reserva conserva la tarifa con la que se reservó.
+		if opts.ReservedFare > 0 {
+			trip.SuggestedFare = opts.ReservedFare
+		}
+		trip.Offer.Reservation = opts.Reservation
 		if passengerName, err = q.GetUserDisplayName(ctx, passengerID); err != nil {
 			return err
 		}
@@ -169,6 +197,9 @@ func (s *Service) RequestWith(ctx context.Context, passengerID, driverID uuid.UU
 			return err
 		}
 		if err := loadNames(ctx, q, trip); err != nil {
+			return err
+		}
+		if err := loadOfferContext(ctx, q, trip); err != nil {
 			return err
 		}
 		// La oferta reserva al conductor: nadie más puede pedirle viaje (FR-012).
@@ -362,6 +393,9 @@ func (s *Service) persist(ctx context.Context, q *store.Queries, t *Trip, before
 	}
 	passengerName := ""
 	if t.Status == StatusRequested && before != StatusRequested {
+		if err := loadOfferContext(ctx, q, t); err != nil {
+			return nil, err
+		}
 		name, err := q.GetUserDisplayName(ctx, t.PassengerID)
 		if err != nil {
 			return nil, err

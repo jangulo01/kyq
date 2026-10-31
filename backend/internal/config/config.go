@@ -28,6 +28,19 @@ type Config struct {
 	SentryDSN         string // vacío: sin envío de errores
 	SentryEnvironment string
 
+	// 009: lectura de sesiones sin fallos desde la API de Sentry; sin token, "no configurado".
+	SentryAPIURL   string
+	SentryAPIToken string
+	SentryOrg      string
+	SentryProjects string // driver=ID,rider=ID,admin=ID
+
+	// 009: semilla Ed25519 en base64 para firmar la lista de dominios espejo; vacía, sin lista.
+	DomainsSigningKey string
+
+	// 010: geocodificador Photon para el buscador de direcciones; vacío, sin buscador.
+	GeocoderURL string
+	CityBBox    string // minLng,minLat,maxLng,maxLat; vacío, Bogotá
+
 	DevOTPCode             string
 	TwilioAccountSID       string
 	TwilioAuthToken        string
@@ -43,6 +56,15 @@ type Config struct {
 	S3Region         string
 	// Grabaciones SOS (003): bucket privado con expiración de 90 días.
 	S3SOSBucket string
+	// 011 Radio Kyq: mensajes (vencen a los 90 días como máximo; la retención real la aplica el
+	// barrido) y guardados (366 días).
+	S3RadioBucket      string
+	S3RadioSavedBucket string
+	// Tiendas de cada app para la página /r/{code} de las invitaciones de Radio.
+	PlayDriverURL string
+	PlayRiderURL  string
+	// RadioRecording activa el egress automático por pista de las salas de Radio (research R3).
+	RadioRecording bool
 
 	// 003: URL pública de la API para los enlaces de viaje compartido, estilo del mapa de esa
 	// página y grabación de las salas SOS con LiveKit Egress.
@@ -80,6 +102,13 @@ func Load() (Config, error) {
 		CityCode:               getenv("KYQ_CITY_CODE", "bogota"),
 		SentryDSN:              os.Getenv("KYQ_SENTRY_DSN"),
 		SentryEnvironment:      getenv("KYQ_SENTRY_ENVIRONMENT", "dev"),
+		SentryAPIURL:           getenv("KYQ_SENTRY_API_URL", "https://sentry.io"),
+		SentryAPIToken:         os.Getenv("KYQ_SENTRY_API_TOKEN"),
+		SentryOrg:              os.Getenv("KYQ_SENTRY_ORG"),
+		SentryProjects:         os.Getenv("KYQ_SENTRY_PROJECTS"),
+		DomainsSigningKey:      os.Getenv("KYQ_DOMAINS_SIGNING_KEY"),
+		GeocoderURL:            os.Getenv("KYQ_GEOCODER_URL"),
+		CityBBox:               os.Getenv("KYQ_CITY_BBOX"),
 		DevOTPCode:             os.Getenv("KYQ_DEV_OTP_CODE"),
 		TwilioAccountSID:       os.Getenv("KYQ_TWILIO_ACCOUNT_SID"),
 		TwilioAuthToken:        os.Getenv("KYQ_TWILIO_AUTH_TOKEN"),
@@ -92,6 +121,11 @@ func Load() (Config, error) {
 		S3Bucket:               getenv("KYQ_S3_BUCKET", "kyq-kyc"),
 		S3Region:               getenv("KYQ_S3_REGION", "us-east-1"),
 		S3SOSBucket:            getenv("KYQ_S3_SOS_BUCKET", "kyq-sos"),
+		S3RadioBucket:          getenv("KYQ_S3_RADIO_BUCKET", "kyq-radio"),
+		S3RadioSavedBucket:     getenv("KYQ_S3_RADIO_SAVED_BUCKET", "kyq-radio-saved"),
+		PlayDriverURL:          getenv("KYQ_PLAY_DRIVER_URL", "https://play.google.com/store/apps/details?id=co.kyq.driver"),
+		PlayRiderURL:           getenv("KYQ_PLAY_RIDER_URL", "https://play.google.com/store/apps/details?id=co.kyq.rider"),
+		RadioRecording:         os.Getenv("KYQ_RADIO_RECORDING") != "false",
 		PublicBaseURL:          getenv("KYQ_PUBLIC_BASE_URL", "http://localhost:8080"),
 		MapStyleURL:            os.Getenv("KYQ_MAP_STYLE_URL"),
 		SOSRecording:           os.Getenv("KYQ_SOS_RECORDING") != "false",

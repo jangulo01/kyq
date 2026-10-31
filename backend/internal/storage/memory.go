@@ -69,3 +69,15 @@ func (m *Memory) Remove(_ context.Context, key string) error {
 	delete(m.objects, key)
 	return nil
 }
+
+// CopyTo copies key into dst as dstKey, like S3.CopyTo.
+func (m *Memory) CopyTo(_ context.Context, dst *Memory, key, dstKey string) error {
+	m.mu.Lock()
+	o, ok := m.objects[key]
+	m.mu.Unlock()
+	if !ok {
+		return ErrNotFound
+	}
+	dst.Put(dstKey, append([]byte(nil), o.data...), o.contentType)
+	return nil
+}

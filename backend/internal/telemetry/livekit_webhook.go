@@ -1,6 +1,7 @@
 package telemetry
 
 import (
+	"context"
 	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/base64"
@@ -27,6 +28,18 @@ type LiveKitWebhook struct {
 	APISecret string
 	Store     *store.Store
 	Usage     Usage
+	// Radio receives the events of radio-* rooms (011): turn audio, track recordings and voice
+	// seconds. nil ignores them.
+	Radio RadioRooms
+}
+
+// RadioRooms is what the webhook tells Radio Kyq (implemented by radio.Service).
+type RadioRooms interface {
+	TrackPublished(ctx context.Context, room, identity string)
+	TrackUnpublished(ctx context.Context, room, identity string)
+	ParticipantLeft(ctx context.Context, room, identity string, seconds int64)
+	EgressStarted(ctx context.Context, room, egressID string)
+	EgressEnded(ctx context.Context, room, egressID, key string, durationMs, size int64, failed bool)
 }
 
 func (h *LiveKitWebhook) Register(mux *http.ServeMux) {
@@ -50,6 +63,20 @@ type webhookEvent struct {
 		Identity string  `json:"identity"`
 		JoinedAt flexInt `json:"joinedAt"`
 	} `json:"participant"`
+	Track struct {
+		Source string `json:"source"`
+	} `json:"track"`
+	EgressInfo struct {
+		EgressID    string `json:"egressId"`
+		RoomName    string `json:"roomName"`
+		Status      string `json:"status"`
+		Error       string `json:"error"`
+		FileResults []struct {
+			Filename string  `json:"filename"`
+			Duration flexInt `json:"duration"` // nanosegundos
+			Size     flexInt `json:"size"`
+		} `json:"fileResults"`
+	} `json:"egressInfo"`
 }
 
 var errBadSignature = errors.New("invalid livekit webhook signature")
@@ -85,10 +112,56 @@ func (h *LiveKitWebhook) serve(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteError(w, http.StatusBadRequest, "invalid_body", "cuerpo inválido")
 		return
 	}
+	if h.radioEvent(r, ev) {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
 	if ev.Event == "participant_left" {
 		h.countVoice(r, ev)
 	}
 	w.WriteHeader(http.StatusOK)
+}
+
+// radioEvent forwards the events of radio-* rooms to Radio Kyq and reports whether it did.
+func (h *LiveKitWebhook) radioEvent(r *http.Request, ev webhookEvent) bool {
+	room := ev.Room.Name
+	if ev.EgressInfo.RoomName != "" {
+		room = ev.EgressInfo.RoomName
+	}
+	if !strings.HasPrefix(room, "radio-") {
+		return false
+	}
+	if h.Radio == nil {
+		return true
+	}
+	ctx := r.Context()
+	switch ev.Event {
+	case "track_published":
+		if ev.Track.Source == "" || ev.Track.Source == "MICROPHONE" {
+			h.Radio.TrackPublished(ctx, room, ev.Participant.Identity)
+		}
+	case "track_unpublished":
+		h.Radio.TrackUnpublished(ctx, room, ev.Participant.Identity)
+	case "participant_left":
+		seconds := int64(0)
+		if ev.Participant.JoinedAt > 0 {
+			seconds = int64(ev.CreatedAt - ev.Participant.JoinedAt)
+		}
+		h.Radio.ParticipantLeft(ctx, room, ev.Participant.Identity, seconds)
+	case "egress_started":
+		h.Radio.EgressStarted(ctx, room, ev.EgressInfo.EgressID)
+	case "egress_ended":
+		info := ev.EgressInfo
+		failed := info.Status == "EGRESS_FAILED" || info.Status == "EGRESS_ABORTED" || info.Error != ""
+		var key string
+		var durationMs, size int64
+		if len(info.FileResults) > 0 {
+			f := info.FileResults[0]
+			key, durationMs, size = f.Filename, int64(f.Duration)/1_000_000, int64(f.Size)
+		}
+		h.Radio.EgressEnded(ctx, room, info.EgressID, key, durationMs, size, failed)
+	}
+	return true
 }
 
 func (h *LiveKitWebhook) countVoice(r *http.Request, ev webhookEvent) {
@@ -118,7 +191,15 @@ func (h *LiveKitWebhook) roomDriver(r *http.Request, room string) (uuid.UUID, er
 	var tripID uuid.UUID
 	var err error
 	if strings.HasPrefix(room, "sos-") {
-		tripID, err = h.Store.GetSOSAlertTrip(r.Context(), room)
+		alert, err := h.Store.GetSOSAlertRoom(r.Context(), room)
+		if err != nil {
+			return uuid.Nil, err
+		}
+		// 011: una alerta desde Radio sin viaje cuenta en quien la levantó (research R7).
+		if !alert.TripID.Valid {
+			return alert.RaisedBy, nil
+		}
+		tripID = alert.TripID.UUID
 	} else {
 		tripID, err = uuid.Parse(strings.TrimPrefix(room, "trip-"))
 	}

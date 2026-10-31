@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:kyq_api/kyq_api.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 String _message(ApiException e) => switch (e.code) {
   'network' => 'Sin conexión con el servidor: el backend no responde.',
@@ -33,11 +34,14 @@ const overallLabels = {
 };
 
 class HealthState {
-  const HealthState({this.report, this.loading = false, this.error});
+  const HealthState({this.report, this.loading = false, this.error, this.sessions});
 
   final HealthReport? report;
   final bool loading;
   final String? error;
+
+  /// 009: sesiones sin fallos por app; null si no se pudo leer.
+  final SessionsReport? sessions;
 }
 
 /// Salud de las dependencias (T031, FR-018–FR-020); se refresca cada [refreshEvery].
@@ -55,12 +59,24 @@ class HealthCubit extends Cubit<HealthState> {
 
   Future<void> load() async {
     if (state.loading) return;
-    emit(HealthState(report: state.report, loading: true));
+    emit(HealthState(report: state.report, loading: true, sessions: state.sessions));
+    final sessions = _sessions();
     try {
       final report = await _api.adminHealth();
-      if (!isClosed) emit(HealthState(report: report));
+      final s = await sessions;
+      if (!isClosed) emit(HealthState(report: report, sessions: s ?? state.sessions));
     } on ApiException catch (e) {
-      if (!isClosed) emit(HealthState(report: state.report, error: _message(e)));
+      final s = await sessions;
+      if (!isClosed) emit(HealthState(report: state.report, error: _message(e), sessions: s ?? state.sessions));
+    }
+  }
+
+  /// Las sesiones nunca rompen la página (009, FR-018).
+  Future<SessionsReport?> _sessions() async {
+    try {
+      return await _api.healthSessions();
+    } on Object {
+      return null;
     }
   }
 
@@ -153,9 +169,75 @@ class HealthPage extends StatelessWidget {
                   ],
                 ),
               ],
+              if (state.sessions != null) ...[const SizedBox(height: 16), _SessionsCard(report: state.sessions!)],
             ],
           );
         },
+      ),
+    );
+  }
+}
+
+const _appLabels = {'driver': 'Kyq Conductor', 'rider': 'Kyq Pasajero', 'admin': 'Panel'};
+
+String _pct(double? v) => v == null ? '—' : '${(v * 100).toStringAsFixed(2).replaceAll('.', ',')} %';
+
+/// 009: porcentaje de sesiones sin fallos por app (FR-017), con "no configurado" o "no
+/// disponible" cuando la herramienta de errores no responde (FR-018).
+class _SessionsCard extends StatelessWidget {
+  const _SessionsCard({required this.report});
+
+  final SessionsReport report;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final target = _pct(report.target);
+    return Card(
+      key: const Key('health.sessions'),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Sesiones sin fallos', style: theme.textTheme.titleMedium),
+            const SizedBox(height: 4),
+            switch (report.status) {
+              'not_configured' => const Text(
+                'No configurado: el backend no tiene acceso de lectura a la herramienta de errores.',
+                key: Key('health.sessions.status'),
+              ),
+              'unavailable' => const Text(
+                'No disponible: la herramienta de errores no respondió. Se reintenta en la próxima comprobación.',
+                key: Key('health.sessions.status'),
+              ),
+              _ => Text('Meta: $target o más · últimas 24 horas y 7 días', style: theme.textTheme.bodySmall),
+            },
+            for (final a in report.apps)
+              ListTile(
+                key: ValueKey('health.sessions.${a.app}'),
+                contentPadding: EdgeInsets.zero,
+                leading: Icon(
+                  a.belowTarget ? Icons.warning_amber : Icons.check_circle,
+                  color: a.belowTarget ? scheme.error : const Color(0xFF2E7D32),
+                ),
+                title: Text(_appLabels[a.app] ?? a.app),
+                subtitle: Text(
+                  '24 h: ${_pct(a.crashFree24h)} · 7 días: ${_pct(a.crashFree7d)}'
+                  '${a.topRelease == null ? '' : ' · versión más usada ${a.topRelease}'}',
+                  style: a.belowTarget ? TextStyle(color: scheme.error, fontWeight: FontWeight.w600) : null,
+                ),
+                trailing: a.link.isEmpty
+                    ? null
+                    : IconButton(
+                        tooltip: 'Ver en la herramienta de errores',
+                        icon: const Icon(Icons.open_in_new),
+                        onPressed: () => launchUrl(Uri.parse(a.link), webOnlyWindowName: '_blank'),
+                      ),
+              ),
+          ],
+        ),
       ),
     );
   }

@@ -17,6 +17,7 @@ Principios y stack: [.specify/memory/constitution.md](.specify/memory/constituti
 | `packages/kyq_api` | Cliente REST del contrato `specs/*/contracts/api.yaml` |
 | `packages/kyq_realtime` | Eventos en tiempo real (Centrifugo) |
 | `packages/kyq_ptt` | Walkie-talkie PTT (LiveKit) |
+| `packages/kyq_radio` | Radio Kyq (011): walkie-talkie permanente compartido por las dos apps (lista, conversación, historial, canales, modo auto) |
 | `packages/kyq_ui` | Tema, login OTP y kit de seguridad comunes (botón SOS, contactos, PIN, compartir viaje) |
 | `backend` | Monolito modular en Go |
 | `backend/web/share` | Página pública del viaje compartido (HTML + MapLibre GL JS, embebida en la API) |
@@ -94,6 +95,13 @@ Opcionales: `--dart-define=KYQ_MAP_STYLE_URL=...` (por defecto `http://<host>:80
 `--dart-define=KYQ_SENTRY_DSN=...`. El panel web (`apps/kyq_admin_web`) usa además
 `--dart-define=KYQ_REALTIME_URL=...` para la cola en vivo de la consola de emergencias. Con `KYQ_DEV_OTP_CODE` en el `.env` no se envían SMS y se
 entra con ese código.
+
+**Radio Kyq (011)** va dentro de las dos apps en `/radio` (Kyq Conductor: entrada "Radio" en el
+inicio; Kyq Pasajero: ícono de antena en Mis Conductores Elegidos). Los enlaces de invitación
+`https://<host>/r/{code}` abren `kyq://radio/{code}` o la tienda; en el panel están
+Configuración de Radio, Cargas masivas y Reportes. Buckets, registro y variables en
+`infra/README.md` (sección Radio Kyq); la guía de prueba con dos teléfonos en
+`specs/011-radio-kyq/quickstart.md`.
 
 ### 4. Backend fuera de Docker (opcional)
 

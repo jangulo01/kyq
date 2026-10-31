@@ -43,11 +43,35 @@ recuperar eventos tras reconectar.
 | `sos.location` | `sos:{alertId}` | `alert_id`, `lat`, `lng`, `accuracy_m`, `at` | 003 FR-003 |
 | `trip_payment.updated` | `user:{passengerId}` y `user:{driverId}` | `trip_id`, `payment_id`, `status`, `method?` | 004 FR-007 |
 | `trip_payment.reminder` | `user:{passengerId}` | `trip_id`, `payment_id`, `amount_minor`, `currency` | 004 FR-015 |
+| `support.case` | `user:{userId}`, `user:{counterpartId}` y `admin:support` | `case_id`, `status` | 009 FR-009 |
+| `megaphone.started` | `user:{driverId}` | `broadcast_id`, `url`, `token` (solo escucha), `ends_at` | 009 FR-013–FR-015 |
+| `megaphone.ended` | `user:{driverId}` | `broadcast_id` | 009 FR-013 |
+| `reservation.updated` | `user:{passengerId}` y `user:{driverId}` | `reservation_id`, `status` | 010 FR-002, FR-005 |
+| `reservation.notice` | `user:{passengerId}` | `reservation_id`, `status`, `message` | 010 FR-003–FR-005 |
 
 006 añade a `trip.offer`: `delegated` (bool), `can_delegate` (bool), `cooperative_name`
 (string|null) y `requested_driver_name` (string|null, el Conductor Elegido cuando la oferta llega
 derivada). `trip.offer_closed` puede traer `reason = delegated` (el conductor pasó la oferta a su
 cooperativa) y `trip.status` puede traer `cancel_reason = no_driver_available`.
+
+008 añade a `trip.offer`: `origin` (`chosen_driver` \| `cooperative` \| `zone_pool`), `loyal_client`
+(bool: el pasajero está en la cartera del conductor, "⭐ Cliente de tu cartera"), `trips_together`
+(viajes completados de la pareja), `pickup_distance_m` (int|null, línea recta a la recogida) y
+`preferential_discount_pct` (descuento aplicado a `suggested_fare_minor`, RN-KYQ-013). En la bolsa
+zonal, `trip.delegated` llega con `cooperative_id` y `cooperative_name` nulos cuando la oferta pasa
+al siguiente conductor.
+
+009: `admin:support` (solo administradores) avisa a la bandeja de soporte; `support.case` no
+lleva texto: la app vuelve a pedir el caso. La torre (`TowerDriver`) trae `active_trip_id` para
+abrir el detalle. El comunicado del megáfono es una sala LiveKit `mega-{broadcastId}` de un solo
+sentido: el administrador publica el micrófono y los conductores solo escuchan; dura como mucho
+60 s y no se graba.
+
+010 añade a `trip.offer`: `reservation` (bool, la oferta cumple una reserva de la agenda) y
+`client_note` (string|null, nota privada del conductor sobre el cliente; `trip.offer` solo va al
+canal del conductor, así que la nota nunca llega al pasajero). Los avisos de reserva del conductor
+llegan además como `notice.created` (`reservation_requested`, `reservation_reminder`,
+`reservation_expired`, `reservation_cancelled`).
 
 Los eventos SOS nunca van a `trip:{tripId}` ni al canal de la otra parte del viaje (003 FR-006).
 
@@ -58,3 +82,27 @@ El canal de voz de grupo de la cooperativa (006, `COOP_GROUP`) usa los mismos me
 la sala de la cooperativa (empieza como `coop-{cooperativeId}` y pasa a `coop-{cooperativeId}-{sufijo}`
 cada vez que un miembro sale o es retirado), con un único turno para todo el grupo. Al rotar la sala, los demás se
 desconectan y vuelven a entrar con un token nuevo (los de grupo duran 1 minuto).
+
+## 011 Radio Kyq
+
+Todos los eventos de Radio van a `user:{id}` de cada participante (nunca traen teléfonos):
+
+| Evento | Datos | Cuándo |
+|---|---|---|
+| `radio.message` | `message` (`Message` del contrato) y `silent` (bool) | Un mensaje de voz quedó listo o llegó texto, foto o ubicación |
+| `radio.alert` | igual que `radio.message`; `silent` solo si el conductor silenció al cliente | Alerta de llamada: suena y vibra hasta 60 s o hasta abrirla (FR-022), también en Ocupado |
+| `radio.emergency` | igual que `radio.message`, `silent` siempre `false` | Emergencia desde Radio (FR-031): suena en Ocupado |
+| `radio.presence` | `user_id`, `status` (`available` \| `busy` \| `listen_only` \| `offline`) y, para el propio usuario, `quiet_hours` | Cambio de estado, radio encendida o apagada, latido perdido (90 s) u horario de silencio |
+| `radio.member` | `conversation_id`, `user_id`, `change` (`joined`, `requested`, `approve`, `reject`, `mute`, `unmute`, `remove`, `block`, `unblock`, `role`, `role_by_policy`, `removed_by_policy`, `room_rotated`, `conversation_deleted`) y `display_name` o `role` cuando aplica | Altas, solicitudes, moderación, cambio de política y rotación de sala |
+| `radio.invite` | `conversation_id`, `user_id`, `display_name`, `change` (`accepted`) | Alguien aceptó la invitación de contacto |
+| `radio.settings` | `trial_policy`, `passengers_in_channels`, `retention_days` | El panel cambió la configuración de Radio |
+
+`silent` es `true` cuando el mensaje no debe sonar para ese receptor: está Ocupado (FR-020), tiene
+"Escuchar" apagado (FR-024) o es un cliente que el conductor silenció (FR-003). La app lo deja como
+nuevo con un aviso silencioso.
+
+Cada conversación tiene su sala LiveKit `radio-{conversationId}-{sufijo}` (R1). El token solo deja
+escuchar y mandar datos; publicar llega con el turno (`POST …/ptt/floor`). El turno viaja como en
+001 con `{"type":"floor.taken","user_id":...,"message_id":...}` y `{"type":"floor.released"}`. Al
+expulsar, salir o bloquear, la sala rota y llega `radio.member` con `room_rotated`: la app pide un
+token nuevo.

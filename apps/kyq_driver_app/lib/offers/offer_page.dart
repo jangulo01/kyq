@@ -72,7 +72,26 @@ class _OfferCard extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                 ],
+                if (offer.label case final label?) ...[
+                  Text(
+                    label,
+                    key: const Key('offer.origin'),
+                    style: theme.textTheme.labelLarge?.copyWith(color: theme.colorScheme.primary),
+                  ),
+                  const SizedBox(height: 4),
+                ],
                 Text(offer.passengerName, style: theme.textTheme.headlineSmall),
+                if (offer.clientNote case final note?) ...[
+                  const SizedBox(height: 4),
+                  Row(
+                    key: const Key('offer.note'),
+                    children: [
+                      const Icon(Icons.sticky_note_2_outlined, size: 18),
+                      const SizedBox(width: 6),
+                      Expanded(child: Text(note, style: theme.textTheme.bodyMedium)),
+                    ],
+                  ),
+                ],
                 const SizedBox(height: 12),
                 _Row(icon: Icons.trip_origin, label: 'Recogida', value: formatPoint(offer.pickup)),
                 _Row(icon: Icons.place, label: 'Destino', value: formatPoint(offer.dropoff)),
@@ -82,7 +101,12 @@ class _OfferCard extends StatelessWidget {
                   value: formatDistanceDuration(offer.distanceM, offer.durationS),
                 ),
                 const Divider(height: 24),
-                Text('Tarifa sugerida', style: theme.textTheme.labelLarge),
+                Text(
+                  offer.preferentialDiscountPct > 0
+                      ? 'Tarifa preferencial (−${offer.preferentialDiscountPct} %)'
+                      : 'Tarifa sugerida',
+                  style: theme.textTheme.labelLarge,
+                ),
                 Text(fare, key: const Key('offer.fare'), style: theme.textTheme.headlineMedium),
               ],
             ),

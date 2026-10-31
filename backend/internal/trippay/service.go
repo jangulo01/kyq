@@ -24,8 +24,19 @@ type Service struct {
 	Bold      billing.BoldAPI
 	Notify    *notify.Service
 	Publisher realtime.Publisher
-	Now       func() time.Time
-	Logger    *slog.Logger
+	// Cases keeps the support case of a dispute in step with the payment (009); nil without
+	// the support center.
+	Cases  PaymentCases
+	Now    func() time.Time
+	Logger *slog.Logger
+}
+
+// PaymentCases is the support center seen from 004 (support.Service): the payment case opens
+// when the payment is disputed or marked unpaid and resolves with it (009, FR-010).
+type PaymentCases interface {
+	PaymentCaseOpened(ctx context.Context, q *store.Queries, p store.TripPayment, subject, text string, now time.Time) (uuid.UUID, error)
+	PaymentCaseResolved(ctx context.Context, q *store.Queries, p store.TripPayment, text string, now time.Time) (uuid.UUID, error)
+	Announce(ctx context.Context, caseID uuid.UUID)
 }
 
 func (s *Service) now() time.Time {
@@ -220,6 +231,7 @@ func (s *Service) PendingForPassenger(ctx context.Context, passengerID uuid.UUID
 type change struct {
 	payment *store.TripPayment
 	notices []*store.Notice
+	cases   []uuid.UUID
 }
 
 // mutate locks the payment (driver row first, as everywhere) and saves what fn changes.
@@ -244,6 +256,11 @@ func (s *Service) mutate(ctx context.Context, paymentID uuid.UUID, fn func(q *st
 			return nil
 		}
 		c.payment = &p
+		if caseID, err := s.syncCase(ctx, q, before, p); err != nil {
+			return err
+		} else if caseID != uuid.Nil {
+			c.cases = append(c.cases, caseID)
+		}
 		return save(ctx, q, p)
 	})
 	if err != nil {
@@ -251,6 +268,9 @@ func (s *Service) mutate(ctx context.Context, paymentID uuid.UUID, fn func(q *st
 	}
 	for _, n := range c.notices {
 		s.Notify.Announce(ctx, n)
+	}
+	for _, id := range c.cases {
+		s.Cases.Announce(ctx, id)
 	}
 	if c.payment != nil {
 		s.publishUpdated(ctx, *c.payment)

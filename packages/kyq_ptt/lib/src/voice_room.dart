@@ -8,10 +8,13 @@ sealed class VoiceRoomEvent {
 
 /// Mensaje de datos de la otra parte, p. ej. `{"type":"floor.taken","user_id":"..."}`.
 final class VoiceDataReceived extends VoiceRoomEvent {
-  const VoiceDataReceived(this.message, {this.senderId});
+  const VoiceDataReceived(this.message, {this.senderId, this.senderName});
 
   final Map<String, dynamic> message;
   final String? senderId;
+
+  /// Nombre con el que el backend firmó el token del emisor (011: "Carlos está hablando").
+  final String? senderName;
 }
 
 /// La otra parte emite audio (detección de actividad de voz de la sala).
@@ -49,4 +52,12 @@ abstract interface class VoiceRoom {
   Future<void> sendData(Map<String, Object?> message);
 
   Future<void> disconnect();
+}
+
+/// Sala de Radio Kyq (011, R2): una por conversación encendida, conectada solo para escuchar. La
+/// app puede dejar de reproducir la voz que llega sin salir de la sala (la cola la reproduce luego
+/// desde el registro) y publica el micrófono solo con el turno, como [VoiceRoom].
+abstract interface class ListeningRoom implements VoiceRoom {
+  /// Apagado, la voz que llega no suena; la sala sigue conectada y los mensajes de datos llegan.
+  Future<void> setRemoteAudioEnabled(bool enabled);
 }

@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
-  title: Kyq API (MVP 001 + etapas 002–007)
-  version: 0.3.0
+  title: Kyq API (MVP 001 + etapas 002–011)
+  version: 0.7.0
   description: |
     API REST del MVP Conductor Elegido + Viaje + PTT. Todas las rutas salvo /v1/auth/* exigen
     `Authorization: Bearer <access_token>`. Errores con cuerpo `Error`.
@@ -22,6 +22,10 @@ info:
     Pago del viaje (004, `/v1/trips/{tripId}/payment*`): solo pasajero `bold`, `refresh` y
     `cash`; solo conductor `cash-received`, `cash-dispute` y `unpaid` (`403 forbidden` a la otra
     parte); `409 invalid_state` si el estado del pago no lo permite.
+    009: `/v1/support/*` exige rol `passenger` o `driver`. Un usuario suspendido recibe en el
+    `403 account_suspended` de `otp/verify` y `refresh` una `support_session` (alcance `support`)
+    que solo abre `/v1/support/*`, `/v1/realtime/*` y `/v1/auth/*`; cualquier otra ruta responde
+    `403 account_suspended`. `GET /v1/domains` es pública.
 servers:
   - url: http://localhost:8080
 security:
@@ -67,10 +71,10 @@ paths:
         '400': { $ref: '#/components/responses/Error' }
         '401': { $ref: '#/components/responses/Error' }
         '403':
-          description: '`account_suspended` (007): la cuenta está suspendida por un administrador'
+          description: '`account_suspended` (007): la cuenta está suspendida; 009 añade la sesión de solo soporte'
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/Error' }
+              schema: { $ref: '#/components/schemas/SuspendedError' }
         '409':
           description: '`phone_has_other_role`: el teléfono ya existe con otro rol'
           content:
@@ -93,10 +97,10 @@ paths:
         '200': { $ref: '#/components/responses/Tokens' }
         '401': { $ref: '#/components/responses/Error' }
         '403':
-          description: '`account_suspended` (007)'
+          description: '`account_suspended` (007), con la sesión de solo soporte (009)'
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/Error' }
+              schema: { $ref: '#/components/schemas/SuspendedError' }
 
   /v1/realtime/token:
     post:
@@ -186,6 +190,7 @@ paths:
                     passenger_id: { type: string, format: uuid }
                     display_name: { type: string }
                     affiliated_at: { type: string, format: date-time }
+                    source: { $ref: '#/components/schemas/AffiliationSource' }
 
   /v1/affiliations:
     get:
@@ -199,16 +204,20 @@ paths:
                 type: array
                 items: { $ref: '#/components/schemas/ChosenDriver' }
     post:
-      summary: Afilia un conductor por su QR (FR-006)
+      summary: Afilia un conductor por su QR, su enlace o después de un viaje (FR-006; 008 FR-014–FR-016)
+      description: |
+        Con `qr_token` (y `source` = `qr_scan` por defecto o `link` si llega del enlace del conductor) o
+        con `trip_id` de un viaje COMPLETED del pasajero (origen `post_trip`).
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
-              required: [qr_token]
               properties:
                 qr_token: { type: string }
+                source: { type: string, enum: [qr_scan, link] }
+                trip_id: { type: string, format: uuid }
       responses:
         '201':
           description: Afiliación creada
@@ -220,8 +229,9 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ChosenDriver' }
-        '404': { $ref: '#/components/responses/Error' }
-        '409': { description: '`driver_not_available`: el conductor aún no puede recibir clientes (documentos o suscripción, FR-004 de 002)' }
+        '400': { $ref: '#/components/responses/Error' }
+        '404': { description: '`driver_not_found` o `trip_not_found` (viaje que no es un viaje terminado del pasajero)' }
+        '409': { description: '`driver_not_available`: el conductor aún no puede recibir clientes (documentos, suscripción o suspendido)' }
   /v1/affiliations/{driverId}:
     delete:
       summary: Elimina un conductor de la lista (FR-006)
@@ -230,10 +240,68 @@ paths:
         '204': { description: Eliminado }
         '404': { $ref: '#/components/responses/Error' }
 
+  /v1/driver/dispatch-settings:
+    get:
+      summary: Preferencias de despacho del conductor (008)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DispatchSettings' }
+        '403': { $ref: '#/components/responses/Error' }
+    put:
+      summary: Activa la bolsa zonal y fija el descuento preferencial para su cartera (008 FR-008, FR-011)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [accepts_zone_pool, preferential_discount_pct]
+              properties:
+                accepts_zone_pool: { type: boolean }
+                preferential_discount_pct: { type: integer, minimum: 0, maximum: 30 }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DispatchSettings' }
+        '400': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+
+  /a/{token}:
+    get:
+      summary: Página pública del enlace de un conductor (008 FR-015); solo su nombre y cómo abrir Kyq
+      security: []
+      parameters:
+        - { name: token, in: path, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: Página con el botón `kyq://affiliate/{token}`
+          content:
+            text/html:
+              schema: { type: string }
+        '404':
+          description: Conductor inexistente, sin alta completa o suspendido
+          content:
+            text/html:
+              schema: { type: string }
+
   /v1/fares/quote:
     post:
-      summary: Tarifa sugerida para una ruta (FR-010)
-      requestBody: { $ref: '#/components/requestBodies/Route' }
+      summary: Tarifa sugerida para una ruta (FR-010); con `driver_id`, con su tarifa preferencial (008, RN-KYQ-013)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '#/components/schemas/RouteRequest'
+                - type: object
+                  properties:
+                    driver_id: { type: string, format: uuid, description: 'Conductor al que se pediría; si el pasajero es su cliente, aplica su descuento' }
       responses:
         '200':
           description: OK
@@ -252,20 +320,20 @@ paths:
               allOf:
                 - $ref: '#/components/schemas/RouteRequest'
                 - type: object
-                  required: [driver_id]
                   properties:
                     driver_id: { type: string, format: uuid }
                     dispatch:
                       type: string
-                      enum: [chosen_driver, cooperative]
+                      enum: [chosen_driver, cooperative, zone_pool]
                       default: chosen_driver
-                      description: '`nearest_independent` (opción 3) queda fuera de 006'
+                      description: '`zone_pool` (008): conductor libre más cercano de la bolsa zonal; `driver_id` es obligatorio salvo en la bolsa'
                     allow_delegation:
                       type: boolean
                       default: false
                       description: Consentimiento para pasar a la cooperativa del conductor (RN-KYQ-008)
       responses:
         '201': { $ref: '#/components/responses/Trip' }
+        '400': { description: '`invalid_route` (falta conductor fuera de la bolsa, origen o destino) o `invalid_dispatch`' }
         '403':
           description: '`code` = account_suspended: quien actúa está suspendido y no puede iniciar un viaje (007, FR-016)'
           content:
@@ -465,6 +533,9 @@ paths:
                     voice_minutes: { type: number, description: Minutos de participante en LiveKit de sus viajes (ambas partes) }
                     realtime_events: { type: integer }
                     route_requests: { type: integer }
+                    radio_voice_minutes: { type: number, description: '011: minutos hablados en Radio' }
+                    radio_messages: { type: integer, description: '011: mensajes de Radio guardados' }
+                    radio_storage_mb: { type: number, description: '011: MB guardados en Radio' }
         '400': { $ref: '#/components/responses/Error' }
         '403': { $ref: '#/components/responses/Error' }
 
@@ -1936,6 +2007,7 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/PttCredentials' }
+        '403': { description: '`radio_denied` (011): sin acceso a Radio' }
         '404': { description: '`no_cooperative`: sin cooperativa activa' }
         '503': { description: '`ptt_unavailable`' }
   /v1/driver/cooperative/ptt/floor:
@@ -1950,6 +2022,7 @@ paths:
                 type: object
                 properties:
                   expires_at: { type: string, format: date-time }
+        '403': { description: '`radio_denied` (011): el canal de grupo vive en la conversación de Radio de la cooperativa; sin acceso, en solo escucha, silenciado o sin aceptar el aviso de registro' }
         '404': { description: '`no_cooperative`' }
         '409': { description: '`ptt_busy`: otro miembro habla' }
         '503': { description: '`ptt_unavailable`' }
@@ -2083,11 +2156,1543 @@ paths:
         '404': { $ref: '#/components/responses/Error' }
         '409': { $ref: '#/components/responses/Error' }
 
+  # ---------- 009: operación del panel ----------
+
+  /v1/admin/trips/{tripId}:
+    get:
+      summary: Detalle de un viaje desde la torre, sin teléfonos; cada apertura se registra (009 FR-001–FR-004)
+      parameters: [ { $ref: '#/components/parameters/TripId' } ]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TripInspection' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+
+  /v1/support/cases:
+    get:
+      summary: Casos del usuario, abiertos por él o de los que es parte (009 FR-011)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/SupportCase' } }
+        '403': { $ref: '#/components/responses/Error' }
+    post:
+      summary: Abre un caso con tema, descripción y, opcional, uno de sus viajes de los últimos 30 días (009 FR-005)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [topic, description]
+              properties:
+                topic: { $ref: '#/components/schemas/SupportTopic' }
+                description: { type: string, minLength: 10, maxLength: 2000 }
+                trip_id: { type: [string, 'null'], format: uuid }
+      responses:
+        '201':
+          description: Creado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SupportCaseDetail' }
+        '400': { description: '`invalid_topic`, `invalid_text` o `invalid_trip`', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '403': { $ref: '#/components/responses/Error' }
+  /v1/support/cases/{caseId}:
+    get:
+      summary: Caso con su conversación, sin notas internas
+      parameters: [ { $ref: '#/components/parameters/CaseId' } ]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SupportCaseDetail' }
+        '404': { $ref: '#/components/responses/Error' }
+  /v1/support/cases/{caseId}/messages:
+    post:
+      summary: Responde; reabre un caso esperando al usuario o resuelto (009 FR-007)
+      parameters: [ { $ref: '#/components/parameters/CaseId' } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [body]
+              properties:
+                body: { type: string, minLength: 1, maxLength: 2000 }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SupportCaseDetail' }
+        '400': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { description: '`case_closed`: abre un caso nuevo', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+  /v1/support/trips:
+    get:
+      summary: Viajes del usuario de los últimos 30 días para asociarlos a un caso
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  required: [id, status, created_at, other_party]
+                  properties:
+                    id: { type: string, format: uuid }
+                    status: { type: string }
+                    created_at: { type: string, format: date-time }
+                    other_party: { type: string }
+
+  /v1/admin/support/cases:
+    get:
+      summary: Bandeja de soporte, del más antiguo sin atender al más reciente (009 FR-008)
+      parameters:
+        - { name: status, in: query, schema: { $ref: '#/components/schemas/SupportStatus' } }
+        - { name: topic, in: query, schema: { $ref: '#/components/schemas/SupportTopic' } }
+        - { name: assigned_to, in: query, schema: { type: string }, description: '`me` o el id de un administrador' }
+        - { name: unanswered, in: query, schema: { type: boolean } }
+        - { name: include_closed, in: query, schema: { type: boolean } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/SupportCase' } }
+        '400': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+  /v1/admin/support/cases/{caseId}:
+    get:
+      summary: Caso con su conversación y notas internas
+      parameters: [ { $ref: '#/components/parameters/CaseId' } ]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SupportCaseDetail' }
+        '404': { $ref: '#/components/responses/Error' }
+  /v1/admin/support/cases/{caseId}/messages:
+    post:
+      summary: Responde al usuario o, con `internal`, deja una nota que solo ven los administradores (009 FR-006)
+      parameters: [ { $ref: '#/components/parameters/CaseId' } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [body]
+              properties:
+                body: { type: string, minLength: 1, maxLength: 2000 }
+                internal: { type: boolean }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SupportCaseDetail' }
+        '400': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+  /v1/admin/support/cases/{caseId}/status:
+    post:
+      summary: Cambia el estado del caso; uno cerrado no se reabre (009 FR-007)
+      parameters: [ { $ref: '#/components/parameters/CaseId' } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status: { $ref: '#/components/schemas/SupportStatus' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SupportCaseDetail' }
+        '400': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+  /v1/admin/support/cases/{caseId}/assign:
+    post:
+      summary: Asigna el caso a un administrador o, con null, lo deja sin asignar
+      parameters: [ { $ref: '#/components/parameters/CaseId' } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                admin_id: { type: [string, 'null'], format: uuid }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SupportCaseDetail' }
+        '400': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+  /v1/admin/support/cases/{caseId}/resolve-payment:
+    post:
+      summary: Resuelve el pago de un caso de disputa con las reglas de 004; el caso queda resuelto (009 FR-010)
+      parameters: [ { $ref: '#/components/parameters/CaseId' } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [outcome, note]
+              properties:
+                outcome: { type: string, enum: [paid, unpaid] }
+                note: { type: string, maxLength: 200 }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SupportCaseDetail' }
+        '400': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { description: '`not_payment_case` o `invalid_state`', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /v1/admin/megaphone:
+    get:
+      summary: Registro de comunicados (009 FR-016)
+      parameters:
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 200 } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/MegaphoneBroadcast' } }
+        '400': { $ref: '#/components/responses/Error' }
+    post:
+      summary: Empieza un comunicado de voz a los conductores ONLINE de los hexágonos (009 FR-013, FR-014)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [cells]
+              properties:
+                cells: { type: array, minItems: 1, maxItems: 50, items: { type: string } }
+      responses:
+        '201':
+          description: En el aire; el token deja publicar el micrófono hasta `ends_at`
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MegaphoneStarted' }
+        '400': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '409': { description: '`on_air` o `no_recipients`', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+  /v1/admin/megaphone/{broadcastId}/end:
+    post:
+      summary: Termina el comunicado (al soltar el botón)
+      parameters: [ { $ref: '#/components/parameters/BroadcastId' } ]
+      responses:
+        '204': { description: Terminado }
+        '404': { $ref: '#/components/responses/Error' }
+
+  /v1/admin/health/sessions:
+    get:
+      summary: Porcentaje de sesiones sin fallos por app en 24 h y 7 días, desde Sentry (009 FR-017, FR-018)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SessionsReport' }
+        '403': { $ref: '#/components/responses/Error' }
+
+  /v1/domains:
+    get:
+      summary: Lista de dominios activos firmada por Kyq con Ed25519 (009 FR-020)
+      security: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SignedDomainList' }
+        '503': { description: '`domains_unavailable`: sin clave de firma', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+  /v1/admin/domains:
+    get:
+      summary: Dominios espejo con su estado y latencia (009 FR-019)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MirrorDomainListing' }
+        '403': { $ref: '#/components/responses/Error' }
+    post:
+      summary: Añade un dominio al final de la lista
+      requestBody: { $ref: '#/components/requestBodies/MirrorDomainInput' }
+      responses:
+        '201':
+          description: Creado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MirrorDomain' }
+        '400': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+  /v1/admin/domains/order:
+    put:
+      summary: Fija el orden; debe nombrar cada dominio una vez
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ids]
+              properties:
+                ids: { type: array, items: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MirrorDomainListing' }
+        '400': { $ref: '#/components/responses/Error' }
+  /v1/admin/domains/{domainId}:
+    put:
+      summary: Cambia o activa/desactiva un dominio; no puede quedar ninguno activo (`409 last_active_domain`)
+      parameters: [ { $ref: '#/components/parameters/DomainId' } ]
+      requestBody: { $ref: '#/components/requestBodies/MirrorDomainInput' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MirrorDomain' }
+        '400': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+    delete:
+      summary: Borra un dominio; no el último activo
+      parameters: [ { $ref: '#/components/parameters/DomainId' } ]
+      responses:
+        '204': { description: Borrado }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+
+  # ---------- 010: experiencia nativa ----------
+
+  /v1/reservations:
+    get:
+      summary: Reservas del pasajero, futuras y de las últimas 24 horas (010 US1)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/Reservation' } }
+        '403': { $ref: '#/components/responses/Error' }
+    post:
+      summary: Reserva un viaje con un Conductor Elegido entre 30 minutos y 7 días (010 FR-001, FR-006)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [driver_id, pickup, dropoff, scheduled_at]
+              properties:
+                driver_id: { type: string, format: uuid }
+                pickup: { $ref: '#/components/schemas/Point' }
+                dropoff: { $ref: '#/components/schemas/Point' }
+                pickup_label: { type: string, maxLength: 200 }
+                dropoff_label: { type: string, maxLength: 200 }
+                scheduled_at: { type: string, format: date-time }
+      responses:
+        '201':
+          description: Pendiente de confirmar
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Reservation' }
+        '400': { description: '`invalid_time` o `invalid_reservation`', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '403': { description: '`not_affiliated`', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '409': { description: '`too_many_reservations` (máximo 3)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '422': { $ref: '#/components/responses/Error' }
+  /v1/reservations/{reservationId}/cancel:
+    post:
+      summary: El pasajero cancela antes de la hora, sin cargo (010 FR-005)
+      parameters: [ { $ref: '#/components/parameters/ReservationId' } ]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Reservation' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+  /v1/driver/reservations:
+    get:
+      summary: Agenda del conductor desde hace una hora, con aviso de solapes (010 FR-002)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/Reservation' } }
+        '403': { $ref: '#/components/responses/Error' }
+  /v1/driver/reservations/{reservationId}/accept:
+    post:
+      summary: El conductor confirma una reserva pendiente
+      parameters: [ { $ref: '#/components/parameters/ReservationId' } ]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Reservation' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+  /v1/driver/reservations/{reservationId}/reject:
+    post:
+      summary: El conductor rechaza una reserva pendiente
+      parameters: [ { $ref: '#/components/parameters/ReservationId' } ]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Reservation' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+  /v1/driver/reservations/{reservationId}/cancel:
+    post:
+      summary: El conductor cancela antes de la hora, sin cargo
+      parameters: [ { $ref: '#/components/parameters/ReservationId' } ]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Reservation' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+
+  /v1/driver/clients/{passengerId}:
+    get:
+      summary: Ficha de un cliente con viajes juntos, último viaje, origen, nota privada y próximas reservas (010 FR-007)
+      parameters: [ { $ref: '#/components/parameters/PassengerId' } ]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ClientCard' }
+        '404': { $ref: '#/components/responses/Error' }
+  /v1/driver/clients/{passengerId}/note:
+    put:
+      summary: Guarda o, vacía, borra la nota privada del conductor sobre su cliente (010 FR-008)
+      parameters: [ { $ref: '#/components/parameters/PassengerId' } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [body]
+              properties:
+                body: { type: string, maxLength: 500 }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ClientCard' }
+        '400': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+
+  /v1/places:
+    get:
+      summary: Direcciones y lugares de la ciudad desde 3 caracteres (010 FR-014)
+      parameters:
+        - { name: q, in: query, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: Hasta 8 sugerencias
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/Place' } }
+        '400': { $ref: '#/components/responses/Error' }
+        '503': { description: '`places_unavailable`: sin buscador; marcar en el mapa', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  # 011 Radio Kyq (specs/011-radio-kyq): walkie-talkie permanente con registro a demanda.
+  /v1/radio/me:
+    get:
+      summary: Estado de radio del usuario, acceso efectivo y aceptación pendiente (FR-005, FR-013)
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RadioMe'
+          description: OK
+        4XX:
+          $ref: '#/components/responses/Error'
+        '503':
+          $ref: '#/components/responses/Error'
+      tags:
+      - radio
+    put:
+      summary: Cambia estado, radio encendida o modo de botón (FR-007, FR-019)
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status:
+                  $ref: '#/components/schemas/PresenceStatus'
+                radio_on:
+                  type: boolean
+                push_mode:
+                  type: string
+                  enum:
+                  - hold
+                  - toggle
+                timezone:
+                  type: string
+                  description: Zona horaria IANA de los horarios de silencio (FR-021), p. ej. America/Lima
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RadioMe'
+          description: OK
+        4XX:
+          $ref: '#/components/responses/Error'
+        '503':
+          $ref: '#/components/responses/Error'
+      tags:
+      - radio
+  /v1/radio/me/consent:
+    post:
+      summary: Acepta el aviso de registro con la retención vigente (FR-013)
+      responses:
+        '204':
+          description: Aceptado
+        4XX:
+          $ref: '#/components/responses/Error'
+        '503':
+          $ref: '#/components/responses/Error'
+      tags:
+      - radio
+  /v1/radio/me/heartbeat:
+    post:
+      summary: Latido de presencia cada 30 s con la radio encendida (R5)
+      responses:
+        '204':
+          description: OK
+        4XX:
+          $ref: '#/components/responses/Error'
+        '503':
+          $ref: '#/components/responses/Error'
+      tags:
+      - radio
+  /v1/radio/me/quiet-hours:
+    get:
+      summary: Horarios de silencio (FR-021)
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/QuietHours'
+          description: OK
+        4XX:
+          $ref: '#/components/responses/Error'
+        '503':
+          $ref: '#/components/responses/Error'
+      tags:
+      - radio
+    put:
+      summary: Reemplaza los horarios de silencio
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: array
+              maxItems: 10
+              items:
+                $ref: '#/components/schemas/QuietHours'
+      responses:
+        '204':
+          description: Guardado
+        4XX:
+          $ref: '#/components/responses/Error'
+        '503':
+          $ref: '#/components/responses/Error'
+      tags:
+      - radio
+  /v1/radio/conversations:
+    get:
+      summary: Lista única de contactos, clientes, canales y cooperativa (FR-001)
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Conversation'
+          description: OK
+        4XX:
+          $ref: '#/components/responses/Error'
+        '503':
+          $ref: '#/components/responses/Error'
+      tags:
+      - radio
+  /v1/radio/conversations/{conversationId}:
+    get:
+      summary: Detalle de la conversación con miembros visibles
+      parameters:
+      - $ref: '#/components/parameters/ConversationId'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConversationDetail'
+          description: OK
+        4XX:
+          $ref: '#/components/responses/Error'
+        '503':
+          $ref: '#/components/responses/Error'
+      tags:
+      - radio
+    delete:
+      summary: Borra un contacto (FR-002) o el canal si es el dueño (US4-7)
+      parameters:
+      - $ref: '#/components/parameters/ConversationId'
+      responses:
+        '204':
+          description: Borrado
+        '403':
+          description: '`not_owner`'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        4XX:
+          $ref: '#/components/responses/Error'
+        '503':
+          $ref: '#/components/responses/Error'
+      tags:
+      - radio
+  /v1/radio/conversations/{conversationId}/listening:
+    put:
+      summary: Interruptor "Escuchar" (FR-024); `409 listening_limit` con 10 encendidas
+      parameters:
+      - $ref: '#/components/parameters/ConversationId'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - listening
+              properties:
+                listening:
+                  type: boolean
+      responses:
+        '204':
+          description: OK
+        '409':
+          description: '`listening_limit`'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        4XX:
+          $ref: '#/components/responses/Error'
+        '503':
+          $ref: '#/components/responses/Error'
+      tags:
+      - radio
+  /v1/radio/conversations/{conversationId}/ptt/token:
+    post:
+      summary: Credenciales LiveKit de la sala (solo recibir; 1 min, renovable) (R1)
+      parameters:
+      - $ref: '#/components/parameters/ConversationId'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Credentials'
+          description: OK
+        4XX:
+          $ref: '#/components/responses/Error'
+        '503':
+          $ref: '#/components/responses/Error'
+      tags:
+      - radio
+  /v1/radio/conversations/{conversationId}/ptt/floor:
+    post:
+      summary: Pide el turno; crea el mensaje de voz en `recording` (FR-006)
+      description: '`409 floor_busy` con quién lo tiene; `403 radio_listen_only`, `member_muted`, `blocked`.'
+      parameters:
+      - $ref: '#/components/parameters/ConversationId'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - message_id
+                - expires_at
+                properties:
+                  message_id:
+                    type: string
+                    format: uuid
+                  expires_at:
+                    type: string
+                    format: date-time
+          description: OK
+        '409':
+          description: '`floor_busy`'
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/Error'
+                - type: object
+                  properties:
+                    holder_name:
+                      type: string
+        4XX:
+          $ref: '#/components/responses/Error'
+        '503':
+          $ref: '#/components/responses/Error'
+      tags:
+      - radio
+    delete:
+      summary: Suelta el turno
+      parameters:
+      - $ref: '#/components/parameters/ConversationId'
+      responses:
+        '204':
+          description: Liberado
+        4XX:
+          $ref: '#/components/responses/Error'
+        '503':
+          $ref: '#/components/responses/Error'
+      tags:
+      - radio
+  /v1/radio/conversations/{conversationId}/messages:
+    get:
+      summary: Historial paginado hacia atrás (FR-010, FR-011)
+      parameters:
+      - $ref: '#/components/parameters/ConversationId'
+      - name: before
+        in: query
+        schema:
+          type: string
+          format: uuid
+      - name: limit
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 50
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Message'
+          description: OK
+        4XX:
+          $ref: '#/components/responses/Error'
+        '503':
+          $ref: '#/components/responses/Error'
+      tags:
+      - radio
+    post:
+      summary: Envía texto, ubicación o alerta (FR-022, FR-023); `429 rate_limited`
+      parameters:
+      - $ref: '#/components/parameters/ConversationId'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - kind
+              properties:
+                kind:
+                  type: string
+                  enum:
+                  - text
+                  - location
+                  - alert
+                body:
+                  type: string
+                  maxLength: 500
+                lat:
+                  type: number
+                lng:
+                  type: number
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
+          description: Creado
+        '429':
+          description: '`rate_limited`'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        4XX:
+          $ref: '#/components/responses/Error'
+        '503':
+          $ref: '#/components/responses/Error'
+      tags:
+      - radio
+  /v1/radio/conversations/{conversationId}/photos:
+    post:
+      summary: Reserva un mensaje de foto y devuelve URL de subida prefirmada (R6)
+      parameters:
+      - $ref: '#/components/parameters/ConversationId'
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message_id:
+                    type: string
+                    format: uuid
+                  upload_url:
+                    type: string
+                    format: uri
+                  content_type:
+                    type: string
+                    const: image/jpeg
+          description: Creado
+        4XX:
+          $ref: '#/components/responses/Error'
+        '503':
+          $ref: '#/components/responses/Error'
+      tags:
+      - radio
+  /v1/radio/messages/{messageId}/photo-uploaded:
+    post:
+      summary: Confirma la subida; el mensaje pasa a `ready` y se avisa
+      parameters:
+      - $ref: '#/components/parameters/MessageId'
+      responses:
+        '204':
+          description: OK
+        4XX:
+          $ref: '#/components/responses/Error'
+        '503':
+          $ref: '#/components/responses/Error'
+      tags:
+      - radio
+  /v1/radio/messages/{messageId}/media:
+    get:
+      summary: URL prefirmada de 10 min del audio o la foto (FR-010)
+      parameters:
+      - $ref: '#/components/parameters/MessageId'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  url:
+                    type: string
+                    format: uri
+          description: OK
+        4XX:
+          $ref: '#/components/responses/Error'
+        '503':
+          $ref: '#/components/responses/Error'
+      tags:
+      - radio
+  /v1/radio/messages/{messageId}/receipt:
+    put:
+      summary: Marca escuchado/leído o guardado (FR-011, FR-012); `409 saved_limit`
+      parameters:
+      - $ref: '#/components/parameters/MessageId'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                heard:
+                  type: boolean
+                saved:
+                  type: boolean
+      responses:
+        '204':
+          description: OK
+        '409':
+          description: '`saved_limit`'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        4XX:
+          $ref: '#/components/responses/Error'
+        '503':
+          $ref: '#/components/responses/Error'
+      tags:
+      - radio
+  /v1/radio/messages/{messageId}/report:
+    post:
+      summary: Reporta un mensaje (FR-036)
+      parameters:
+      - $ref: '#/components/parameters/MessageId'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason:
+                  type: string
+                  maxLength: 200
+      responses:
+        '204':
+          description: Reportado
+        4XX:
+          $ref: '#/components/responses/Error'
+        '503':
+          $ref: '#/components/responses/Error'
+      tags:
+      - radio
+  /v1/radio/conversations/{conversationId}/emergency:
+    post:
+      summary: Emergencia desde Radio (FR-030, FR-031); con viaje en curso abre el SOS del viaje
+      description: Sin GPS se envía igual, sin `lat` ni `lng` (como el SOS de 003).
+      parameters:
+      - $ref: '#/components/parameters/ConversationId'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                lat:
+                  type: number
+                lng:
+                  type: number
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  alert_id:
+                    type: string
+                    format: uuid
+                  trip_id:
+                    type:
+                    - string
+                    - 'null'
+                    format: uuid
+          description: Creado
+        4XX:
+          $ref: '#/components/responses/Error'
+        '503':
+          $ref: '#/components/responses/Error'
+      tags:
+      - radio
+  /v1/radio/contacts/invites:
+    post:
+      summary: Crea una invitación de contacto (QR/enlace) o la envía a un teléfono (FR-002)
+      description: Con teléfono responde siempre 202 sin revelar si existe una cuenta.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                phone_e164:
+                  type: string
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Invite'
+          description: Creado
+        '202':
+          description: SMS en cola
+        4XX:
+          $ref: '#/components/responses/Error'
+        '503':
+          $ref: '#/components/responses/Error'
+      tags:
+      - radio
+  /v1/radio/clients:
+    put:
+      summary: '"Radio con mis clientes" del conductor (FR-003)'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - enabled
+              properties:
+                enabled:
+                  type: boolean
+      responses:
+        '204':
+          description: OK
+        4XX:
+          $ref: '#/components/responses/Error'
+        '503':
+          $ref: '#/components/responses/Error'
+      tags:
+      - radio
+  /v1/radio/clients/{passengerId}:
+    put:
+      summary: Silencia o bloquea a un cliente (FR-003)
+      parameters:
+      - name: passengerId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                muted:
+                  type: boolean
+                blocked:
+                  type: boolean
+      responses:
+        '204':
+          description: OK
+        4XX:
+          $ref: '#/components/responses/Error'
+        '503':
+          $ref: '#/components/responses/Error'
+      tags:
+      - radio
+  /v1/radio/channels:
+    post:
+      summary: Crea un canal (FR-015); `409 channel_name_taken`, `409 channel_limit`
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChannelInput'
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Conversation'
+          description: Creado
+        4XX:
+          $ref: '#/components/responses/Error'
+        '503':
+          $ref: '#/components/responses/Error'
+      tags:
+      - radio
+  /v1/radio/channels/{conversationId}:
+    patch:
+      summary: Edita nombre, descripción, foto, modo de entrada o rol máximo de pasajeros (dueño)
+      parameters:
+      - $ref: '#/components/parameters/ConversationId'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChannelInput'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Conversation'
+          description: OK
+        4XX:
+          $ref: '#/components/responses/Error'
+        '503':
+          $ref: '#/components/responses/Error'
+      tags:
+      - radio
+  /v1/radio/channels/{conversationId}/invite:
+    post:
+      summary: Enlace y QR del canal (dueño o moderador)
+      parameters:
+      - $ref: '#/components/parameters/ConversationId'
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Invite'
+          description: Creado
+        4XX:
+          $ref: '#/components/responses/Error'
+        '503':
+          $ref: '#/components/responses/Error'
+      tags:
+      - radio
+  /v1/radio/channels/{conversationId}/members/{userId}:
+    put:
+      summary: Aprueba, rechaza, silencia, expulsa, bloquea o cambia rol (FR-016)
+      parameters:
+      - $ref: '#/components/parameters/ConversationId'
+      - name: userId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                action:
+                  type: string
+                  enum:
+                  - approve
+                  - reject
+                  - mute
+                  - unmute
+                  - remove
+                  - block
+                  - unblock
+                role:
+                  $ref: '#/components/schemas/Role'
+      responses:
+        '204':
+          description: OK
+        '403':
+          description: '`not_moderator`'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        4XX:
+          $ref: '#/components/responses/Error'
+        '503':
+          $ref: '#/components/responses/Error'
+      tags:
+      - radio
+  /v1/radio/channels/{conversationId}/leave:
+    post:
+      summary: Sale del canal; `403 cooperative_channel` para el de cooperativa
+      parameters:
+      - $ref: '#/components/parameters/ConversationId'
+      responses:
+        '204':
+          description: OK
+        4XX:
+          $ref: '#/components/responses/Error'
+        '503':
+          $ref: '#/components/responses/Error'
+      tags:
+      - radio
+  /v1/radio/invites/{code}:
+    get:
+      summary: Vista de la invitación (quién invita, a qué); pública sin datos personales
+      security: []
+      parameters:
+      - $ref: '#/components/parameters/InviteCode'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InvitePreview'
+          description: OK
+        '410':
+          description: '`invite_expired`'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        4XX:
+          $ref: '#/components/responses/Error'
+        '503':
+          $ref: '#/components/responses/Error'
+      tags:
+      - radio
+  /v1/radio/invites/{code}/accept:
+    post:
+      summary: Acepta un contacto o pide entrar a un canal (FR-032)
+      parameters:
+      - $ref: '#/components/parameters/InviteCode'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Conversation'
+          description: OK
+        '202':
+          description: Pendiente de aprobación
+        4XX:
+          $ref: '#/components/responses/Error'
+        '503':
+          $ref: '#/components/responses/Error'
+      tags:
+      - radio
+  /r/{code}:
+    get:
+      summary: Página del enlace de invitación; abre `kyq://radio/{code}` o la tienda (R9)
+      security: []
+      parameters:
+      - $ref: '#/components/parameters/InviteCode'
+      responses:
+        '200':
+          description: Página
+          content:
+            text/html:
+              schema:
+                type: string
+        4XX:
+          $ref: '#/components/responses/Error'
+      tags:
+      - radio
+  /v1/admin/radio/settings:
+    get:
+      summary: Configuración de Radio con costo estimado por retención (FR-040)
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RadioSettings'
+          description: OK
+        4XX:
+          $ref: '#/components/responses/Error'
+        '503':
+          $ref: '#/components/responses/Error'
+      tags:
+      - radio
+    put:
+      summary: Cambia la configuración; queda en la bitácora
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RadioSettingsInput'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RadioSettings'
+          description: OK
+        4XX:
+          $ref: '#/components/responses/Error'
+        '503':
+          $ref: '#/components/responses/Error'
+      tags:
+      - radio
+  /v1/admin/radio/bulk-uploads:
+    get:
+      summary: Cargas masivas con totales (FR-034)
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/BulkUpload'
+          description: OK
+        4XX:
+          $ref: '#/components/responses/Error'
+        '503':
+          $ref: '#/components/responses/Error'
+      tags:
+      - radio
+    post:
+      summary: Sube y valida un CSV sin enviar nada (FR-033); máx. 2 000 filas
+      description: |
+        Columnas `nombre,telefono,tipo,canal,rol` (coma o punto y coma, con o sin encabezado).
+        Un canal que no existe se crea al confirmar con la fila de rol `dueño`, que debe usar ya
+        Kyq Conductor. `413 bulk_too_large` con más de 2 000 filas.
+      parameters:
+      - name: file_name
+        in: query
+        schema:
+          type: string
+      requestBody:
+        content:
+          text/csv:
+            schema:
+              type: string
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BulkUploadDetail'
+          description: Creado
+        4XX:
+          $ref: '#/components/responses/Error'
+        '503':
+          $ref: '#/components/responses/Error'
+      tags:
+      - radio
+  /v1/admin/radio/bulk-uploads/{bulkId}:
+    get:
+      summary: Estado por fila
+      parameters:
+      - name: bulkId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BulkUploadDetail'
+          description: OK
+        4XX:
+          $ref: '#/components/responses/Error'
+        '503':
+          $ref: '#/components/responses/Error'
+      tags:
+      - radio
+  /v1/admin/radio/bulk-uploads/{bulkId}/send:
+    post:
+      summary: Confirma y envía los SMS; con `only_failed` reenvía las fallidas; `409 bulk_state` si ya se envía
+      parameters:
+      - name: bulkId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                only_failed:
+                  type: boolean
+      responses:
+        '202':
+          description: Envío en curso
+        4XX:
+          $ref: '#/components/responses/Error'
+        '503':
+          $ref: '#/components/responses/Error'
+      tags:
+      - radio
+  /v1/admin/radio/channels/{conversationId}:
+    put:
+      summary: Suspende o reactiva un canal de grupo (US11-2); suspendido nadie habla y la sala se cierra
+      parameters:
+      - $ref: '#/components/parameters/ConversationId'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - suspended
+              properties:
+                suspended:
+                  type: boolean
+      responses:
+        '204':
+          description: OK
+        4XX:
+          $ref: '#/components/responses/Error'
+        '503':
+          $ref: '#/components/responses/Error'
+      tags:
+      - radio
+  /v1/admin/radio/reports:
+    get:
+      summary: Cola de reportes abiertos (FR-036)
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Report'
+          description: OK
+        4XX:
+          $ref: '#/components/responses/Error'
+        '503':
+          $ref: '#/components/responses/Error'
+      tags:
+      - radio
+  /v1/admin/radio/reports/{reportId}:
+    get:
+      summary: Abre un reporte con el mensaje y su URL; registra el acceso (FR-037)
+      parameters:
+      - name: reportId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReportDetail'
+          description: OK
+        4XX:
+          $ref: '#/components/responses/Error'
+        '503':
+          $ref: '#/components/responses/Error'
+      tags:
+      - radio
+  /v1/admin/radio/reports/{reportId}/resolve:
+    post:
+      summary: Resuelve el reporte
+      parameters:
+      - name: reportId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - decision
+              properties:
+                decision:
+                  type: string
+                  enum:
+                  - dismissed
+                  - message_deleted
+                  - channel_suspended
+                  - user_suspended
+                note:
+                  type: string
+                  maxLength: 200
+      responses:
+        '204':
+          description: OK
+        4XX:
+          $ref: '#/components/responses/Error'
+        '503':
+          $ref: '#/components/responses/Error'
+      tags:
+      - radio
+  /r/{code}/baja:
+    get:
+      summary: Página para dejar de recibir invitaciones por SMS (FR-035)
+      security: []
+      parameters:
+      - $ref: '#/components/parameters/InviteCode'
+      responses:
+        '200':
+          description: Página
+          content:
+            text/html:
+              schema:
+                type: string
+        4XX:
+          $ref: '#/components/responses/Error'
+      tags:
+      - radio
+    post:
+      summary: Registra la baja del teléfono de la invitación
+      security: []
+      parameters:
+      - $ref: '#/components/parameters/InviteCode'
+      responses:
+        '200':
+          description: Página de confirmación
+          content:
+            text/html:
+              schema:
+                type: string
+        4XX:
+          $ref: '#/components/responses/Error'
+      tags:
+      - radio
+
 components:
   securitySchemes:
     bearer: { type: http, scheme: bearer, bearerFormat: JWT }
 
   parameters:
+    # 011 Radio Kyq
+    ConversationId:
+      name: conversationId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    MessageId:
+      name: messageId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    InviteCode:
+      name: code
+      in: path
+      required: true
+      schema:
+        type: string
+        pattern: ^[0-9A-Za-z]{10}$
     TripId: { name: tripId, in: path, required: true, schema: { type: string, format: uuid } }
     DriverId: { name: driverId, in: path, required: true, schema: { type: string, format: uuid } }
     DocumentId: { name: documentId, in: path, required: true, schema: { type: string, format: uuid } }
@@ -2100,8 +3705,23 @@ components:
     UserId: { name: userId, in: path, required: true, schema: { type: string, format: uuid } }
     CooperativeId: { name: cooperativeId, in: path, required: true, schema: { type: string, format: uuid } }
     MembershipId: { name: membershipId, in: path, required: true, schema: { type: string, format: uuid } }
+    CaseId: { name: caseId, in: path, required: true, schema: { type: string, format: uuid } }
+    BroadcastId: { name: broadcastId, in: path, required: true, schema: { type: string, format: uuid } }
+    DomainId: { name: domainId, in: path, required: true, schema: { type: string, format: uuid } }
+    ReservationId: { name: reservationId, in: path, required: true, schema: { type: string, format: uuid } }
 
   requestBodies:
+    MirrorDomainInput:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [api_url, realtime_url, active]
+            properties:
+              api_url: { type: string, description: 'https://dominio sin ruta' }
+              realtime_url: { type: string, description: 'wss://dominio/connection/websocket' }
+              active: { type: boolean }
     Phone:
       required: true
       content:
@@ -2152,6 +3772,11 @@ components:
               access_token: { type: string }
               refresh_token: { type: string }
               role: { type: string, enum: [passenger, driver, admin] }
+              scope: { type: string, enum: [support], description: '009: solo en la sesión de un suspendido' }
+              radio_invites_applied:
+                type: array
+                items: { type: string, format: uuid }
+                description: '011: conversaciones de Radio a las que llevaron las invitaciones enviadas a este teléfono'
     RealtimeToken:
       description: Token de Centrifugo
       content:
@@ -2220,6 +3845,7 @@ components:
             heading: { type: number }
             speed_mps: { type: number }
             recorded_at: { type: string, format: date-time }
+            accuracy_m: { type: number, description: '010: precisión del GPS en metros (llegada automática con ≤ 50 m)' }
     RouteRequest:
       type: object
       required: [pickup, dropoff]
@@ -2231,8 +3857,22 @@ components:
       properties:
         distance_m: { type: integer }
         duration_s: { type: integer }
-        suggested_fare_minor: { type: integer }
+        suggested_fare_minor: { type: integer, description: 'Con la tarifa preferencial si aplica (008)' }
         currency: { type: string }
+        list_fare_minor: { type: integer, description: '008. Tarifa de la tabla' }
+        preferential_discount_pct: { type: integer, minimum: 0, maximum: 30, description: '008. RN-KYQ-013' }
+    DispatchSettings:
+      type: object
+      description: 008. Bolsa zonal, tarifa preferencial (RN-KYQ-013) y enlace para compartir
+      required: [accepts_zone_pool, preferential_discount_pct, affiliate_link]
+      properties:
+        accepts_zone_pool: { type: boolean }
+        preferential_discount_pct: { type: integer, minimum: 0, maximum: 30 }
+        affiliate_link: { type: string, description: 'KYQ_PUBLIC_BASE_URL/a/{qr_token}' }
+    AffiliationSource:
+      type: string
+      enum: [qr_scan, post_trip, link]
+      description: 008. Origen de la afiliación
     FareTable:
       type: object
       required: [currency, base_minor, per_km_minor, per_minute_minor, minimum_minor]
@@ -2261,6 +3901,9 @@ components:
         cooperative:
           description: 006. Cooperativa activa del conductor, para el selector de despacho
           oneOf: [ { $ref: '#/components/schemas/CooperativeRef' }, { type: 'null' } ]
+        zone:
+          description: '010: zona aproximada (centro del hexágono H3 de res. 8) solo si está libre con ubicación reciente; nunca su posición'
+          oneOf: [ { $ref: '#/components/schemas/DriverZone' }, { type: 'null' } ]
     DriverMe:
       type: object
       properties:
@@ -2322,7 +3965,7 @@ components:
         cancel_reason:
           type: [string, 'null']
           description: 006 añade `no_driver_available` (la delegación no encontró compañero)
-        dispatch: { type: string, enum: [chosen_driver, cooperative], description: '006' }
+        dispatch: { type: string, enum: [chosen_driver, cooperative, zone_pool], description: '006; zone_pool en 008' }
         requested_driver_id: { type: string, format: uuid, description: 006. Conductor Elegido pedido }
         driver_name: { type: string, description: 006. Nombre del conductor actual (cambia al derivar) }
         cooperative_id: { type: [string, 'null'], format: uuid }
@@ -2330,6 +3973,8 @@ components:
         allow_delegation: { type: boolean, description: 006. Consentimiento del pasajero (RN-KYQ-008) }
         handover_count: { type: integer, minimum: 0, maximum: 3 }
         can_delegate: { type: boolean, description: 006. El conductor actual puede pasar la oferta }
+        list_fare_minor: { type: integer, description: 008. Tarifa de la tabla }
+        preferential_discount_pct: { type: integer, minimum: 0, maximum: 30, description: '008. Descuento preferencial aplicado (RN-KYQ-013)' }
 
     # --- 002 ---------------------------------------------------------------------------------
     DocumentProblem:
@@ -2485,7 +4130,7 @@ components:
       type: object
       required: [concept, currency, unit_cost_micro, effective_from]
       properties:
-        concept: { type: string, enum: [voice_minute, realtime_event, route_request, fixed_monthly] }
+        concept: { type: string, enum: [voice_minute, realtime_event, route_request, fixed_monthly, radio_storage, sms_invite] }
         currency: { type: string }
         unit_cost_micro: { type: integer, minimum: 0, description: Millonésimas de unidad mínima }
         effective_from: { type: string, format: date }
@@ -2500,8 +4145,8 @@ components:
           items:
             type: object
             properties:
-              concept: { type: string, enum: [voice_minute, realtime_event, route_request, fixed_monthly] }
-              usage: { type: number, description: 'minutos, eventos o peticiones; 1 para el fijo' }
+              concept: { type: string, enum: [voice_minute, realtime_event, route_request, fixed_monthly, radio_storage, sms_invite] }
+              usage: { type: number, description: 'minutos, eventos o peticiones; 1 para el fijo; GB guardados de Radio' }
               cost_minor: { type: number }
         total_cost_minor: { type: number }
         margin_minor: { type: number }
@@ -2571,6 +4216,10 @@ components:
         unserved_requests: { type: integer }
         pressure: { type: [number, 'null'], description: 'Solicitudes por conductor libre; null sin libres' }
         level: { type: string, enum: [none, balanced, high, no_supply] }
+        trip_ids:
+          type: array
+          description: '009: viajes activos del hexágono, para abrirlos desde la torre'
+          items: { type: string, format: uuid }
     TowerDriver:
       type: object
       required: [driver_id, display_name, presence, lat, lng, location_at, stale, cell]
@@ -2583,6 +4232,7 @@ components:
         location_at: { type: string, format: date-time }
         stale: { type: boolean }
         cell: { type: string }
+        active_trip_id: { type: [string, 'null'], format: uuid, description: '009: viaje activo del conductor ocupado' }
     TowerSnapshot:
       type: object
       required: [generated_at, resolution, window_minutes, stale_after_seconds, totals, cells, drivers]
@@ -2598,7 +4248,7 @@ components:
       type: object
       required: [concept, cost_minor]
       properties:
-        concept: { type: string, enum: [voice_minute, realtime_event, route_request, fixed_monthly] }
+        concept: { type: string, enum: [voice_minute, realtime_event, route_request, fixed_monthly, radio_storage, sms_invite] }
         cost_minor: { type: number }
     FinanceMonth:
       type: object
@@ -2658,6 +4308,13 @@ components:
             net: { type: integer }
             churn_rate: { type: [number, 'null'], description: 'Bajas / (activas al inicio + nuevas)' }
             weekly: { type: array, items: { $ref: '#/components/schemas/CrmWeek' } }
+            created_by_source:
+              type: object
+              description: '008. Nuevas afiliaciones del periodo por origen; suman `created`'
+              properties:
+                qr_scan: { type: integer }
+                post_trip: { type: integer }
+                link: { type: integer }
         repeat:
           type: object
           required: [pairs, repeat_pairs, repeat_rate, completed_trips, avg_trips_per_pair]
@@ -2841,7 +4498,7 @@ components:
       description: Lo que ve quien activó la alerta
       properties:
         id: { type: string, format: uuid }
-        trip_id: { type: string, format: uuid }
+        trip_id: { type: [string, 'null'], format: uuid, description: 'Nulo en una alerta desde Radio sin viaje (011)' }
         status: { $ref: '#/components/schemas/SosStatus' }
         operator_connected: { type: boolean, description: 'Un operador tomó la alerta' }
         escalated: { type: boolean, description: 'Pasó 60 s sin operador: «Seguimos intentando conectar»' }
@@ -2867,7 +4524,8 @@ components:
       type: object
       properties:
         id: { type: string, format: uuid }
-        trip_id: { type: string, format: uuid }
+        trip_id: { type: [string, 'null'], format: uuid, description: 'Nulo: "Sin viaje · desde Radio" (011)' }
+        raised_from: { type: string, enum: [trip, radio] }
         raised_role: { type: string, enum: [passenger, driver] }
         raised_by_name: { type: string }
         status: { $ref: '#/components/schemas/SosStatus' }
@@ -3050,3 +4708,719 @@ components:
         note: { type: [string, 'null'] }
         created_by: { type: string, format: uuid }
         created_at: { type: string, format: date-time }
+
+    # ---------- 009 ----------
+    SuspendedError:
+      allOf:
+        - $ref: '#/components/schemas/Error'
+        - type: object
+          properties:
+            support_session:
+              type: object
+              description: 'Sesión de solo soporte (alcance `support`)'
+              required: [access_token, refresh_token, role, scope]
+              properties:
+                access_token: { type: string }
+                refresh_token: { type: string }
+                role: { type: string, enum: [passenger, driver, admin] }
+                scope: { type: string, enum: [support] }
+    TripInspection:
+      type: object
+      required: [trip_id, status, active, dispatch, passenger, driver, vehicle_plate, pickup, dropoff, distance_m, duration_s, currency, list_fare_minor, suggested_fare_minor, steps, generated_at]
+      properties:
+        trip_id: { type: string, format: uuid }
+        status: { type: string }
+        active: { type: boolean }
+        cancel_reason: { type: [string, 'null'] }
+        dispatch: { type: string, enum: [chosen_driver, cooperative, zone_pool] }
+        handover_count: { type: integer }
+        cooperative_name: { type: [string, 'null'] }
+        passenger: { $ref: '#/components/schemas/PersonRef' }
+        driver: { $ref: '#/components/schemas/PersonRef' }
+        vehicle_plate: { type: string }
+        vehicle_description: { type: string }
+        pickup: { $ref: '#/components/schemas/Point' }
+        dropoff: { $ref: '#/components/schemas/Point' }
+        distance_m: { type: integer }
+        duration_s: { type: integer }
+        currency: { type: string }
+        list_fare_minor: { type: integer }
+        suggested_fare_minor: { type: integer }
+        agreed_fare_minor: { type: [integer, 'null'] }
+        preferential_discount_pct: { type: integer }
+        steps:
+          type: array
+          items:
+            type: object
+            required: [status, at]
+            properties:
+              status: { type: string }
+              at: { type: string, format: date-time }
+        driver_position:
+          type: [object, 'null']
+          properties:
+            lat: { type: number }
+            lng: { type: number }
+            location_at: { type: string, format: date-time }
+            stale: { type: boolean }
+        payment:
+          type: [object, 'null']
+          properties:
+            status: { type: string }
+            method: { type: [string, 'null'] }
+        open_sos:
+          type: [object, 'null']
+          properties:
+            id: { type: string, format: uuid }
+            status: { type: string }
+        generated_at: { type: string, format: date-time }
+    PersonRef:
+      type: object
+      required: [id, display_name]
+      properties:
+        id: { type: string, format: uuid }
+        display_name: { type: string }
+    SupportTopic: { type: string, enum: [trip, payment, lost_item, safety, account, other] }
+    SupportStatus: { type: string, enum: [open, in_progress, waiting_user, resolved, closed] }
+    SupportCase:
+      type: object
+      required: [id, topic, subject, status, user, user_role, created_at, last_message_at, awaiting_reply]
+      properties:
+        id: { type: string, format: uuid }
+        topic: { $ref: '#/components/schemas/SupportTopic' }
+        subject: { type: string }
+        status: { $ref: '#/components/schemas/SupportStatus' }
+        user: { $ref: '#/components/schemas/PersonRef' }
+        user_role: { type: string, enum: [passenger, driver] }
+        counterpart: { oneOf: [ { $ref: '#/components/schemas/PersonRef' }, { type: 'null' } ] }
+        trip_id: { type: [string, 'null'], format: uuid }
+        trip_payment_id: { type: [string, 'null'], format: uuid }
+        assigned_to: { oneOf: [ { $ref: '#/components/schemas/PersonRef' }, { type: 'null' } ] }
+        created_at: { type: string, format: date-time }
+        last_message_at: { type: string, format: date-time }
+        last_user_message_at: { type: [string, 'null'], format: date-time }
+        awaiting_reply: { type: boolean }
+        resolved_at: { type: [string, 'null'], format: date-time }
+        closed_at: { type: [string, 'null'], format: date-time }
+    SupportMessage:
+      type: object
+      required: [id, author_kind, mine, body, internal, created_at]
+      properties:
+        id: { type: string, format: uuid }
+        author_kind: { type: string, enum: [user, admin, system] }
+        author_name: { type: [string, 'null'] }
+        mine: { type: boolean }
+        body: { type: string }
+        internal: { type: boolean }
+        created_at: { type: string, format: date-time }
+    SupportCaseDetail:
+      allOf:
+        - $ref: '#/components/schemas/SupportCase'
+        - type: object
+          required: [messages]
+          properties:
+            messages: { type: array, items: { $ref: '#/components/schemas/SupportMessage' } }
+    MegaphoneStarted:
+      type: object
+      required: [broadcast_id, url, token, ends_at, recipients]
+      properties:
+        broadcast_id: { type: string, format: uuid }
+        url: { type: string }
+        token: { type: string }
+        ends_at: { type: string, format: date-time }
+        recipients: { type: integer }
+    MegaphoneBroadcast:
+      type: object
+      required: [id, admin_name, cells, resolution, started_at, recipients]
+      properties:
+        id: { type: string, format: uuid }
+        admin_name: { type: string }
+        cells: { type: array, items: { type: string } }
+        resolution: { type: integer }
+        started_at: { type: string, format: date-time }
+        ended_at: { type: [string, 'null'], format: date-time }
+        duration_s: { type: [integer, 'null'] }
+        recipients: { type: integer }
+    SessionsReport:
+      type: object
+      required: [status, checked_at, target, apps]
+      properties:
+        status: { type: string, enum: [ok, not_configured, unavailable] }
+        checked_at: { type: string, format: date-time }
+        target: { type: number }
+        apps:
+          type: array
+          items:
+            type: object
+            required: [app, below_target, link]
+            properties:
+              app: { type: string, enum: [driver, rider, admin] }
+              crash_free_24h: { type: [number, 'null'] }
+              crash_free_7d: { type: [number, 'null'] }
+              top_release: { type: [string, 'null'] }
+              below_target: { type: boolean }
+              link: { type: string }
+    SignedDomainList:
+      type: object
+      required: [payload, signature]
+      properties:
+        payload:
+          type: string
+          description: 'JSON {"version","issued_at","domains":[{"api_url","realtime_url"}]} tal como se firmó'
+        signature: { type: string, description: 'Ed25519 en base64 de los bytes de payload' }
+    MirrorDomain:
+      type: object
+      required: [id, api_url, realtime_url, position, active, status]
+      properties:
+        id: { type: string, format: uuid }
+        api_url: { type: string }
+        realtime_url: { type: string }
+        position: { type: integer }
+        active: { type: boolean }
+        status: { type: string, enum: [ok, down, unchecked] }
+        latency_ms: { type: [integer, 'null'] }
+    MirrorDomainListing:
+      type: object
+      required: [version, signing_configured, domains]
+      properties:
+        version: { type: integer }
+        signing_configured: { type: boolean }
+        public_key: { type: [string, 'null'] }
+        domains: { type: array, items: { $ref: '#/components/schemas/MirrorDomain' } }
+
+    # ---------- 010 ----------
+    DriverZone:
+      type: object
+      required: [cell, lat, lng]
+      properties:
+        cell: { type: string }
+        lat: { type: number }
+        lng: { type: number }
+    Reservation:
+      type: object
+      required: [id, passenger, driver, pickup, dropoff, scheduled_at, distance_m, duration_s, currency, fare_minor, list_fare_minor, status]
+      properties:
+        id: { type: string, format: uuid }
+        passenger: { $ref: '#/components/schemas/PersonRef' }
+        driver: { $ref: '#/components/schemas/PersonRef' }
+        pickup: { $ref: '#/components/schemas/Point' }
+        dropoff: { $ref: '#/components/schemas/Point' }
+        pickup_label: { type: [string, 'null'] }
+        dropoff_label: { type: [string, 'null'] }
+        scheduled_at: { type: string, format: date-time }
+        distance_m: { type: integer }
+        duration_s: { type: integer }
+        currency: { type: string }
+        fare_minor: { type: integer, description: 'Tarifa reservada' }
+        list_fare_minor: { type: integer }
+        preferential_discount_pct: { type: integer }
+        status: { type: string, enum: [pending, confirmed, rejected, cancelled, expired, fulfilled, missed] }
+        cancelled_by_me: { type: boolean }
+        trip_id: { type: [string, 'null'], format: uuid }
+        overlaps: { type: boolean, description: 'Agenda: otra reserva del conductor a menos de 30 minutos' }
+    ClientCard:
+      type: object
+      required: [passenger_id, display_name, affiliated_at, source, trips_together, upcoming_reservations]
+      properties:
+        passenger_id: { type: string, format: uuid }
+        display_name: { type: string }
+        affiliated_at: { type: string, format: date-time }
+        source: { $ref: '#/components/schemas/AffiliationSource' }
+        trips_together: { type: integer }
+        last_trip_at: { type: [string, 'null'], format: date-time }
+        note: { type: [string, 'null'], description: 'Privada del conductor; nunca llega al pasajero' }
+        upcoming_reservations:
+          type: array
+          items:
+            type: object
+            required: [id, scheduled_at, status]
+            properties:
+              id: { type: string, format: uuid }
+              scheduled_at: { type: string, format: date-time }
+              status: { type: string }
+    Place:
+      type: object
+      required: [label, detail, lat, lng]
+      properties:
+        label: { type: string }
+        detail: { type: string }
+        lat: { type: number }
+        lng: { type: number }
+
+    # 011 Radio Kyq
+    PresenceStatus:
+      type: string
+      enum:
+      - available
+      - busy
+      - listen_only
+      - offline
+    Role:
+      type: string
+      enum:
+      - owner
+      - moderator
+      - member
+      - listener
+    RadioMe:
+      type: object
+      required:
+      - access
+      - status
+      - radio_on
+      - push_mode
+      - consent_required
+      properties:
+        access:
+          type: string
+          enum:
+          - full
+          - listen
+          - none
+        access_reason:
+          type:
+          - string
+          - 'null'
+          enum:
+          - suspended
+          - no_subscription
+          - trial_ended
+          - not_allowed
+          - null
+        trial_days_left:
+          type:
+          - integer
+          - 'null'
+        status:
+          $ref: '#/components/schemas/PresenceStatus'
+        radio_on:
+          type: boolean
+        push_mode:
+          type: string
+          enum:
+          - hold
+          - toggle
+        timezone:
+          type: string
+        consent_required:
+          type: boolean
+        retention_days:
+          type: integer
+        clients_enabled:
+          type:
+          - boolean
+          - 'null'
+          description: Solo conductores
+    QuietHours:
+      type: object
+      required:
+      - weekdays
+      - starts
+      - ends
+      - enabled
+      properties:
+        weekdays:
+          type: array
+          items:
+            type: integer
+            minimum: 1
+            maximum: 7
+        starts:
+          type: string
+          pattern: ^[0-2][0-9]:[0-5][0-9]$
+        ends:
+          type: string
+          pattern: ^[0-2][0-9]:[0-5][0-9]$
+        enabled:
+          type: boolean
+    Conversation:
+      type: object
+      required:
+      - id
+      - kind
+      - title
+      - listening
+      - unread_count
+      - status
+      properties:
+        id:
+          type: string
+          format: uuid
+        kind:
+          type: string
+          enum:
+          - direct
+          - client
+          - channel
+          - cooperative
+        title:
+          type: string
+        photo_url:
+          type:
+          - string
+          - 'null'
+        peer_status:
+          oneOf:
+          - $ref: '#/components/schemas/PresenceStatus'
+          - type: 'null'
+        online_count:
+          type:
+          - integer
+          - 'null'
+        my_role:
+          oneOf:
+          - $ref: '#/components/schemas/Role'
+          - type: 'null'
+          description: Solo canales y cooperativa
+        my_member_status:
+          type: string
+          enum:
+          - pending
+          - active
+          - muted
+        listening:
+          type: boolean
+        unread_count:
+          type: integer
+        last_message_at:
+          type:
+          - string
+          - 'null'
+          format: date-time
+        status:
+          type: string
+          enum:
+          - active
+          - suspended
+        peer_id:
+          type:
+          - string
+          - 'null'
+          format: uuid
+          description: El otro en un contacto o conversación de cliente
+        peer_muted:
+          type: boolean
+          description: El conductor silenció a este cliente (FR-003)
+        peer_blocked:
+          type: boolean
+          description: El conductor bloqueó a este cliente (FR-003)
+        can_talk:
+          type: boolean
+          description: El botón grande transmite aquí (rol, silenciado, bloqueo, acceso)
+    ConversationDetail:
+      allOf:
+      - $ref: '#/components/schemas/Conversation'
+      - type: object
+        properties:
+          description:
+            type:
+            - string
+            - 'null'
+          join_mode:
+            type:
+            - string
+            - 'null'
+            enum:
+            - open_link
+            - approval
+            - null
+          passenger_role_max:
+            oneOf:
+            - $ref: '#/components/schemas/Role'
+            - type: 'null'
+          members:
+            type: array
+            items:
+              type: object
+              properties:
+                user_id:
+                  type: string
+                  format: uuid
+                display_name:
+                  type: string
+                role:
+                  $ref: '#/components/schemas/Role'
+                status:
+                  type: string
+                  enum:
+                  - pending
+                  - active
+                  - muted
+                  - blocked
+                presence:
+                  $ref: '#/components/schemas/PresenceStatus'
+                is_passenger:
+                  type: boolean
+    ChannelInput:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 3
+          maxLength: 40
+        description:
+          type: string
+          maxLength: 200
+        join_mode:
+          type: string
+          enum:
+          - open_link
+          - approval
+        passenger_role_max:
+          oneOf:
+          - $ref: '#/components/schemas/Role'
+          - type: 'null'
+    Credentials:
+      type: object
+      required:
+      - url
+      - token
+      - room
+      - expires_at
+      properties:
+        url:
+          type: string
+        token:
+          type: string
+        room:
+          type: string
+        expires_at:
+          type: string
+          format: date-time
+    Message:
+      type: object
+      required:
+      - id
+      - conversation_id
+      - kind
+      - status
+      - created_at
+      - heard
+      - saved
+      properties:
+        id:
+          type: string
+          format: uuid
+        conversation_id:
+          type: string
+          format: uuid
+        author_id:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        author_name:
+          type: string
+        kind:
+          type: string
+          enum:
+          - voice
+          - text
+          - photo
+          - location
+          - alert
+          - emergency
+        status:
+          type: string
+          enum:
+          - recording
+          - ready
+        body:
+          type:
+          - string
+          - 'null'
+        lat:
+          type:
+          - number
+          - 'null'
+        lng:
+          type:
+          - number
+          - 'null'
+        duration_ms:
+          type:
+          - integer
+          - 'null'
+        created_at:
+          type: string
+          format: date-time
+        expires_at:
+          type:
+          - string
+          - 'null'
+          format: date-time
+        heard:
+          type: boolean
+        saved:
+          type: boolean
+        has_media:
+          type: boolean
+          description: Tiene audio o foto que pedir a …/media
+    Invite:
+      type: object
+      required:
+      - code
+      - url
+      - expires_at
+      properties:
+        code:
+          type: string
+        url:
+          type: string
+          format: uri
+        expires_at:
+          type: string
+          format: date-time
+    InvitePreview:
+      type: object
+      required:
+      - kind
+      - inviter_name
+      properties:
+        kind:
+          type: string
+          enum:
+          - contact
+          - channel
+        inviter_name:
+          type: string
+        channel_name:
+          type:
+          - string
+          - 'null'
+        invitee_kind:
+          type: string
+          enum:
+          - driver
+          - passenger
+    RadioSettingsInput:
+      type: object
+      properties:
+        trial_policy:
+          type: string
+          enum:
+          - trial
+          - subscription_only
+          - listen_only
+        trial_days:
+          type: integer
+          minimum: 1
+          maximum: 90
+        passengers_in_channels:
+          type: string
+          enum:
+          - none
+          - listen_only
+          - all_roles
+        retention_days:
+          type: integer
+          enum:
+          - 7
+          - 30
+          - 90
+    RadioSettings:
+      allOf:
+      - $ref: '#/components/schemas/RadioSettingsInput'
+      - type: object
+        properties:
+          updated_at:
+            type: string
+            format: date-time
+          updated_by_name:
+            type: string
+          estimated_monthly_cost_minor:
+            type: object
+            description: Costo estimado por retención (7, 30, 90) con los últimos 30 días
+            additionalProperties:
+              type: integer
+    BulkUpload:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        file_name:
+          type: string
+        status:
+          type: string
+          enum:
+          - validated
+          - sending
+          - done
+        rows_total:
+          type: integer
+        counts:
+          type: object
+          additionalProperties:
+            type: integer
+        created_at:
+          type: string
+          format: date-time
+    BulkUploadDetail:
+      allOf:
+      - $ref: '#/components/schemas/BulkUpload'
+      - type: object
+        properties:
+          rows:
+            type: array
+            items:
+              type: object
+              properties:
+                line:
+                  type: integer
+                name:
+                  type: string
+                phone_masked:
+                  type: string
+                  description: 'Ej.: +57 300 *** **12'
+                kind:
+                  type: string
+                  enum:
+                  - driver
+                  - passenger
+                channel:
+                  type: string
+                role:
+                  $ref: '#/components/schemas/Role'
+                status:
+                  type: string
+                  enum:
+                  - pending
+                  - sent
+                  - failed
+                  - accepted
+                  - already_member
+                  - expired
+                error:
+                  type:
+                  - string
+                  - 'null'
+    Report:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        message_kind:
+          type: string
+        conversation_title:
+          type: string
+        reason:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+    ReportDetail:
+      allOf:
+      - $ref: '#/components/schemas/Report'
+      - type: object
+        properties:
+          message:
+            $ref: '#/components/schemas/Message'
+          media_url:
+            type:
+            - string
+            - 'null'
+            format: uri
+          author_name:
+            type: string

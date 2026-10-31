@@ -17,6 +17,14 @@ type Eligibility struct {
 }
 
 func (e Eligibility) CanWork(ctx context.Context, driverID uuid.UUID) (bool, error) {
+	// 007 (FR-016) y 008 (FR-017): un conductor suspendido no gana clientes nuevos.
+	suspended, err := e.Store.IsUserSuspended(ctx, driverID)
+	if err != nil {
+		return false, err
+	}
+	if suspended {
+		return false, nil
+	}
 	profile, err := e.Store.GetDriverProfile(ctx, driverID)
 	if err != nil {
 		return false, err

@@ -112,7 +112,7 @@ void main() {
     });
   });
 
-  test('voz entrante pide foco con atenuación y lo libera al terminar', () async {
+  test('RN-KYQ-011: voz entrante pide foco con atenuación y lo libera al terminar', () async {
     await started();
 
     ptt.room.emit(const VoiceDataReceived({'type': 'floor.taken', 'user_id': 'carlos'}, senderId: 'carlos'));
@@ -126,7 +126,7 @@ void main() {
     expect(ptt.focus.log, ['prepare', 'duck', 'release']);
   });
 
-  test('la actividad de voz remota también atenúa aunque se pierda el mensaje de turno', () async {
+  test('RN-KYQ-011: la actividad de voz remota también atenúa aunque se pierda el mensaje de turno', () async {
     await started();
 
     ptt.room.emit(const VoiceRemoteSpeaking(true));

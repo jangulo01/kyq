@@ -5,9 +5,17 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:kyq_api/kyq_api.dart';
 import 'package:kyq_ptt/kyq_ptt.dart';
+import 'package:kyq_radio/kyq_radio.dart';
 import 'package:kyq_realtime/kyq_realtime.dart';
 import 'package:kyq_ui/kyq_ui.dart';
 
+import '../onboarding/client_card_page.dart';
+import '../reservations/agenda_cubit.dart';
+import '../reservations/agenda_page.dart';
+import '../megaphone/megaphone_banner.dart';
+import '../megaphone/megaphone_cubit.dart';
+import '../dispatch/dispatch_settings_cubit.dart';
+import '../dispatch/dispatch_settings_page.dart';
 import '../background/location_reporter.dart';
 import '../handsfree/hands_free_settings_cubit.dart';
 import '../cooperative/cooperative_channel_page.dart';
@@ -29,6 +37,7 @@ import '../preconsult/preconsult_page.dart';
 import '../preconsult/preconsult_settings_cubit.dart';
 import '../preconsult/preconsult_settings_page.dart';
 import '../presence/presence_cubit.dart';
+import '../radio/radio_location.dart';
 import '../realtime/driver_events.dart';
 import '../subscription/subscription_cubit.dart';
 import '../subscription/subscription_page.dart';
@@ -50,13 +59,20 @@ const realtimeUrl = String.fromEnvironment(
 );
 
 /// Crea el cliente, la sesión con almacenamiento seguro y los servicios de plataforma.
-({KyqApiClient api, AuthCubit auth, DriverServices services}) bootstrap({TokenStore? tokenStore}) {
+/// Con [domains] (009) usa los dominios espejo: la API rota sola y el tiempo real toma el
+/// dominio en uso al abrir la app.
+({KyqApiClient api, AuthCubit auth, DriverServices services}) bootstrap({
+  TokenStore? tokenStore,
+  DomainRotator? domains,
+}) {
   late final AuthCubit auth;
   final api = KyqApiClient(
     baseUrl: apiBaseUrl,
     tokenStore: tokenStore ?? SecureTokenStore(),
     onSessionExpired: () => auth.sessionExpired(),
+    onSupportOnly: () => auth.supportOnly(),
   );
+  if (domains != null) useDomains(api, domains);
   auth = AuthCubit(
     api,
     allowedRoles: {UserRole.driver},
@@ -65,7 +81,7 @@ const realtimeUrl = String.fromEnvironment(
     signUpRole: UserRole.driver,
   )..start();
   final realtime = KyqRealtime(
-    url: realtimeUrl,
+    url: domains?.current.realtimeUrl ?? realtimeUrl,
     connectionToken: api.realtimeToken,
     subscriptionToken: api.subscriptionToken,
   );
@@ -87,6 +103,8 @@ class _KyqDriverAppState extends State<KyqDriverApp> {
   final _messenger = GlobalKey<ScaffoldMessengerState>();
   late final DriverEvents _events = DriverEvents(widget.services.events);
   late final OfferCubit _offers = OfferCubit(widget.api, _events.stream);
+  // 009: comunicados de Kyq por zona; esperan a que termine la voz del viaje.
+  late final MegaphoneCubit _megaphone = MegaphoneCubit(_events.stream, room: widget.services.megaphoneRoom);
   late final PresenceCubit _presence = PresenceCubit(
     api: widget.api,
     events: _events,
@@ -99,6 +117,7 @@ class _KyqDriverAppState extends State<KyqDriverApp> {
         heading: fix.heading,
         speedMps: fix.speedMps,
         recordedAt: fix.recordedAt,
+        accuracyM: fix.accuracyM,
       ),
       onError: (e) => debugPrint('Ubicación: $e'),
     ),
@@ -118,6 +137,29 @@ class _KyqDriverAppState extends State<KyqDriverApp> {
     ptt: widget.services.preconsultPtt,
     handsFree: _handsFree,
   );
+  // 011: Radio Kyq; arranca al conocer la cuenta y escucha aunque se cambie de pantalla.
+  late final RadioMount _radio = RadioMount(
+    api: widget.services.radioApi ?? widget.api,
+    events: (_) => _events.stream,
+    factory: widget.services.radio,
+    newPlayer: widget.services.radioPlayer,
+    location: PositionRadioLocation(widget.services.positions),
+    onShareLink: shareWithPlatform,
+    referrer: widget.services.radioReferrer,
+    keepAlive: widget.services.radioKeepAlive,
+    // Emergencia (FR-030): el SOS de 003, del viaje en curso o sin viaje.
+    onEmergency: (context, c) => openRadioEmergency(
+      context,
+      api: widget.api,
+      platform: widget.services.safety,
+      raise: (fix) => widget.api.radioEmergency(c.id, lat: fix?.lat, lng: fix?.lng),
+      onSetupPin: () => _router.push('/safety'),
+    ),
+    open: (location) => _router.push(location),
+  );
+  // 011: conversaciones a las que llevaron invitaciones por teléfono al registrarse.
+  List<String> _radioApplied = const [];
+  late final StreamSubscription<PresenceState> _presenceSub;
   late final AppLifecycleListener _lifecycle;
   late final StreamSubscription<AuthState> _authSub;
   late final StreamSubscription<OnboardingStatus?> _onboardingSub;
@@ -125,9 +167,12 @@ class _KyqDriverAppState extends State<KyqDriverApp> {
   late final GoRouter _router = buildAuthRouter(
     auth: widget.auth,
     title: 'Kyq Conductor',
+    // 009: Ayuda, y lo único que ve una cuenta suspendida.
+    withSupport: true,
     subtitle: 'Soy conductor',
     newAccountHint: 'Crearemos tu cuenta de conductor. Luego te pediremos tu vehículo y tus documentos.',
-    guard: (context, state) => _onboardingRedirect(state.matchedLocation),
+    // 011: kyq://radio/{code} y …/r/{code} abren la invitación de Radio.
+    guard: (context, state) => radioDeepLinkRedirect(state.uri) ?? _onboardingRedirect(state.matchedLocation),
     routes: [
       GoRoute(path: '/onboarding/vehicle', builder: (context, state) => const VehiclePage()),
       GoRoute(
@@ -145,6 +190,7 @@ class _KyqDriverAppState extends State<KyqDriverApp> {
                 create: (_) => DocumentCaptureCubit(
                   api: widget.api,
                   photos: widget.services.photos,
+                  scanner: widget.services.scanner,
                   docType: type,
                   onSubmitted: _onboarding.load,
                 ),
@@ -159,7 +205,31 @@ class _KyqDriverAppState extends State<KyqDriverApp> {
         builder: (context, state) => const HomePage(),
         routes: [
           GoRoute(path: 'qr', builder: (context, state) => const MyQrPage()),
-          GoRoute(path: 'clients', builder: (context, state) => const ClientsPage()),
+          radioRoute(scope: _radio.wrap),
+          GoRoute(
+            path: 'clients',
+            builder: (context, state) => const ClientsPage(),
+            routes: [
+              // 010: ficha del cliente con nota privada.
+              GoRoute(
+                path: ':id',
+                builder: (context, state) => ClientCardPage(passengerId: state.pathParameters['id']!),
+              ),
+            ],
+          ),
+          // 010: agenda de reservas.
+          GoRoute(
+            path: 'agenda',
+            builder: (context, state) =>
+                BlocProvider(create: (_) => AgendaCubit(widget.api, _events.stream)..load(), child: const AgendaPage()),
+          ),
+          GoRoute(
+            path: 'dispatch',
+            builder: (context, state) => BlocProvider(
+              create: (_) => DispatchSettingsCubit(widget.api)..load(),
+              child: const DispatchSettingsPage(),
+            ),
+          ),
           GoRoute(path: 'notices', builder: (context, state) => const NoticesPage()),
           GoRoute(
             path: 'preconsults',
@@ -251,18 +321,23 @@ class _KyqDriverAppState extends State<KyqDriverApp> {
                         a.trip?.status != TripStatus.completed && b.trip?.status == TripStatus.completed,
                     listener: (context, _) => context.read<TripPaymentCubit>().load(),
                     // El botón físico y la burbuja hablan por el canal del viaje (RN-KYQ-012).
-                    child: HandsFreeAttachment(
-                      handsFree: _handsFree,
-                      controller: context.read<PttController>(),
-                      child: TripPage(
-                        ptt: context.read<PttController>(),
-                        payments: true,
-                        safety: TripSafety(
-                          api: widget.api,
-                          tripId: tripId,
-                          sos: context.read<SosCubit>(),
-                          platform: widget.services.safety,
-                          onSetupPin: () => context.push('/safety'),
+                    // 011: mientras suena o habla el viaje, la radio espera y después sigue (FR-025).
+                    child: _TripVoicePriority(
+                      ptt: context.read<PttController>(),
+                      radio: () => _radio.cubit,
+                      child: HandsFreeAttachment(
+                        handsFree: _handsFree,
+                        controller: context.read<PttController>(),
+                        child: TripPage(
+                          ptt: context.read<PttController>(),
+                          payments: true,
+                          safety: TripSafety(
+                            api: widget.api,
+                            tripId: tripId,
+                            sos: context.read<SosCubit>(),
+                            platform: widget.services.safety,
+                            onSetupPin: () => context.push('/safety'),
+                          ),
                         ),
                       ),
                     ),
@@ -280,6 +355,14 @@ class _KyqDriverAppState extends State<KyqDriverApp> {
   void initState() {
     super.initState();
     _authSub = widget.auth.stream.listen(_onAuth);
+    // 011: sin viaje, el botón físico y la burbuja hablan por la conversación de Radio.
+    _radio.scope.addListener(_onRadioScope);
+    _presenceSub = _presence.stream.listen((s) {
+      if (s.me case final me?) {
+        _radio.start(me.driverId, applied: _radioApplied);
+        _radioApplied = const [];
+      }
+    });
     _lifecycle = AppLifecycleListener(onStateChange: _onLifecycle);
     unawaited(_handsFreeSettings.load());
     // Sin refreshListenable: refrescar el router reconstruye las páginas apiladas (un viaje, una
@@ -291,9 +374,15 @@ class _KyqDriverAppState extends State<KyqDriverApp> {
     _onAuth(widget.auth.state);
   }
 
+  void _onRadioScope() {
+    final cubit = _radio.cubit;
+    _handsFree.setRadio(cubit == null ? null : RadioHandsFree(cubit));
+  }
+
   void _onAuth(AuthState state) {
     switch (state) {
-      case AuthSignedIn():
+      case AuthSignedIn(:final radioInvitesApplied):
+        _radioApplied = radioInvitesApplied;
         if (_presence.state.me == null && !_presence.state.loading) unawaited(_presence.load());
         if (_onboarding.state.onboarding == null && !_onboarding.state.loading) unawaited(_onboarding.load());
         unawaited(_notices.load());
@@ -302,6 +391,7 @@ class _KyqDriverAppState extends State<KyqDriverApp> {
         if (_presence.state.me != null) unawaited(_presence.reset());
         _onboarding.reset();
         _notices.reset();
+        unawaited(_radio.stop());
       default:
         break;
     }
@@ -354,9 +444,13 @@ class _KyqDriverAppState extends State<KyqDriverApp> {
   @override
   void dispose() {
     _authSub.cancel();
+    _presenceSub.cancel();
+    _radio.scope.removeListener(_onRadioScope);
+    unawaited(_radio.dispose());
     _router.dispose();
     _onboardingSub.cancel();
     _offers.close();
+    _megaphone.close();
     _presence.close();
     _onboarding.close();
     _notices.close();
@@ -380,6 +474,7 @@ class _KyqDriverAppState extends State<KyqDriverApp> {
           BlocProvider.value(value: widget.auth),
           BlocProvider.value(value: _presence),
           BlocProvider.value(value: _offers),
+          BlocProvider.value(value: _megaphone),
           BlocProvider.value(value: _onboarding),
           BlocProvider.value(value: _notices),
           BlocProvider.value(value: _preconsults),
@@ -390,24 +485,75 @@ class _KyqDriverAppState extends State<KyqDriverApp> {
           theme: kyqTheme(),
           routerConfig: _router,
           scaffoldMessengerKey: _messenger,
-          builder: (context, child) => MultiBlocListener(
-            listeners: [
-              BlocListener<OfferCubit, OfferState>(
-                bloc: _offers,
-                listenWhen: (a, b) => a.runtimeType != b.runtimeType,
-                listener: _onOffer,
+          // 011: la alerta de llamada o la emergencia de Radio se ve sobre cualquier pantalla.
+          builder: (context, child) => RadioAlertOverlay(
+            mount: _radio,
+            open: (location) => _router.push(location),
+            child: MegaphoneBanner(
+              child: MultiBlocListener(
+                listeners: [
+                  BlocListener<OfferCubit, OfferState>(
+                    bloc: _offers,
+                    listenWhen: (a, b) => a.runtimeType != b.runtimeType,
+                    listener: _onOffer,
+                  ),
+                  // Motivo de cierre de una consulta de voz (005).
+                  BlocListener<PreconsultCubit, PreconsultState>(
+                    bloc: _preconsults,
+                    listenWhen: (a, b) => b.notice != null && a.notice != b.notice,
+                    listener: (context, s) => _messenger.currentState?.showSnackBar(SnackBar(content: Text(s.notice!))),
+                  ),
+                ],
+                child: child!,
               ),
-              // Motivo de cierre de una consulta de voz (005).
-              BlocListener<PreconsultCubit, PreconsultState>(
-                bloc: _preconsults,
-                listenWhen: (a, b) => b.notice != null && a.notice != b.notice,
-                listener: (context, s) => _messenger.currentState?.showSnackBar(SnackBar(content: Text(s.notice!))),
-              ),
-            ],
-            child: child!,
+            ),
           ),
         ),
       ),
     );
   }
+}
+
+/// Mientras habla el conductor o el pasajero del viaje, la radio espera y después sigue (011,
+/// FR-025); al salir del viaje la radio vuelve a sonar.
+class _TripVoicePriority extends StatefulWidget {
+  const _TripVoicePriority({required this.ptt, required this.radio, required this.child});
+
+  final PttController ptt;
+  final RadioCubit? Function() radio;
+  final Widget child;
+
+  @override
+  State<_TripVoicePriority> createState() => _TripVoicePriorityState();
+}
+
+class _TripVoicePriorityState extends State<_TripVoicePriority> {
+  late final StreamSubscription<PttState> _sub;
+  bool _on = false;
+
+  static bool _voice(PttStatus s) =>
+      s == PttStatus.talking || s == PttStatus.requesting || s == PttStatus.remoteTalking;
+
+  void _set(bool on) {
+    if (on == _on) return;
+    _on = on;
+    final cubit = widget.radio();
+    if (cubit != null && !cubit.isClosed) unawaited(cubit.setPriority(on));
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _sub = widget.ptt.stream.listen((s) => _set(_voice(s.status)));
+  }
+
+  @override
+  void dispose() {
+    _sub.cancel();
+    _set(false);
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
 }

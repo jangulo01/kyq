@@ -43,6 +43,7 @@ _TowerCell _$TowerCellFromJson(Map<String, dynamic> json) => _TowerCell(
   level:
       $enumDecodeNullable(_$PressureLevelEnumMap, json['level'], unknownValue: PressureLevel.none) ??
       PressureLevel.none,
+  tripIds: (json['trip_ids'] as List<dynamic>?)?.map((e) => e as String).toList() ?? const <String>[],
 );
 
 Map<String, dynamic> _$TowerCellToJson(_TowerCell instance) => <String, dynamic>{
@@ -56,6 +57,7 @@ Map<String, dynamic> _$TowerCellToJson(_TowerCell instance) => <String, dynamic>
   'unserved_requests': instance.unservedRequests,
   'pressure': instance.pressure,
   'level': _$PressureLevelEnumMap[instance.level]!,
+  'trip_ids': instance.tripIds,
 };
 
 const _$PressureLevelEnumMap = {
@@ -74,6 +76,7 @@ _TowerDriver _$TowerDriverFromJson(Map<String, dynamic> json) => _TowerDriver(
   locationAt: DateTime.parse(json['location_at'] as String),
   stale: json['stale'] as bool? ?? false,
   cell: json['cell'] as String,
+  activeTripId: json['active_trip_id'] as String?,
 );
 
 Map<String, dynamic> _$TowerDriverToJson(_TowerDriver instance) => <String, dynamic>{
@@ -85,6 +88,7 @@ Map<String, dynamic> _$TowerDriverToJson(_TowerDriver instance) => <String, dyna
   'location_at': instance.locationAt.toIso8601String(),
   'stale': instance.stale,
   'cell': instance.cell,
+  'active_trip_id': instance.activeTripId,
 };
 
 const _$DriverPresenceEnumMap = {
@@ -215,6 +219,9 @@ _CrmAffiliations _$CrmAffiliationsFromJson(Map<String, dynamic> json) => _CrmAff
   weekly:
       (json['weekly'] as List<dynamic>?)?.map((e) => CrmWeek.fromJson(e as Map<String, dynamic>)).toList() ??
       const <CrmWeek>[],
+  createdBySource:
+      (json['created_by_source'] as Map<String, dynamic>?)?.map((k, e) => MapEntry(k, (e as num).toInt())) ??
+      const <String, int>{},
 );
 
 Map<String, dynamic> _$CrmAffiliationsToJson(_CrmAffiliations instance) => <String, dynamic>{
@@ -225,6 +232,7 @@ Map<String, dynamic> _$CrmAffiliationsToJson(_CrmAffiliations instance) => <Stri
   'net': instance.net,
   'churn_rate': instance.churnRate,
   'weekly': instance.weekly.map((e) => e.toJson()).toList(),
+  'created_by_source': instance.createdBySource,
 };
 
 _CrmRepeat _$CrmRepeatFromJson(Map<String, dynamic> json) => _CrmRepeat(

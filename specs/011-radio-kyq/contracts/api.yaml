@@ -1,0 +1,97 @@
+openapi: 3.1.0
+info:
+  title: Kyq API — 011 Radio Kyq (rutas nuevas y cambiadas)
+  version: 0.6.0
+  description: |
+    Vista de las rutas de 011. Las definiciones viven en el contrato principal
+    `specs/001-chosen-driver-trip-ptt/contracts/api.yaml`, contra el que corren las pruebas de
+    contrato (`backend/internal/contracttest/radio_test.go`); aquí solo se referencian.
+
+    Reglas comunes: toda ruta `/v1/radio/*` exige sesión; responde `403 radio_access_denied`
+    si `radio.Access` es `none` y `403 radio_listen_only` al intentar transmitir con `listen`;
+    nunca devuelve teléfonos. `404 not_found` si el usuario no participa en la conversación.
+
+    Cambios en rutas existentes:
+    - `POST /v1/auth/otp/verify`: aplica las invitaciones pendientes con ese teléfono y devuelve
+      `radio_invites_applied` (lista de ids de conversación).
+    - `GET /v1/admin/usage`: añade `radio_voice_minutes`, `radio_messages`, `radio_storage_mb`.
+    - Consola SOS de 003: `SOSAlert.trip_id` puede ser null y añade `raised_from` (`trip`|`radio`).
+
+    Tiempo real (Centrifugo, se documenta en contracts/realtime.md de 001):
+    - `user:{id}`: `radio.message` (mensaje nuevo o listo), `radio.presence`, `radio.alert`,
+      `radio.emergency`, `radio.member` (alta, baja, rol), `radio.invite` (contacto pedido o
+      aceptado), `radio.settings` (cambio de política que afecta al usuario).
+    - Sala LiveKit `radio-*`: datos `floor.taken {user_id, message_id}` y `floor.released`.
+paths:
+  /v1/radio/me:
+    $ref: '../../001-chosen-driver-trip-ptt/contracts/api.yaml#/paths/~1v1~1radio~1me'
+  /v1/radio/me/consent:
+    $ref: '../../001-chosen-driver-trip-ptt/contracts/api.yaml#/paths/~1v1~1radio~1me~1consent'
+  /v1/radio/me/heartbeat:
+    $ref: '../../001-chosen-driver-trip-ptt/contracts/api.yaml#/paths/~1v1~1radio~1me~1heartbeat'
+  /v1/radio/me/quiet-hours:
+    $ref: '../../001-chosen-driver-trip-ptt/contracts/api.yaml#/paths/~1v1~1radio~1me~1quiet-hours'
+  /v1/radio/conversations:
+    $ref: '../../001-chosen-driver-trip-ptt/contracts/api.yaml#/paths/~1v1~1radio~1conversations'
+  /v1/radio/conversations/{conversationId}:
+    $ref: '../../001-chosen-driver-trip-ptt/contracts/api.yaml#/paths/~1v1~1radio~1conversations~1{conversationId}'
+  /v1/radio/conversations/{conversationId}/listening:
+    $ref: '../../001-chosen-driver-trip-ptt/contracts/api.yaml#/paths/~1v1~1radio~1conversations~1{conversationId}~1listening'
+  /v1/radio/conversations/{conversationId}/ptt/token:
+    $ref: '../../001-chosen-driver-trip-ptt/contracts/api.yaml#/paths/~1v1~1radio~1conversations~1{conversationId}~1ptt~1token'
+  /v1/radio/conversations/{conversationId}/ptt/floor:
+    $ref: '../../001-chosen-driver-trip-ptt/contracts/api.yaml#/paths/~1v1~1radio~1conversations~1{conversationId}~1ptt~1floor'
+  /v1/radio/conversations/{conversationId}/messages:
+    $ref: '../../001-chosen-driver-trip-ptt/contracts/api.yaml#/paths/~1v1~1radio~1conversations~1{conversationId}~1messages'
+  /v1/radio/conversations/{conversationId}/photos:
+    $ref: '../../001-chosen-driver-trip-ptt/contracts/api.yaml#/paths/~1v1~1radio~1conversations~1{conversationId}~1photos'
+  /v1/radio/messages/{messageId}/photo-uploaded:
+    $ref: '../../001-chosen-driver-trip-ptt/contracts/api.yaml#/paths/~1v1~1radio~1messages~1{messageId}~1photo-uploaded'
+  /v1/radio/messages/{messageId}/media:
+    $ref: '../../001-chosen-driver-trip-ptt/contracts/api.yaml#/paths/~1v1~1radio~1messages~1{messageId}~1media'
+  /v1/radio/messages/{messageId}/receipt:
+    $ref: '../../001-chosen-driver-trip-ptt/contracts/api.yaml#/paths/~1v1~1radio~1messages~1{messageId}~1receipt'
+  /v1/radio/messages/{messageId}/report:
+    $ref: '../../001-chosen-driver-trip-ptt/contracts/api.yaml#/paths/~1v1~1radio~1messages~1{messageId}~1report'
+  /v1/radio/conversations/{conversationId}/emergency:
+    $ref: '../../001-chosen-driver-trip-ptt/contracts/api.yaml#/paths/~1v1~1radio~1conversations~1{conversationId}~1emergency'
+  /v1/radio/contacts/invites:
+    $ref: '../../001-chosen-driver-trip-ptt/contracts/api.yaml#/paths/~1v1~1radio~1contacts~1invites'
+  /v1/radio/clients:
+    $ref: '../../001-chosen-driver-trip-ptt/contracts/api.yaml#/paths/~1v1~1radio~1clients'
+  /v1/radio/clients/{passengerId}:
+    $ref: '../../001-chosen-driver-trip-ptt/contracts/api.yaml#/paths/~1v1~1radio~1clients~1{passengerId}'
+  /v1/radio/channels:
+    $ref: '../../001-chosen-driver-trip-ptt/contracts/api.yaml#/paths/~1v1~1radio~1channels'
+  /v1/radio/channels/{conversationId}:
+    $ref: '../../001-chosen-driver-trip-ptt/contracts/api.yaml#/paths/~1v1~1radio~1channels~1{conversationId}'
+  /v1/radio/channels/{conversationId}/invite:
+    $ref: '../../001-chosen-driver-trip-ptt/contracts/api.yaml#/paths/~1v1~1radio~1channels~1{conversationId}~1invite'
+  /v1/radio/channels/{conversationId}/members/{userId}:
+    $ref: '../../001-chosen-driver-trip-ptt/contracts/api.yaml#/paths/~1v1~1radio~1channels~1{conversationId}~1members~1{userId}'
+  /v1/radio/channels/{conversationId}/leave:
+    $ref: '../../001-chosen-driver-trip-ptt/contracts/api.yaml#/paths/~1v1~1radio~1channels~1{conversationId}~1leave'
+  /v1/radio/invites/{code}:
+    $ref: '../../001-chosen-driver-trip-ptt/contracts/api.yaml#/paths/~1v1~1radio~1invites~1{code}'
+  /v1/radio/invites/{code}/accept:
+    $ref: '../../001-chosen-driver-trip-ptt/contracts/api.yaml#/paths/~1v1~1radio~1invites~1{code}~1accept'
+  /r/{code}:
+    $ref: '../../001-chosen-driver-trip-ptt/contracts/api.yaml#/paths/~1r~1{code}'
+  /v1/admin/radio/settings:
+    $ref: '../../001-chosen-driver-trip-ptt/contracts/api.yaml#/paths/~1v1~1admin~1radio~1settings'
+  /v1/admin/radio/bulk-uploads:
+    $ref: '../../001-chosen-driver-trip-ptt/contracts/api.yaml#/paths/~1v1~1admin~1radio~1bulk-uploads'
+  /v1/admin/radio/bulk-uploads/{bulkId}:
+    $ref: '../../001-chosen-driver-trip-ptt/contracts/api.yaml#/paths/~1v1~1admin~1radio~1bulk-uploads~1{bulkId}'
+  /v1/admin/radio/bulk-uploads/{bulkId}/send:
+    $ref: '../../001-chosen-driver-trip-ptt/contracts/api.yaml#/paths/~1v1~1admin~1radio~1bulk-uploads~1{bulkId}~1send'
+  /v1/admin/radio/reports:
+    $ref: '../../001-chosen-driver-trip-ptt/contracts/api.yaml#/paths/~1v1~1admin~1radio~1reports'
+  /v1/admin/radio/reports/{reportId}:
+    $ref: '../../001-chosen-driver-trip-ptt/contracts/api.yaml#/paths/~1v1~1admin~1radio~1reports~1{reportId}'
+  /v1/admin/radio/reports/{reportId}/resolve:
+    $ref: '../../001-chosen-driver-trip-ptt/contracts/api.yaml#/paths/~1v1~1admin~1radio~1reports~1{reportId}~1resolve'
+  /r/{code}/baja:
+    $ref: '../../001-chosen-driver-trip-ptt/contracts/api.yaml#/paths/~1r~1{code}~1baja'
+  /v1/admin/radio/channels/{conversationId}:
+    $ref: '../../001-chosen-driver-trip-ptt/contracts/api.yaml#/paths/~1v1~1admin~1radio~1channels~1{conversationId}'

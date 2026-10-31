@@ -1,12 +1,19 @@
 import 'package:flutter/material.dart';
+import 'package:kyq_api/kyq_api.dart';
+import 'package:kyq_ui/kyq_ui.dart';
 
 import 'app/app.dart';
 import 'app/bootstrap.dart';
+import 'radio/radio_foreground.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  runBootstrapped(() {
-    final deps = bootstrap();
+  PlatformRadioKeepAlive.configure();
+  runBootstrapped(() async {
+    final domains = await loadDomains(
+      fallback: const KyqDomain(apiUrl: apiBaseUrl, realtimeUrl: realtimeUrl),
+    );
+    final deps = bootstrap(domains: domains);
     runApp(KyqRiderApp(api: deps.api, auth: deps.auth, realtime: deps.realtime));
   });
 }

@@ -56,7 +56,7 @@ void main() {
   setUp(() {
     api = MockApi();
     realtime = FakeRealtime();
-    when(() => api.quote(any(), any())).thenAnswer((_) async => _quote);
+    when(() => api.quote(any(), any(), driverId: any(named: 'driverId'))).thenAnswer((_) async => _quote);
   });
 
   RequestCubit build({CooperativeRef? cooperative = _andina}) => RequestCubit(
@@ -152,7 +152,7 @@ void main() {
     },
   );
 
-  testWidgets('selector triple: mi conductor, su cooperativa y la opción 3 deshabilitada', (tester) async {
+  testWidgets('selector triple: mi conductor, su cooperativa y la opción 3 (008)', (tester) async {
     await tester.pumpWidget(
       MaterialApp(
         theme: kyqTheme(),
@@ -165,8 +165,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('request.dispatch.chosen')), findsOneWidget);
     expect(find.byKey(const Key('request.dispatch.cooperative')), findsOneWidget);
-    expect(find.text('Próximamente'), findsOneWidget);
-    expect(tester.widget<ListTile>(find.byKey(const Key('request.dispatch.nearest'))).enabled, isFalse);
+    expect(find.byKey(const Key('request.dispatch.nearest')), findsOneWidget);
     expect(tester.widget<CheckboxListTile>(find.byKey(const Key('request.allowDelegation'))).value, isTrue);
 
     await tester.tap(find.byKey(const Key('request.dispatch.cooperative')));

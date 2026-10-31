@@ -1,0 +1,106 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:kyq_api/kyq_api.dart';
+import 'package:kyq_ptt/testing.dart';
+import 'package:kyq_radio/kyq_radio.dart';
+import 'package:kyq_radio/testing.dart';
+import 'package:kyq_realtime/kyq_realtime.dart';
+import 'package:kyq_rider_app/app/app.dart';
+import 'package:kyq_ui/kyq_ui.dart';
+import 'package:mocktail/mocktail.dart';
+
+import '../support/fakes.dart';
+
+RadioCubit _fakeRadio(RadioApi api, String userId, Stream<RealtimeEvent> events) => RadioCubit(
+  api: api,
+  myUserId: userId,
+  events: events,
+  rooms: () => FakeListeningRoom(identity: userId),
+  tones: FakeTonePlayer(),
+  focus: FakeAudioFocus(),
+  player: FakeMessagePlayer(),
+);
+
+class _Referrer implements RadioReferrer {
+  String? code = 'ABCDEFGHIJ';
+
+  @override
+  Future<String?> take() async {
+    final c = code;
+    code = null;
+    return c;
+  }
+}
+
+Future<FakeRadioApi> _pump(WidgetTester tester, {RadioReferrer referrer = const NoRadioReferrer()}) async {
+  final api = MockApi();
+  when(
+    () => api.currentSession(),
+  ).thenAnswer((_) async => Tokens(accessToken: fakeAccessToken('p1'), refreshToken: 'r', role: UserRole.passenger));
+  when(() => api.chosenDrivers()).thenAnswer((_) async => const []);
+  final radio = FakeRadioApi(
+    conversations: [fakeContact('c1', title: 'Carlos').copyWith(kind: RadioConversationKind.client)],
+  );
+  final auth = AuthCubit(api, allowedRoles: {UserRole.passenger}, wrongRoleMessage: '')..start();
+  await tester.pumpWidget(
+    KyqRiderApp(
+      api: api,
+      auth: auth,
+      realtime: FakeRealtime(),
+      location: FakeLocation(),
+      radio: _fakeRadio,
+      radioPlayer: FakeMessagePlayer.new,
+      radioApi: radio,
+      radioReferrer: referrer,
+      radioKeepAlive: const NoRadioKeepAlive(),
+    ),
+  );
+  await tester.pumpAndSettle();
+  return radio;
+}
+
+void main() {
+  testWidgets('instalada desde un enlace: abre la invitación tras entrar (Install Referrer, SC-004)', (tester) async {
+    final radio = await _pump(tester, referrer: _Referrer());
+    radio.preview = const RadioInvitePreview(kind: 'contact', inviterName: 'Carlos', inviteeKind: 'passenger');
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('radio.invite.accept')), findsOneWidget);
+  });
+
+  testWidgets('Radio desde Conductores Elegidos: el conductor y "Pedir viaje" (T028)', (tester) async {
+    final api = MockApi();
+    when(
+      () => api.currentSession(),
+    ).thenAnswer((_) async => Tokens(accessToken: fakeAccessToken('p1'), refreshToken: 'r', role: UserRole.passenger));
+    when(() => api.chosenDrivers()).thenAnswer((_) async => const []);
+    final realtime = FakeRealtime();
+    final radio = FakeRadioApi(
+      conversations: [fakeContact('c1', title: 'Carlos').copyWith(kind: RadioConversationKind.client)],
+    );
+    final auth = AuthCubit(api, allowedRoles: {UserRole.passenger}, wrongRoleMessage: '')..start();
+    await tester.pumpWidget(
+      KyqRiderApp(
+        api: api,
+        auth: auth,
+        realtime: realtime,
+        location: FakeLocation(),
+        radio: _fakeRadio,
+        radioPlayer: FakeMessagePlayer.new,
+        radioApi: radio,
+        radioReferrer: const NoRadioReferrer(),
+        radioKeepAlive: const NoRadioKeepAlive(),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(realtime.isSubscribed('user:p1'), isTrue, reason: 'la radio escucha con la sesión');
+
+    await tester.tap(find.byKey(const Key('home.radio')));
+    await tester.pumpAndSettle();
+    expect(find.text('Carlos'), findsOneWidget);
+    expect(find.byKey(const Key('radio.add')), findsNothing, reason: 'el pasajero no agrega contactos');
+
+    await tester.tap(find.byKey(const Key('radio.conversation.c1')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('radio.requestTrip')), findsOneWidget);
+  });
+}

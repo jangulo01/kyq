@@ -13,6 +13,7 @@ workspace:
   - packages/kyq_realtime
   - packages/kyq_ptt
   - packages/kyq_ui
+  - packages/kyq_radio
 
 dev_dependencies:
   melos: ^7.0.0

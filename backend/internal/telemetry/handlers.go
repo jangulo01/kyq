@@ -25,6 +25,10 @@ type DriverUsage struct {
 	VoiceMinutes   float64    `json:"voice_minutes"`
 	RealtimeEvents int64      `json:"realtime_events"`
 	RouteRequests  int64      `json:"route_requests"`
+	// 011: Radio Kyq.
+	RadioVoiceMinutes float64 `json:"radio_voice_minutes"`
+	RadioMessages     int64   `json:"radio_messages"`
+	RadioStorageMB    float64 `json:"radio_storage_mb"`
 }
 
 func (h *Handlers) usage(w http.ResponseWriter, r *http.Request) {
@@ -53,6 +57,8 @@ func (h *Handlers) usage(w http.ResponseWriter, r *http.Request) {
 		u := DriverUsage{
 			DisplayName: row.DisplayName, VoiceMinutes: float64(row.VoiceParticipantSeconds) / 60,
 			RealtimeEvents: row.RealtimeEvents, RouteRequests: row.RouteRequests,
+			RadioVoiceMinutes: round2(float64(row.RadioVoiceSeconds) / 60), RadioMessages: row.RadioMessages,
+			RadioStorageMB: round2(float64(row.RadioStorageBytes) / 1e6),
 		}
 		if row.DriverID != uuid.Nil {
 			id := row.DriverID

@@ -151,6 +151,13 @@ class AlertCard extends StatelessWidget {
           runSpacing: 4,
           children: [
             Text(sosStatusLabel(alert)),
+            // 011: alerta desde el botón Emergencia de Radio, sin viaje.
+            if (alert.tripId == null)
+              const Chip(
+                key: Key('ops.alert.radio'),
+                label: Text('Sin viaje · desde Radio'),
+                visualDensity: VisualDensity.compact,
+              ),
             if (alert.cancelWithoutPin)
               const Chip(
                 key: Key('ops.alert.noPin'),
@@ -248,6 +255,7 @@ class _History extends StatelessWidget {
                     subtitle: Text(
                       [
                         formatDate(a.createdAt.toLocal()),
+                        if (a.tripId == null) 'sin viaje · desde Radio',
                         a.outcome == null ? sosStatusLabel(a) : sosOutcomeLabel(a.outcome!),
                         if (a.claimedByName != null) 'atendió ${a.claimedByName}',
                       ].join(' · '),

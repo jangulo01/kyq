@@ -8,10 +8,14 @@ import 'package:kyq_driver_app/background/location_reporter.dart';
 import 'package:kyq_driver_app/background/online_permissions.dart';
 import 'package:kyq_driver_app/handsfree/platform_hands_free.dart';
 import 'package:kyq_driver_app/onboarding/photo_source.dart';
+import 'package:kyq_driver_app/onboarding/scan/document_scanner.dart';
+import 'package:kyq_driver_app/onboarding/scan/image_tools.dart';
 import 'package:kyq_driver_app/realtime/driver_events.dart';
 import 'package:kyq_driver_app/subscription/checkout_launcher.dart';
 import 'package:kyq_ptt/kyq_ptt.dart';
 import 'package:kyq_ptt/testing.dart';
+import 'package:kyq_radio/kyq_radio.dart';
+import 'package:kyq_radio/testing.dart';
 import 'package:kyq_realtime/kyq_realtime.dart';
 import 'package:kyq_ui/kyq_ui.dart';
 import 'package:mocktail/mocktail.dart';
@@ -64,6 +68,35 @@ class FakePhotoSource implements PhotoSource {
     if (e != null) throw e;
     return next ?? tinyImage;
   }
+
+  @override
+  Future<Uint8List?> compress(Uint8List input) async => input;
+}
+
+/// Escáner falso (010): devuelve [next] o lanza [error]; [sharp] es la nitidez que mide.
+class FakeScanner implements DocumentScanner {
+  int scans = 0;
+  Uint8List? next;
+  Object? error;
+  double? sharp = 200;
+  final rectified = <Corners>[];
+
+  @override
+  Future<Uint8List?> scan() async {
+    scans++;
+    final e = error;
+    if (e != null) throw e;
+    return next ?? tinyImage;
+  }
+
+  @override
+  Future<Uint8List?> rectify(Uint8List photo, Corners corners) async {
+    rectified.add(corners);
+    return photo;
+  }
+
+  @override
+  Future<double?> sharpness(Uint8List photo) async => sharp;
 }
 
 /// Custom Tab falsa: solo anota las URLs abiertas.
@@ -145,12 +178,15 @@ DriverServices fakeServices({
   FakeOnlineService? service,
   PttControllerFactory? ptt,
   FakePhotoSource? photos,
+  FakeScanner? scanner,
   FakeCheckout? checkout,
   PttControllerFactory? preconsultPtt,
   FakeHandsFreePlatform? handsFree,
   FakeHandsFreePrefs? handsFreePrefs,
   FakeOverlayPermission? overlay,
   SafetyPlatform? safety,
+  FakeRadioApi? radioApi,
+  RadioReferrer radioReferrer = const NoRadioReferrer(),
 }) => DriverServices(
   events: events ?? FakeEventSource(),
   permissions: permissions ?? FakePermissions(),
@@ -158,12 +194,29 @@ DriverServices fakeServices({
   positions: FakePositions(),
   ptt: ptt ?? fakePttFactory([]),
   photos: photos ?? FakePhotoSource(),
+  scanner: scanner ?? FakeScanner(),
   checkout: checkout ?? FakeCheckout(),
   preconsultPtt: preconsultPtt ?? fakePttFactory([]),
   handsFree: handsFree ?? FakeHandsFreePlatform(),
   handsFreePrefs: handsFreePrefs ?? FakeHandsFreePrefs(),
   overlayPermission: overlay ?? FakeOverlayPermission(),
   safety: safety ?? fakeSafety(),
+  megaphoneRoom: FakeVoice.new,
+  radio: fakeRadio,
+  radioPlayer: FakeMessagePlayer.new,
+  radioApi: radioApi ?? FakeRadioApi(),
+  radioReferrer: radioReferrer,
+);
+
+/// Radio (011) con salas, tonos y audio falsos.
+RadioCubit fakeRadio(RadioApi api, String userId, Stream<RealtimeEvent> events) => RadioCubit(
+  api: api,
+  myUserId: userId,
+  events: events,
+  rooms: () => FakeListeningRoom(identity: userId),
+  tones: FakeTonePlayer(),
+  focus: FakeAudioFocus(),
+  player: FakeMessagePlayer(),
 );
 
 /// GPS, menú de compartir y marcador falsos del kit de seguridad (003).

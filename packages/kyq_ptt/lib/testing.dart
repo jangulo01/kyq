@@ -76,6 +76,18 @@ class FakeVoiceRoom implements VoiceRoom {
   Future<void> disconnect() async => connected = false;
 }
 
+/// Sala de Radio falsa (011): anota si la voz entrante está encendida.
+class FakeListeningRoom extends FakeVoiceRoom implements ListeningRoom {
+  FakeListeningRoom({super.identity});
+
+  final remoteAudio = <bool>[];
+
+  bool get remoteAudioEnabled => remoteAudio.isEmpty || remoteAudio.last;
+
+  @override
+  Future<void> setRemoteAudioEnabled(bool enabled) async => remoteAudio.add(enabled);
+}
+
 class FakeAudioFocus implements AudioFocus {
   /// `prepare`, `duck` y `release` en orden.
   final log = <String>[];
